@@ -1,0 +1,213 @@
+<div class="admin-dashboard-container">
+  <!-- Acesso Negado -->
+  <div *ngIf="accessDenied" class="access-denied-container">
+    <mat-card class="access-denied-card">
+      <mat-card-content>
+        <mat-icon class="denied-icon">block</mat-icon>
+        <h2>Acesso Negado</h2>
+        <p>Você não tem permissão para acessar o painel administrativo.</p>
+        <p>Apenas administradores podem acessar esta área.</p>
+        <button mat-raised-button color="primary" (click)="goHome()">
+          Voltar para o Início
+        </button>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Dashboard (apenas para admins) -->
+  <div *ngIf="!accessDenied">
+    <!-- Header -->
+    <div class="dashboard-header">
+      <h1 class="dashboard-title">
+        <mat-icon class="dashboard-icon">dashboard</mat-icon>
+        Painel Administrativo
+      </h1>
+      <div class="header-actions">
+        <button mat-raised-button color="accent" (click)="goHome()" class="back-button">
+          <mat-icon>home</mat-icon>
+          Voltar ao Site
+        </button>
+        <button mat-raised-button color="primary" (click)="loadDashboard()">
+          <mat-icon>refresh</mat-icon>
+          Atualizar
+        </button>
+      </div>
+    </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="50"></mat-spinner>
+    <p>Carregando estatísticas...</p>
+  </div>
+
+  <!-- Stats Cards -->
+  <div *ngIf="!loading && stats" class="stats-grid">
+    <!-- Total de Usuários -->
+    <mat-card class="stat-card stat-card-users">
+      <mat-card-content>
+        <div class="stat-icon-wrapper">
+          <mat-icon class="stat-icon">people</mat-icon>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">Total de Usuários</p>
+          <p class="stat-value">{{ stats.totalUsers }}</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Análises Realizadas -->
+    <mat-card class="stat-card stat-card-analyses">
+      <mat-card-content>
+        <div class="stat-icon-wrapper">
+          <mat-icon class="stat-icon">analytics</mat-icon>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">Análises Realizadas</p>
+          <p class="stat-value">{{ stats.analysesPerformed }}</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Créditos Totais -->
+    <mat-card class="stat-card stat-card-credits">
+      <mat-card-content>
+        <div class="stat-icon-wrapper">
+          <mat-icon class="stat-icon">account_balance_wallet</mat-icon>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">Créditos Disponíveis</p>
+          <p class="stat-value">{{ stats.totalCredits }}</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Faturamento Estimado -->
+    <mat-card class="stat-card stat-card-revenue">
+      <mat-card-content>
+        <div class="stat-icon-wrapper">
+          <mat-icon class="stat-icon">attach_money</mat-icon>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">Faturamento Estimado</p>
+          <p class="stat-value">{{ formatCurrency(stats.estimatedRevenue) }}</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Usuários Ativos -->
+    <mat-card class="stat-card stat-card-active">
+      <mat-card-content>
+        <div class="stat-icon-wrapper">
+          <mat-icon class="stat-icon">active_users</mat-icon>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">Usuários Ativos</p>
+          <p class="stat-value">{{ stats.activeUsers }}</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Usage Tabs -->
+  <div *ngIf="!loading && stats" class="usage-section">
+    <mat-tab-group>
+      <!-- Tab: Uso Diário -->
+      <mat-tab label="Uso Diário">
+        <div class="tab-content">
+          <div class="tab-header">
+            <h2>Uso por Dia</h2>
+            <div class="period-selector">
+              <label>Período:</label>
+              <select [(ngModel)]="selectedPeriod" (change)="onPeriodChange()" class="period-select">
+                <option [value]="7">7 dias</option>
+                <option [value]="30">30 dias</option>
+                <option [value]="90">90 dias</option>
+              </select>
+              <button mat-button (click)="loadDailyUsage()" [disabled]="loadingDaily">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="loadingDaily" class="loading-container">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+
+          <div *ngIf="!loadingDaily" class="usage-table-container">
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Registros</th>
+                  <th>Análises</th>
+                  <th>Faturamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let day of dailyUsage" [class.has-data]="day.analyses > 0 || day.registrations > 0">
+                  <td>{{ formatDate(day.date || '') }}</td>
+                  <td>{{ day.registrations }}</td>
+                  <td>{{ day.analyses }}</td>
+                  <td class="revenue-cell">{{ formatCurrency(day.revenue) }}</td>
+                </tr>
+                <tr *ngIf="dailyUsage.length === 0">
+                  <td colspan="4" class="no-data">Nenhum dado disponível</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab: Uso Mensal -->
+      <mat-tab label="Uso Mensal">
+        <div class="tab-content">
+          <div class="tab-header">
+            <h2>Uso por Mês</h2>
+            <div class="period-selector">
+              <label>Período:</label>
+              <select [(ngModel)]="selectedMonths" (change)="onMonthsChange()" class="period-select">
+                <option [value]="6">6 meses</option>
+                <option [value]="12">12 meses</option>
+                <option [value]="24">24 meses</option>
+              </select>
+              <button mat-button (click)="loadMonthlyUsage()" [disabled]="loadingMonthly">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="loadingMonthly" class="loading-container">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+
+          <div *ngIf="!loadingMonthly" class="usage-table-container">
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>Mês</th>
+                  <th>Registros</th>
+                  <th>Análises</th>
+                  <th>Faturamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let month of monthlyUsage" [class.has-data]="month.analyses > 0 || month.registrations > 0">
+                  <td>{{ formatMonth(month.month || '') }}</td>
+                  <td>{{ month.registrations }}</td>
+                  <td>{{ month.analyses }}</td>
+                  <td class="revenue-cell">{{ formatCurrency(month.revenue) }}</td>
+                </tr>
+                <tr *ngIf="monthlyUsage.length === 0">
+                  <td colspan="4" class="no-data">Nenhum dado disponível</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+  </div>
+</div>
+

@@ -1,0 +1,248 @@
+<div class="auth-modal-container">
+  <!-- Header -->
+  <div class="auth-modal-header">
+    <!-- Decorative background elements -->
+    <div class="auth-header-decoration-1"></div>
+    <div class="auth-header-decoration-2"></div>
+
+    <button
+      (click)="close()"
+      class="auth-close-button"
+      aria-label="Fechar modal"
+    >
+      <mat-icon class="auth-close-icon">close</mat-icon>
+    </button>
+
+    <div class="auth-header-content">
+      <!-- Ícone integrado ao background do header -->
+      <div class="auth-header-icon-wrapper">
+        <mat-icon class="auth-header-icon">person</mat-icon>
+      </div>
+      <h2 class="auth-header-title">Bem-vindo!</h2>
+      <p class="auth-header-subtitle">Entre ou crie sua conta para continuar</p>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="auth-modal-content">
+    <mat-tab-group
+      [(selectedIndex)]="selectedTab"
+      class="auth-tabs"
+      animationDuration="300ms"
+    >
+      <!-- Tab Login -->
+      <mat-tab label="Entrar">
+        <div class="auth-tab-content">
+          <div class="auth-form-fields">
+            <!-- Email Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                type="email"
+                [(ngModel)]="loginEmail"
+                placeholder="seu@email.com"
+                autocomplete="email"
+              />
+              <mat-icon matPrefix class="text-gray-400">email</mat-icon>
+            </mat-form-field>
+
+            <!-- Password Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                [type]="showLoginPassword ? 'text' : 'password'"
+                [(ngModel)]="loginPassword"
+                placeholder="Digite sua senha"
+                autocomplete="current-password"
+              />
+              <mat-icon matPrefix class="text-gray-400">lock</mat-icon>
+              <button
+                matSuffix
+                mat-icon-button
+                type="button"
+                (click)="toggleLoginPasswordVisibility()"
+                [attr.aria-label]="showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                class="auth-password-toggle"
+              >
+                <mat-icon>{{ showLoginPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <!-- Error Message -->
+            <div *ngIf="loginError" class="auth-error-message">
+              <mat-icon class="auth-error-icon">error</mat-icon>
+              <span class="auth-error-text">{{ loginError }}</span>
+            </div>
+
+            <!-- Login Button -->
+            <button
+              (click)="onLogin()"
+              [disabled]="loginLoading"
+              class="auth-submit-button"
+            >
+              <mat-spinner
+                *ngIf="loginLoading"
+                diameter="18"
+                class="auth-button-spinner"
+              ></mat-spinner>
+              <mat-icon *ngIf="!loginLoading" class="auth-button-icon"
+                >login</mat-icon
+              >
+              <span>{{ loginLoading ? "Entrando..." : "Entrar" }}</span>
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab Cadastro -->
+      <mat-tab label="Criar Conta">
+        <div class="auth-tab-content">
+          <!-- Etapa de Verificação de Email -->
+          <div *ngIf="showVerificationStep" class="auth-form-fields">
+            <div class="text-center mb-4">
+              <mat-icon class="text-4xl text-green-500 mb-2">mark_email_read</mat-icon>
+              <h3 class="text-lg font-semibold mb-2">Verifique seu email</h3>
+              <p class="text-sm text-gray-600">
+                Enviamos um código de verificação para<br />
+                <strong>{{ registeredEmail }}</strong>
+              </p>
+            </div>
+
+            <!-- Verification Code Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                type="text"
+                [(ngModel)]="verificationCode"
+                placeholder="Digite o código de 6 dígitos"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                (input)="onVerificationCodeInput($event)"
+              />
+              <mat-icon matPrefix class="text-gray-400">vpn_key</mat-icon>
+              <mat-hint class="text-xs text-gray-500"
+                >Digite o código que você recebeu por email</mat-hint
+              >
+            </mat-form-field>
+
+            <!-- Error Message -->
+            <div *ngIf="verifyError" class="auth-error-message">
+              <mat-icon class="auth-error-icon">error</mat-icon>
+              <span class="auth-error-text">{{ verifyError }}</span>
+            </div>
+
+            <!-- Verify Button -->
+            <button
+              (click)="onVerifyEmail()"
+              [disabled]="verifyLoading || !verificationCode || verificationCode.length !== 6"
+              class="auth-submit-button"
+            >
+              <mat-spinner
+                *ngIf="verifyLoading"
+                diameter="18"
+                class="auth-button-spinner"
+              ></mat-spinner>
+              <mat-icon *ngIf="!verifyLoading" class="auth-button-icon"
+                >check_circle</mat-icon
+              >
+              <span>{{ verifyLoading ? "Verificando..." : "Verificar Código" }}</span>
+            </button>
+
+            <!-- Resend Code Button -->
+            <button
+              (click)="onResendCode()"
+              [disabled]="resendLoading"
+              class="auth-resend-button"
+              type="button"
+            >
+              <mat-icon *ngIf="!resendLoading" class="auth-button-icon-small"
+                >refresh</mat-icon
+              >
+              <span>{{ resendLoading ? "Enviando..." : "Reenviar código" }}</span>
+            </button>
+          </div>
+
+          <!-- Formulário de Registro (mostra quando não está na etapa de verificação) -->
+          <div *ngIf="!showVerificationStep" class="auth-form-fields">
+            <!-- Name Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                type="text"
+                [(ngModel)]="registerName"
+                placeholder="Seu nome completo (opcional)"
+                autocomplete="name"
+              />
+              <mat-icon matPrefix class="text-gray-400">person</mat-icon>
+            </mat-form-field>
+
+            <!-- Email Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                type="email"
+                [(ngModel)]="registerEmail"
+                placeholder="seu@email.com"
+                required
+                autocomplete="email"
+              />
+              <mat-icon matPrefix class="text-gray-400">email</mat-icon>
+            </mat-form-field>
+
+            <!-- Password Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                [type]="showRegisterPassword ? 'text' : 'password'"
+                [(ngModel)]="registerPassword"
+                placeholder="Mínimo 6 caracteres"
+                required
+                autocomplete="new-password"
+              />
+              <mat-icon matPrefix class="text-gray-400">lock</mat-icon>
+              <button
+                matSuffix
+                mat-icon-button
+                type="button"
+                (click)="toggleRegisterPasswordVisibility()"
+                [attr.aria-label]="showRegisterPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                class="auth-password-toggle"
+              >
+                <mat-icon>{{ showRegisterPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint class="text-xs text-gray-500"
+                >Use pelo menos 6 caracteres</mat-hint
+              >
+            </mat-form-field>
+
+            <!-- Error Message -->
+            <div *ngIf="registerError" class="auth-error-message">
+              <mat-icon class="auth-error-icon">error</mat-icon>
+              <span class="auth-error-text">{{ registerError }}</span>
+            </div>
+
+            <!-- Register Button -->
+            <button
+              (click)="onRegister()"
+              [disabled]="registerLoading"
+              class="auth-submit-button"
+            >
+              <mat-spinner
+                *ngIf="registerLoading"
+                diameter="18"
+                class="auth-button-spinner"
+              ></mat-spinner>
+              <mat-icon *ngIf="!registerLoading" class="auth-button-icon"
+                >person_add</mat-icon
+              >
+              <span>{{
+                registerLoading ? "Criando conta..." : "Criar Conta"
+              }}</span>
+            </button>
+          </div>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+</div>

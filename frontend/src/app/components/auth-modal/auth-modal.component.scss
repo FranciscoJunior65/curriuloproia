@@ -1,0 +1,633 @@
+:host {
+  display: block;
+}
+
+// Container principal
+.auth-modal-container {
+  width: 100%;
+  max-width: 32rem;
+  margin: 0 auto;
+}
+
+// Header do modal
+.auth-modal-header {
+  position: relative;
+  background: linear-gradient(to right, #4f46e5, #9333ea, #ec4899);
+  padding: 2.5rem 2rem;
+  margin: -24px -24px 0 -24px;
+  width: calc(100% + 48px);
+}
+
+.auth-header-decoration-1 {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8rem;
+  height: 8rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  margin-right: -4rem;
+  margin-top: -4rem;
+}
+
+.auth-header-decoration-2 {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 6rem;
+  height: 6rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  margin-left: -3rem;
+  margin-bottom: -3rem;
+}
+
+.auth-close-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transform: scale(1.1);
+  }
+}
+
+.auth-close-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  margin: 0;
+  color: white;
+}
+
+.auth-header-content {
+  text-align: center;
+  position: relative;
+  z-index: 10;
+}
+
+.auth-header-icon-wrapper {
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-header-icon {
+  color: white;
+  font-size: 6rem !important;
+  width: 6rem !important;
+  height: 6rem !important;
+  line-height: 6rem !important;
+  opacity: 0.95;
+  border: none !important;
+  outline: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.auth-header-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: 768px) {
+    font-size: 2.25rem;
+  }
+}
+
+.auth-header-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+}
+
+// Conteúdo do modal
+.auth-modal-content {
+  background-color: white;
+  padding: 1.25rem 2rem 1.5rem 2rem;
+  margin: 0 -24px -24px -24px;
+  width: calc(100% + 48px);
+}
+
+// Conteúdo dos tabs
+.auth-tab-content {
+  padding: 1rem 0.5rem 0.75rem 0.5rem;
+  overflow: visible;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.auth-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+// Mensagem de erro
+.auth-error-message {
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-left: 3px solid #ef4444;
+  border-radius: 0.375rem;
+  color: #991b1b;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: visible;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.auth-error-icon {
+  color: #ef4444;
+  font-size: 1.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  line-height: 1.125rem;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.auth-error-text {
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+  overflow: visible;
+  min-width: 0;
+  font-weight: 500;
+}
+
+// Botão de submit
+.auth-submit-button {
+  width: 100%;
+  padding: 0.625rem 1.25rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(to right, #4f46e5, #9333ea);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(to right, #4338ca, #7e22ce);
+    box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3);
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.auth-button-spinner {
+  display: inline-block;
+}
+
+.auth-button-icon {
+  font-size: 1.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  line-height: 1.125rem;
+}
+
+// Botão de mostrar/ocultar senha
+.auth-password-toggle {
+  color: #6b7280;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #4f46e5;
+    background-color: transparent;
+  }
+
+  .mat-icon {
+    font-size: 1.25rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    line-height: 1.25rem;
+  }
+}
+
+// Ajuste do ícone de senha quando há botão de toggle
+::ng-deep .auth-tabs .mat-mdc-form-field.mat-form-field-has-icon-suffix .mat-mdc-text-field-wrapper {
+  padding-right: 0;
+}
+
+::ng-deep .auth-tabs .mdc-text-field--with-trailing-icon .mdc-text-field__input {
+  padding-right: 48px !important;
+}
+
+/* Customização dos tabs */
+::ng-deep .auth-tabs .mat-mdc-tab-header {
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 0;
+  padding: 0 8px;
+}
+
+::ng-deep .auth-tabs .mat-mdc-tab-label {
+  min-width: 140px;
+  padding: 20px 24px;
+  font-weight: 600;
+  font-size: 15px;
+  color: #6b7280;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+::ng-deep .auth-tabs .mat-mdc-tab-label-active {
+  color: #6366f1;
+  opacity: 1;
+}
+
+::ng-deep .auth-tabs .mat-mdc-tab-label:hover {
+  color: #4f46e5;
+  background-color: #f3f4f6;
+}
+
+/* Indicador da tab ativa - mais visível */
+::ng-deep .auth-tabs .mat-mdc-tab-header-pagination {
+  display: none !important;
+}
+
+::ng-deep .auth-tabs .mdc-tab-indicator__content--underline {
+  border-color: #6366f1 !important;
+  border-width: 3px !important;
+  border-radius: 2px 2px 0 0;
+}
+
+::ng-deep .auth-tabs .mat-mdc-tab-header-pagination-controls-enabled .mat-mdc-tab-header-pagination {
+  display: none;
+}
+
+/* Ajuste dos form fields */
+::ng-deep .auth-tabs .mat-mdc-form-field {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+::ng-deep .auth-tabs .mat-mdc-text-field-wrapper {
+  padding-bottom: 0;
+}
+
+::ng-deep .auth-tabs .mat-mdc-form-field-subscript-wrapper {
+  margin-top: 4px;
+  position: relative;
+}
+
+/* CORREÇÃO DOS ÍCONES - Abordagem direta com seletores MDC */
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon .mdc-text-field__icon--leading {
+  left: 16px !important;
+  right: auto !important;
+  width: 24px !important;
+  height: 24px !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+::ng-deep .auth-tabs .mdc-text-field__icon--leading .mat-icon {
+  font-size: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  line-height: 22px !important;
+  color: #6b7280 !important;
+}
+
+/* Espaçamento do input para dar espaço ao ícone */
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon .mdc-text-field__input {
+  padding-left: 52px !important;
+  padding-right: 16px !important;
+}
+
+::ng-deep .auth-tabs .mat-mdc-form-field-input-control input {
+  padding-left: 52px !important;
+  padding-right: 16px !important;
+  font-size: 15px;
+}
+
+/* Ajuste do label quando há ícone */
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon .mdc-floating-label {
+  left: 52px !important;
+  right: auto !important;
+}
+
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon.mdc-text-field--focused .mdc-floating-label,
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon.mdc-text-field--label-floating .mdc-floating-label {
+  left: 16px !important;
+  right: auto !important;
+}
+
+/* Ajuste do outline dos inputs */
+::ng-deep .auth-tabs .mat-mdc-form-field-outline {
+  color: #d1d5db;
+  border-width: 1.5px;
+}
+
+::ng-deep .auth-tabs .mat-mdc-form-field.mat-focused .mat-mdc-form-field-outline {
+  color: #6366f1;
+  border-width: 2px;
+}
+
+::ng-deep .auth-tabs .mat-mdc-form-field.mat-focused .mdc-text-field__icon--leading .mat-icon {
+  color: #6366f1 !important;
+}
+
+/* Ajuste do label */
+::ng-deep .auth-tabs .mat-mdc-form-field-label {
+  padding-left: 0;
+}
+
+/* Customização do painel do modal */
+::ng-deep .auth-modal-panel {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* Remover qualquer borda ou padding do container do modal */
+::ng-deep .auth-modal-panel .mat-mdc-dialog-surface {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  border: none !important;
+  padding: 24px !important;
+  margin: 0 !important;
+}
+
+/* Remover padding do container do conteúdo */
+::ng-deep .auth-modal-panel .mat-mdc-dialog-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-height: 90vh !important;
+  overflow: hidden !important;
+}
+
+/* Garantir que o conteúdo interno não tenha padding extra e não cause scroll */
+::ng-deep .auth-modal-panel .mat-mdc-dialog-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  max-height: 100% !important;
+}
+
+/* Remover scroll do dialog */
+::ng-deep .auth-modal-panel .cdk-overlay-pane {
+  overflow: hidden !important;
+}
+
+::ng-deep .auth-modal-panel .mat-mdc-dialog-container {
+  overflow-y: hidden !important;
+  overflow-x: hidden !important;
+}
+
+/* Garantir que o container principal não cause scroll, mas permita mensagens de erro visíveis */
+::ng-deep .auth-modal-panel .auth-modal-container {
+  max-height: 90vh !important;
+  overflow: visible !important;
+}
+
+/* Ajustar o conteúdo dos tabs para não causar scroll, mas permitir que mensagens de erro sejam exibidas */
+::ng-deep .auth-tabs .mat-mdc-tab-body-content {
+  overflow: visible !important;
+  max-height: calc(90vh - 280px) !important;
+  min-height: fit-content;
+  padding: 0 !important;
+}
+
+/* Garantir que o container dos tabs não corte o conteúdo */
+::ng-deep .auth-tabs .mat-mdc-tab-body-wrapper {
+  overflow: visible !important;
+}
+
+/* Garantir que o conteúdo do tab não seja cortado */
+::ng-deep .auth-tabs .mat-mdc-tab-body {
+  overflow: visible !important;
+}
+
+/* Espaçamento interno dos tabs */
+::ng-deep .auth-tabs .mat-mdc-tab-body-content > div {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+
+/* Garantir que o header não tenha bordas e ocupe toda a largura */
+::ng-deep .auth-modal-panel .bg-gradient-to-r {
+  border: none !important;
+  outline: none !important;
+  border-radius: 16px 16px 0 0 !important;
+  box-shadow: none !important;
+  margin-left: -24px !important;
+  margin-right: -24px !important;
+  margin-top: -24px !important;
+  width: calc(100% + 48px) !important;
+}
+
+/* Garantir que o conteúdo branco não tenha bordas */
+::ng-deep .auth-modal-panel .bg-white {
+  border: none !important;
+  outline: none !important;
+  border-radius: 0 0 16px 16px !important;
+  box-shadow: none !important;
+  margin-left: -24px !important;
+  margin-right: -24px !important;
+  margin-bottom: -24px !important;
+  width: calc(100% + 48px) !important;
+}
+
+/* Corrigir alinhamento do botão fechar */
+::ng-deep .auth-modal-panel button[mat-icon-button] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+/* Remover qualquer borda do container principal */
+::ng-deep .auth-modal-panel > * {
+  border: none !important;
+}
+
+/* Garantir que não haja bordas brancas nas laterais */
+::ng-deep .auth-modal-panel .mat-mdc-dialog-surface::before,
+::ng-deep .auth-modal-panel .mat-mdc-dialog-surface::after {
+  display: none !important;
+}
+
+/* Remover bordas do dialog surface */
+::ng-deep .auth-modal-panel .mat-mdc-dialog-surface {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Melhorar o espaçamento dos form fields */
+::ng-deep .auth-tabs .mat-mdc-form-field-wrapper {
+  padding-bottom: 0;
+}
+
+/* Ajuste fino do label flutuante */
+::ng-deep .auth-tabs .mat-mdc-form-field-label-wrapper {
+  padding-top: 0;
+}
+
+/* Garantir alinhamento perfeito dos inputs */
+::ng-deep .auth-tabs .mat-mdc-form-field {
+  display: block;
+}
+
+/* Ajuste do outline para não sobrepor o ícone */
+::ng-deep .auth-tabs .mdc-text-field--with-leading-icon .mdc-notched-outline__leading {
+  border-radius: 4px 0 0 4px;
+  width: 52px !important;
+}
+
+/* Ajuste do container do input */
+::ng-deep .auth-tabs .mdc-text-field__ripple {
+  left: 0;
+  right: 0;
+}
+
+/* Remover qualquer borda do ícone do header */
+::ng-deep .auth-modal-panel .auth-header-icon {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* Estilos para etapa de verificação */
+.auth-resend-button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6366f1;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+
+  &:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #6366f1;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.auth-button-icon-small {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+  line-height: 1rem;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.text-4xl {
+  font-size: 2.25rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-gray-600 {
+  color: #4b5563;
+}
+
+.text-gray-500 {
+  color: #6b7280;
+}
+
+.text-green-500 {
+  color: #10b981;
+}
+
+.w-full {
+  width: 100%;
+}
