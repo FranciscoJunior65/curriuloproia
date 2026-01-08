@@ -2,8 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { getOrCreateUser, getUser, saveUser, getUserByEmail } from '../models/user.model.js';
-import { verifyUserPassword, getOrCreateUserProfile, verifyEmailCode, updateVerificationCode, getUserProfileByEmail, updateVerificationToken, verifyEmailToken, getUserProfile } from '../services/supabase.service.js';
-import { sendVerificationEmail, generateVerificationCode, sendWelcomeEmail, sendLoginNotificationEmail, sendVerificationLinkEmail } from '../services/email.service.js';
+import { verifyUserPassword, getOrCreateUserProfile, verifyEmailCode, updateVerificationCode, getUserProfileByEmail, updateVerificationToken, verifyEmailToken, getUserProfile, updateUserProfile, getUserByResetToken } from '../services/supabase.service.js';
+import { sendVerificationEmail, generateVerificationCode, sendWelcomeEmail, sendLoginNotificationEmail, sendVerificationLinkEmail, sendPasswordResetEmail, sendPasswordChangeNotificationEmail } from '../services/email.service.js';
 
 dotenv.config();
 
@@ -180,8 +180,7 @@ export const login = async (req, res) => {
 
     // Envia email de notificação de login
     try {
-      const clientIp = req.ip || req.connection.remoteAddress || 'desconhecido';
-      await sendLoginNotificationEmail(profile.email, profile.name || '', clientIp);
+      await sendLoginNotificationEmail(profile.email, profile.name || '');
     } catch (emailError) {
       console.error('Erro ao enviar email de notificação de login:', emailError);
       // Não bloqueia o login se o email falhar
@@ -416,3 +415,187 @@ export const verifyEmailByToken = async (req, res) => {
   }
 };
 
+/**
+ * Troca a senha do usuário
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.userId; // Do middleware de autenticação
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Senha atual e nova senha são obrigatórias'
+      });
+    }
+
+    // Valida nova senha (mínimo 6 caracteres)
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nova senha deve ter no mínimo 6 caracteres'
+      });
+    }
+
+    // Busca o perfil do usuário
+    const profile = await getUserProfile(userId);
+    
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    // Verifica a senha atual
+    const isValidPassword = await verifyUserPassword(profile.email, currentPassword);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Senha atual incorreta'
+      });
+    }
+
+    // Gera hash da nova senha
+    const bcrypt = await import('bcrypt');
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.default.hash(newPassword, saltRounds);
+
+    // Atualiza a senha no banco
+    await updateUserProfile(userId, {
+      password_hash: newPasswordHash
+    });
+
+    res.json({
+      success: true,
+      message: 'Senha alterada com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao trocar senha:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao trocar senha',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Solicita recuperação de senha (envia email com link)
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email é obrigatório'
+      });
+    }
+
+    // Busca o usuário por email
+    const profile = await getUserProfileByEmail(email, false);
+    
+    if (!profile) {
+      // Por segurança, não revela se o email existe ou não
+      return res.json({
+        success: true,
+        message: 'Se o email estiver cadastrado, você receberá um link de recuperação.'
+      });
+    }
+
+    // Gera token de reset
+    const { randomUUID } = await import('crypto');
+    const resetToken = randomUUID();
+    
+    // Salva o token no banco (expira em 1 hora)
+    await updateVerificationToken(profile.id, resetToken, 1);
+
+    // Envia email com link de recuperação
+    try {
+      await sendPasswordResetEmail(profile.email, resetToken, profile.name || '');
+    } catch (emailError) {
+      console.error('Erro ao enviar email de recuperação:', emailError);
+      // Por segurança, não revela o erro
+    }
+
+    // Sempre retorna sucesso (por segurança)
+    res.json({
+      success: true,
+      message: 'Se o email estiver cadastrado, você receberá um link de recuperação.'
+    });
+  } catch (error) {
+    console.error('Erro ao solicitar recuperação de senha:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao processar solicitação',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Redefine a senha usando token de recuperação
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token e nova senha são obrigatórios'
+      });
+    }
+
+    // Valida nova senha (mínimo 6 caracteres)
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nova senha deve ter no mínimo 6 caracteres'
+      });
+    }
+
+    // Busca usuário pelo token de reset
+    const profile = await getUserByResetToken(token);
+
+    // Gera hash da nova senha
+    const bcrypt = await import('bcrypt');
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.default.hash(newPassword, saltRounds);
+
+    // Atualiza a senha no banco
+    await updateUserProfile(profile.id, {
+      password_hash: newPasswordHash
+    });
+
+    // Log da mudança de senha (auditoria)
+    console.log(`🔐 [AUDITORIA] Senha redefinida via recuperação para o usuário: ${profile.email} (ID: ${profile.id}) em ${new Date().toISOString()}`);
+
+    // Envia email de notificação de mudança de senha
+    try {
+      await sendPasswordChangeNotificationEmail(profile.email, profile.name || '');
+    } catch (emailError) {
+      console.error('❌ Erro ao enviar email de notificação de mudança de senha:', emailError);
+      // Não bloqueia a resposta de sucesso se o email falhar
+    }
+
+    // Remove o token de reset
+    await updateVerificationToken(profile.id, null);
+
+    res.json({
+      success: true,
+      message: 'Senha redefinida com sucesso! Faça login com sua nova senha.'
+    });
+  } catch (error) {
+    console.error('Erro ao redefinir senha:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Token inválido ou expirado',
+      message: error.message
+    });
+  }
+};

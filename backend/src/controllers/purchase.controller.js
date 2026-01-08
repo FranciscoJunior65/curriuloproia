@@ -1,4 +1,4 @@
-import { createPurchase, getUserPurchases, recordCreditUsage, getUserCreditUsage, addCreditsToUser } from '../services/supabase.service.js';
+import { createPurchase, getUserPurchases, recordCreditUsage, getUserCreditUsage } from '../services/supabase.service.js';
 import { getUserProfile } from '../services/supabase.service.js';
 
 /**
@@ -10,8 +10,8 @@ export const createMockPurchase = async (req, res) => {
     console.log('📋 Body recebido:', req.body);
     console.log('👤 UserId do token:', req.userId);
     
-    const userId = req.userId; // Do middleware de autenticação
-    const { planId, planName, creditsAmount, price } = req.body;
+    const userId = req.userId || req.body.userId; // Do middleware ou do body (para testes)
+    const { planId, planName, creditsAmount, price, includeEnglish, englishPrice } = req.body;
 
     if (!userId) {
       console.error('❌ Usuário não autenticado');
@@ -47,7 +47,7 @@ export const createMockPurchase = async (req, res) => {
     console.log('💰 Créditos atuais:', user.credits || 0);
     console.log('📦 Criando compra...');
 
-    // Cria a compra
+    // Cria a compra principal
     let purchase;
     try {
       purchase = await createPurchase(
@@ -61,6 +61,24 @@ export const createMockPurchase = async (req, res) => {
         `mock_${Date.now()}_${userId}`
       );
       console.log('✅ Compra criada:', purchase.id);
+      
+      // Se incluir currículo em inglês (venda casada)
+      if (includeEnglish && planId !== 'english') {
+        const englishPriceFinal = englishPrice || 5.90;
+        console.log('📄 Adicionando currículo em inglês (venda casada) por R$', englishPriceFinal);
+        
+        const englishPurchase = await createPurchase(
+          userId,
+          'english',
+          'Currículo em Inglês (Venda Casada)',
+          0, // Não adiciona créditos, é apenas serviço
+          parseFloat(englishPriceFinal),
+          'BRL',
+          'mock',
+          `mock_english_${Date.now()}_${userId}`
+        );
+        console.log('✅ Compra de currículo em inglês criada:', englishPurchase.id);
+      }
     } catch (purchaseError) {
       console.error('❌ Erro ao criar compra:', purchaseError);
       // Se o erro for de tabela não encontrada, informa o usuário
@@ -75,20 +93,13 @@ export const createMockPurchase = async (req, res) => {
       throw purchaseError;
     }
 
-    console.log('💳 Adicionando créditos ao usuário...');
+    // Os créditos já foram criados pelo createPurchase na tabela creditos
+    // Não precisa mais chamar addCreditsToUser
     
-    // Adiciona créditos ao usuário
-    try {
-      await addCreditsToUser(userId, parseInt(creditsAmount));
-      console.log('✅ Créditos adicionados:', creditsAmount);
-    } catch (creditError) {
-      console.error('❌ Erro ao adicionar créditos:', creditError);
-      throw creditError;
-    }
-
-    // Atualiza o perfil do usuário
-    const updatedUser = await getUserProfile(userId);
-    console.log('✅ Usuário atualizado. Créditos finais:', updatedUser.credits || 0);
+    // Verifica créditos disponíveis após a compra
+    const { getAvailableCredits } = await import('../services/supabase.service.js');
+    const creditsAvailable = await getAvailableCredits(userId);
+    console.log('✅ Créditos disponíveis após compra:', creditsAvailable);
 
     res.json({
       success: true,
@@ -102,9 +113,10 @@ export const createMockPurchase = async (req, res) => {
         createdAt: purchase.created_at
       },
       user: {
-        id: updatedUser.id,
-        credits: updatedUser.credits || 0
-      }
+        id: userId,
+        credits: creditsAvailable
+      },
+      creditsAvailable: creditsAvailable
     });
   } catch (error) {
     console.error('❌ Erro completo ao criar compra mockada:', error);
@@ -141,13 +153,22 @@ export const getUserPurchasesList = async (req, res) => {
       success: true,
       purchases: purchases.map(p => ({
         id: p.id,
+        planId: p.plan_id,
         planName: p.plan_name,
         creditsAmount: p.credits_amount,
         price: p.price,
         currency: p.currency,
         status: p.status,
         paymentMethod: p.payment_method,
-        createdAt: p.created_at
+        createdAt: p.created_at,
+        serviceType: p.serviceType || 'analise',
+        parentPurchaseId: p.parentPurchaseId || null,
+        creditsInfo: p.creditsInfo || {
+          total: p.credits_amount || 0,
+          used: 0,
+          available: p.credits_amount || 0,
+          credits: []
+        }
       }))
     });
   } catch (error) {
@@ -174,7 +195,9 @@ export const getUserCreditHistory = async (req, res) => {
       success: true,
       usage: usage.map(u => ({
         id: u.id,
-        creditsUsed: u.credits_used,
+        purchaseId: u.purchase_id,
+        used: u.used,
+        usedAt: u.used_at,
         actionType: u.action_type,
         resumeFileName: u.resume_file_name,
         createdAt: u.created_at
@@ -211,7 +234,9 @@ export const recordCreditUse = async (req, res) => {
       success: true,
       usage: {
         id: usage.id,
-        creditsUsed: usage.credits_used,
+        purchaseId: usage.purchase_id,
+        used: usage.used,
+        usedAt: usage.used_at,
         actionType: usage.action_type,
         createdAt: usage.created_at
       }

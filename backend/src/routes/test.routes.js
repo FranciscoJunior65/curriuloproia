@@ -51,9 +51,9 @@ router.get('/supabase', async (req, res) => {
       });
     }
 
-    // Teste simples: tenta fazer um SELECT na tabela user_profiles
+    // Teste simples: tenta fazer um SELECT na tabela perfis_usuarios
     const { data, error, count } = await supabaseAdmin
-      .from('user_profiles')
+      .from('perfis_usuarios')
       .select('*', { count: 'exact' })
       .limit(5);
 
@@ -63,7 +63,7 @@ router.get('/supabase', async (req, res) => {
         return res.status(200).json({
           success: true,
           message: '✅ Conexão com Supabase OK!',
-          warning: '⚠️ Tabela user_profiles não encontrada. Execute o SQL do SUPABASE_SETUP.md',
+          warning: '⚠️ Tabela perfis_usuarios não encontrada. Execute o SQL de migração.',
           error: error.message,
           connection: 'OK'
         });
@@ -82,7 +82,7 @@ router.get('/supabase', async (req, res) => {
     return res.status(200).json({
       success: true,
       message: '✅ Conexão com Supabase OK!',
-      table: 'user_profiles existe',
+      table: 'perfis_usuarios existe',
       totalRecords: count || 0,
       sampleRecords: data?.length || 0,
       connection: 'OK',
@@ -204,7 +204,7 @@ router.post('/insert-user', async (req, res) => {
 
     // Primeiro, vamos verificar se a tabela existe
     const { data: checkTable, error: tableError } = await supabaseAdmin
-      .from('user_profiles')
+      .from('perfis_usuarios')
       .select('count')
       .limit(1);
 
@@ -212,7 +212,7 @@ router.post('/insert-user', async (req, res) => {
       if (tableError.code === '42P01' || tableError.message.includes('does not exist')) {
         return res.status(400).json({
           success: false,
-          error: 'Tabela user_profiles não existe',
+          error: 'Tabela perfis_usuarios não existe',
           message: 'Execute o SQL do arquivo SUPABASE_SETUP.md para criar a tabela',
           sqlError: tableError.message
         });
@@ -229,7 +229,7 @@ router.post('/insert-user', async (req, res) => {
 
     // Tenta inserir o usuário
     const { data, error } = await supabaseAdmin
-      .from('user_profiles')
+      .from('perfis_usuarios')
       .insert({
         id: userId,
         email,
@@ -284,7 +284,7 @@ router.get('/list-users', async (req, res) => {
     }
 
     const { data, error, count } = await supabaseAdmin
-      .from('user_profiles')
+      .from('perfis_usuarios')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
@@ -292,7 +292,7 @@ router.get('/list-users', async (req, res) => {
       if (error.code === '42P01' || error.message.includes('does not exist')) {
         return res.status(400).json({
           success: false,
-          error: 'Tabela user_profiles não existe',
+          error: 'Tabela perfis_usuarios não existe',
           message: 'Execute o SQL do arquivo SUPABASE_SETUP.md para criar a tabela'
         });
       }
@@ -363,7 +363,7 @@ router.get('/check-purchases-table', async (req, res) => {
 
     // Tenta fazer um SELECT na tabela purchases
     const { data, error, count } = await supabaseAdmin
-      .from('purchases')
+      .from('compras')
       .select('*', { count: 'exact' })
       .limit(1);
 
@@ -372,7 +372,7 @@ router.get('/check-purchases-table', async (req, res) => {
         return res.status(200).json({
           success: false,
           tableExists: false,
-          message: '⚠️ Tabela purchases não existe',
+          message: '⚠️ Tabela compras não existe',
           error: error.message,
           solution: 'Execute o script CREATE_PURCHASES_TABLE.sql no Supabase'
         });
@@ -388,11 +388,11 @@ router.get('/check-purchases-table', async (req, res) => {
     return res.status(200).json({
       success: true,
       tableExists: true,
-      message: '✅ Tabela purchases existe',
+      message: '✅ Tabela compras existe',
       totalPurchases: count || 0
     });
   } catch (error) {
-    console.error('Erro ao verificar tabela purchases:', error);
+    console.error('Erro ao verificar tabela compras:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro ao verificar tabela',

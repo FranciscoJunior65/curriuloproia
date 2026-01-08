@@ -1,0 +1,220 @@
+<header class="bg-white shadow-sm sticky top-0 z-50">
+  <div class="w-full px-4 sm:px-6 lg:px-12 py-4">
+    <div class="flex justify-between items-center w-full">
+      <div class="flex items-center gap-4">
+        <button
+          routerLink="/"
+          class="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          <mat-icon>arrow_back</mat-icon>
+          <span class="hidden md:inline">Voltar ao Site</span>
+        </button>
+        <div class="flex items-center gap-2 ml-4">
+          <mat-icon class="text-indigo-600">account_balance</mat-icon>
+          <span class="text-xl font-bold text-gray-800">Menu Financeiro</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <div *ngIf="authService.isAuthenticated()" class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-semibold text-gray-800">
+              {{ getUserDisplayName() }}
+            </p>
+            <p class="text-xs text-gray-500 flex items-center gap-1">
+              <mat-icon class="text-xs">stars</mat-icon>
+              <span>{{ userCredits }} crédito(s)</span>
+            </p>
+          </div>
+          <div class="relative">
+            <button
+              [matMenuTriggerFor]="userMenu"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <mat-icon class="text-indigo-600">account_circle</mat-icon>
+              <span
+                class="text-sm font-medium text-gray-700 hidden md:inline"
+                >{{ getUserDisplayName() }}</span
+              >
+              <mat-icon class="text-gray-500 text-sm">arrow_drop_down</mat-icon>
+            </button>
+            <mat-menu #userMenu="matMenu" class="mt-2">
+              <div class="p-2">
+                <div class="px-3 py-2 border-b border-gray-200 mb-2">
+                  <p class="text-sm font-semibold text-gray-800">
+                    {{ getUserDisplayName() }}
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    {{ userCredits }} crédito(s) disponível(is)
+                  </p>
+                </div>
+                <button
+                  mat-menu-item
+                  routerLink="/financeiro"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">account_balance</mat-icon>
+                  <span>Menu Financeiro</span>
+                </button>
+                <button
+                  mat-menu-item
+                  routerLink="/trocar-senha"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">lock</mat-icon>
+                  <span>Trocar Senha</span>
+                </button>
+                <button
+                  mat-menu-item
+                  (click)="authService.logout(); router.navigate(['/login'])"
+                  class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">logout</mat-icon>
+                  <span>Sair</span>
+                </button>
+              </div>
+            </mat-menu>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="min-h-screen bg-gray-100 py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h1 class="text-4xl font-bold text-gray-900 mb-8 text-center">Histórico de Compras</h1>
+
+    <div *ngIf="loading" class="flex justify-center items-center h-64">
+      <mat-spinner></mat-spinner>
+      <p class="ml-4 text-gray-700">Carregando histórico de compras...</p>
+    </div>
+
+    <div *ngIf="error" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+      <p class="font-bold">Erro:</p>
+      <p>{{ error }}</p>
+      <button *ngIf="!userId" mat-button color="warn" routerLink="/login">Fazer Login</button>
+    </div>
+
+    <div *ngIf="!loading && !error && purchases.length === 0" class="text-center p-8 bg-white rounded-lg shadow-md">
+      <mat-icon class="text-gray-400 text-6xl mb-4">info</mat-icon>
+      <p class="text-xl text-gray-700 font-semibold mb-2">Nenhuma compra encontrada.</p>
+      <p class="text-gray-500">Parece que você ainda não fez nenhuma compra. Que tal começar agora?</p>
+      <button mat-flat-button color="primary" routerLink="/" class="mt-6">
+        <mat-icon>shopping_cart</mat-icon> Comprar Planos
+      </button>
+    </div>
+
+    <div *ngIf="!loading && !error && purchases.length > 0">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <mat-card class="shadow-md p-6 text-center">
+          <mat-icon class="text-indigo-600 text-4xl mb-3">shopping_bag</mat-icon>
+          <h3 class="text-lg font-semibold text-gray-800">Total de Compras</h3>
+          <p class="text-3xl font-bold text-indigo-700">{{ getTotalPurchases() }}</p>
+        </mat-card>
+        <mat-card class="shadow-md p-6 text-center">
+          <mat-icon class="text-green-600 text-4xl mb-3">attach_money</mat-icon>
+          <h3 class="text-lg font-semibold text-gray-800">Valor Total Gasto</h3>
+          <p class="text-3xl font-bold text-green-700">R$ {{ getTotalSpent().toFixed(2) }}</p>
+        </mat-card>
+        <mat-card class="shadow-md p-6 text-center">
+          <mat-icon class="text-purple-600 text-4xl mb-3">stars</mat-icon>
+          <h3 class="text-lg font-semibold text-gray-800">Créditos Adquiridos</h3>
+          <p class="text-3xl font-bold text-purple-700">{{ getTotalCreditsAcquired() }}</p>
+        </mat-card>
+        <mat-card class="shadow-md p-6 text-center">
+          <mat-icon class="text-orange-600 text-4xl mb-3">check_circle</mat-icon>
+          <h3 class="text-lg font-semibold text-gray-800">Créditos Utilizados</h3>
+          <p class="text-3xl font-bold text-orange-700">{{ totalCreditsUsed }}</p>
+        </mat-card>
+        <mat-card class="shadow-md p-6 text-center">
+          <mat-icon class="text-blue-600 text-4xl mb-3">radio_button_checked</mat-icon>
+          <h3 class="text-lg font-semibold text-gray-800">Créditos Ativos</h3>
+          <p class="text-3xl font-bold text-blue-700">{{ totalCreditsActive }}</p>
+        </mat-card>
+      </div>
+
+      <div class="space-y-4">
+        <mat-card *ngFor="let purchase of purchases" class="shadow-lg">
+          <mat-card-content class="p-6">
+            <!-- Linha Principal da Compra -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <div class="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <p class="text-xs text-gray-500 mb-1">Data</p>
+                  <p class="font-medium text-gray-800">{{ purchase.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 mb-1">Plano</p>
+                  <div class="flex items-center gap-2">
+                    <mat-icon *ngIf="isEnglishResumePurchase(purchase)" class="text-blue-600 text-sm">language</mat-icon>
+                    <p class="font-medium text-gray-800">{{ purchase.planName }}</p>
+                    <span *ngIf="purchase.parentPurchaseId" class="text-xs text-gray-500">(Venda Casada)</span>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 mb-1">Créditos</p>
+                  <p class="font-medium text-gray-800">
+                    <span *ngIf="purchase.creditsAmount > 0">{{ purchase.creditsAmount }}</span>
+                    <span *ngIf="purchase.creditsAmount === 0 && isEnglishResumePurchase(purchase)">Serviço</span>
+                    <span *ngIf="purchase.creditsAmount === 0 && !isEnglishResumePurchase(purchase)">N/A</span>
+                  </p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 mb-1">Preço</p>
+                  <p class="font-medium text-gray-800">R$ {{ purchase.price.toFixed(2) }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 mb-1">Status</p>
+                  <span class="px-3 py-1 rounded-full text-xs font-semibold inline-block" [ngClass]="getStatusClass(purchase.status)">
+                    {{ purchase.status === 'completed' ? 'Concluída' : (purchase.status === 'pending' ? 'Pendente' : 'Cancelada') }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button 
+                  *ngIf="isAnalysisPurchase(purchase) && hasCreditsToShow(purchase)"
+                  mat-icon-button 
+                  (click)="togglePurchase(purchase.id)"
+                  [attr.aria-label]="'Expandir ' + purchase.planName">
+                  <mat-icon>{{ isExpanded(purchase.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  (click)="buyAgain(purchase)"
+                  class="text-xs">
+                  <mat-icon class="text-sm">shopping_cart</mat-icon>
+                  Comprar Novamente
+                </button>
+              </div>
+            </div>
+
+            <!-- Detalhes Expandidos -->
+            <div *ngIf="isExpanded(purchase.id) && hasCreditsToShow(purchase)" class="mt-4 pt-4 border-t border-gray-200">
+              <h4 class="font-semibold text-gray-800 mb-3">Detalhes das Análises ({{ purchase.creditsInfo?.credits?.length || 0 }} crédito(s))</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div 
+                  *ngFor="let credit of purchase.creditsInfo?.credits" 
+                  class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Crédito #{{ credit.id.substring(0, 8) }}</span>
+                    <span 
+                      class="px-2 py-1 rounded text-xs font-semibold"
+                      [ngClass]="credit.used ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'">
+                      {{ credit.used ? 'Utilizado' : 'Disponível' }}
+                    </span>
+                  </div>
+                  <div *ngIf="credit.used" class="text-xs text-gray-600 mt-2 space-y-1">
+                    <p *ngIf="credit.usedAt"><strong>Usado em:</strong> {{ credit.usedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+                    <p *ngIf="credit.actionType"><strong>Tipo:</strong> {{ credit.actionType === 'analysis' ? 'Análise' : 'Geração PDF' }}</p>
+                    <p *ngIf="credit.resumeFileName"><strong>Arquivo:</strong> {{ credit.resumeFileName }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </div>
+  </div>
+</div>

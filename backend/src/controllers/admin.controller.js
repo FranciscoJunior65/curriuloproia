@@ -12,19 +12,31 @@ export const getDashboardStats = async (req, res) => {
       try {
         // Total de usuários
         const { count: totalUsers } = await supabaseAdmin
-          .from('user_profiles')
+          .from('perfis_usuarios')
           .select('*', { count: 'exact', head: true });
 
-        // Total de créditos vendidos (soma de todos os créditos já adicionados)
-        // Como não temos histórico, vamos usar a soma atual de créditos + análises realizadas
-        const { data: users } = await supabaseAdmin
-          .from('user_profiles')
-          .select('credits, created_at, last_analysis');
+        // Total de créditos: conta todos os créditos criados na tabela creditos
+        const { count: totalCredits } = await supabaseAdmin
+          .from('creditos')
+          .select('*', { count: 'exact', head: true });
 
-        const totalCredits = users?.reduce((sum, user) => sum + (user.credits || 0), 0) || 0;
-        
-        // Estima análises realizadas (usuários com last_analysis preenchido)
-        const analysesPerformed = users?.filter(u => u.last_analysis).length || 0;
+        // Total de créditos usados
+        const { count: creditsUsed } = await supabaseAdmin
+          .from('creditos')
+          .select('*', { count: 'exact', head: true })
+          .eq('usado', true);
+
+        // Total de créditos disponíveis
+        const { count: creditsAvailable } = await supabaseAdmin
+          .from('creditos')
+          .select('*', { count: 'exact', head: true })
+          .eq('usado', false);
+
+        // Estima análises realizadas (usuários com ultima_analise preenchido)
+        const { data: usersData } = await supabaseAdmin
+          .from('perfis_usuarios')
+          .select('criado_em, ultima_analise');
+        const analysesPerformed = usersData?.filter(u => u.ultima_analise).length || 0;
 
         // Calcula faturamento estimado (assumindo que cada crédito foi comprado)
         // Plano único: R$ 9,90, Pacote 3: R$ 24,90 (média ~R$ 8,30 por crédito)
@@ -35,10 +47,12 @@ export const getDashboardStats = async (req, res) => {
           success: true,
           stats: {
             totalUsers: totalUsers || 0,
-            totalCredits: totalCredits,
+            totalCredits: totalCredits || 0,
+            creditsUsed: creditsUsed || 0,
+            creditsAvailable: creditsAvailable || 0,
             analysesPerformed,
             estimatedRevenue: parseFloat(estimatedRevenue.toFixed(2)),
-            activeUsers: users?.filter(u => u.last_analysis).length || 0
+            activeUsers: usersData?.filter(u => u.ultima_analise).length || 0
           }
         });
       } catch (error) {
@@ -50,7 +64,16 @@ export const getDashboardStats = async (req, res) => {
     // Fallback: usa dados em memória
     const allUsers = await getAllUsers();
     const totalUsers = allUsers.length;
-    const totalCredits = allUsers.reduce((sum, user) => sum + (user.credits || 0), 0);
+    // Calcula créditos da tabela creditos
+    let totalCredits = 0;
+    try {
+      const { count } = await supabaseAdmin
+        .from('creditos')
+        .select('*', { count: 'exact', head: true });
+      totalCredits = count || 0;
+    } catch (error) {
+      console.error('Erro ao contar créditos:', error);
+    }
     const analysesPerformed = allUsers.filter(u => u.lastAnalysis).length;
     const avgPricePerCredit = 8.30;
     const estimatedRevenue = (totalCredits + analysesPerformed) * avgPricePerCredit;
@@ -85,8 +108,8 @@ export const getDailyUsage = async (req, res) => {
     if (supabaseAdmin) {
       try {
         const { data: users } = await supabaseAdmin
-          .from('user_profiles')
-          .select('created_at, last_analysis, credits');
+          .from('perfis_usuarios')
+          .select('criado_em, ultima_analise');
 
         // Agrupa por dia
         const dailyStats = {};
@@ -107,8 +130,8 @@ export const getDailyUsage = async (req, res) => {
 
         // Processa dados
         users?.forEach(user => {
-          const regDate = user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : null;
-          const analysisDate = user.last_analysis ? new Date(user.last_analysis).toISOString().split('T')[0] : null;
+          const regDate = user.criado_em ? new Date(user.criado_em).toISOString().split('T')[0] : null;
+          const analysisDate = user.ultima_analise ? new Date(user.ultima_analise).toISOString().split('T')[0] : null;
 
           if (regDate && dailyStats[regDate]) {
             dailyStats[regDate].registrations++;
@@ -195,8 +218,8 @@ export const getMonthlyUsage = async (req, res) => {
     if (supabaseAdmin) {
       try {
         const { data: users } = await supabaseAdmin
-          .from('user_profiles')
-          .select('created_at, last_analysis, credits');
+          .from('perfis_usuarios')
+          .select('criado_em, ultima_analise');
 
         const monthlyStats = {};
         const endDate = new Date();
@@ -216,16 +239,16 @@ export const getMonthlyUsage = async (req, res) => {
 
         // Processa dados
         users?.forEach(user => {
-          if (user.created_at) {
-            const regDate = new Date(user.created_at);
+          if (user.criado_em) {
+            const regDate = new Date(user.criado_em);
             const monthKey = `${regDate.getFullYear()}-${String(regDate.getMonth() + 1).padStart(2, '0')}`;
             if (monthlyStats[monthKey]) {
               monthlyStats[monthKey].registrations++;
             }
           }
 
-          if (user.last_analysis) {
-            const analysisDate = new Date(user.last_analysis);
+          if (user.ultima_analise) {
+            const analysisDate = new Date(user.ultima_analise);
             const monthKey = `${analysisDate.getFullYear()}-${String(analysisDate.getMonth() + 1).padStart(2, '0')}`;
             if (monthlyStats[monthKey]) {
               monthlyStats[monthKey].analyses++;

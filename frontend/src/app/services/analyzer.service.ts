@@ -77,7 +77,7 @@ export class AnalyzerService {
    * Cria uma compra mockada (para testes - não usa Stripe)
    * @param userId - ID do usuário (obrigatório para testes sem token válido)
    */
-  createMockPurchase(planId: string, planName: string, creditsAmount: number, price: number, userId?: string): Observable<any> {
+  createMockPurchase(planId: string, planName: string, creditsAmount: number, price: number, userId?: string, includeEnglish?: boolean): Observable<any> {
     const body: any = {
       planId,
       planName,
@@ -91,6 +91,12 @@ export class AnalyzerService {
       console.log('✅ userId adicionado ao body:', userId);
     } else {
       console.warn('⚠️ userId não fornecido - a compra pode falhar');
+    }
+    
+    // Adiciona flag para incluir currículo em inglês (venda casada)
+    if (includeEnglish) {
+      body.includeEnglish = true;
+      body.englishPrice = 5.90; // Preço promocional quando comprado junto
     }
     
     // NÃO envia headers de autenticação para evitar problemas com token expirado

@@ -7,12 +7,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatDialogModule } from '@angular/material/dialog';
+import { Router } from '@angular/router';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { AuthService, User } from '../../services/auth.service';
-import { AuthModalComponent } from '../auth-modal/auth-modal.component';
 
 @Component({
   selector: 'app-analyzer',
@@ -26,8 +24,7 @@ import { AuthModalComponent } from '../auth-modal/auth-modal.component';
     MatProgressSpinnerModule,
     MatIconModule,
     MatChipsModule,
-    MatMenuModule,
-    MatDialogModule
+    MatMenuModule
   ],
   templateUrl: './analyzer.component.html',
   styleUrl: './analyzer.component.scss'
@@ -47,6 +44,7 @@ export class AnalyzerComponent implements OnInit {
   userCredits: number = 0;
   showPlans = true;
   processingPayment = false;
+  includeEnglishResume: { [planId: string]: boolean } = {}; // Checkbox por plano
 
   // Auth
   currentUser: User | null = null;
@@ -56,10 +54,47 @@ export class AnalyzerComponent implements OnInit {
   constructor(
     private analyzerService: AnalyzerService,
     private authService: AuthService,
-    private dialog: MatDialog
+    private router: Router
   ) {}
 
   ngOnInit(): void {
+    // Verifica o token primeiro antes de carregar o componente
+    const token = this.authService.getToken();
+    if (token) {
+      // Verifica se o token ainda é válido
+      this.authService.verifyToken().subscribe({
+        next: (response) => {
+          if (response.success && response.user) {
+            // Token válido, continua carregando
+            this.loadComponent();
+          } else {
+            // Token inválido, redireciona para login
+            console.log('🔐 Token inválido, redirecionando para login');
+            this.authService.logout();
+            this.router.navigate(['/login']);
+          }
+        },
+        error: (error) => {
+          // Erro ao verificar token (provavelmente expirado)
+          console.error('🔐 Erro ao verificar token:', error);
+          if (error.status === 401 || error.status === 0) {
+            console.log('🔐 Token expirado ou inválido, redirecionando para login');
+            this.authService.logout();
+            this.router.navigate(['/login']);
+          } else {
+            // Outro erro, tenta carregar mesmo assim
+            this.loadComponent();
+          }
+        }
+      });
+    } else {
+      // Sem token, redireciona para login
+      console.log('🔐 Sem token, redirecionando para login');
+      this.router.navigate(['/login']);
+    }
+  }
+
+  private loadComponent(): void {
     // Observa mudanças no usuário autenticado
     this.authService.currentUser$.subscribe(user => {
       this.currentUser = user;
@@ -116,7 +151,8 @@ export class AnalyzerComponent implements OnInit {
     this.loadingPlans = true;
     this.analyzerService.getPlans().subscribe({
       next: (response: any) => {
-        this.plans = response.plans || [];
+        // Filtra o plano de inglês (será adicionado depois)
+        this.plans = (response.plans || []).filter((plan: any) => plan.id !== 'english');
         this.loadingPlans = false;
       },
       error: (err) => {
@@ -152,6 +188,10 @@ export class AnalyzerComponent implements OnInit {
 
   selectPlan(plan: any): void {
     this.selectedPlan = plan;
+    // Inicializa o checkbox se não existir
+    if (!this.includeEnglishResume.hasOwnProperty(plan.id)) {
+      this.includeEnglishResume[plan.id] = false;
+    }
   }
 
   purchasePlan(plan: any): void {
@@ -187,12 +227,22 @@ export class AnalyzerComponent implements OnInit {
       return;
     }
     
+    // Calcula preço total (incluindo currículo em inglês se selecionado)
+    let totalPrice = plan.priceBRL;
+    let includeEnglish = false;
+    
+    if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
+      totalPrice += 5.90; // Preço promocional quando comprado junto
+      includeEnglish = true;
+    }
+    
     this.analyzerService.createMockPurchase(
       plan.id,
       plan.name,
       plan.analyses,
-      plan.priceBRL,
-      this.userId // Envia userId explicitamente
+      totalPrice,
+      this.userId, // Envia userId explicitamente
+      includeEnglish // Flag para incluir currículo em inglês
     ).subscribe({
       next: (response: any) => {
         console.log('📦 Resposta da compra:', response);
@@ -208,6 +258,11 @@ export class AnalyzerComponent implements OnInit {
           
           // Recarrega créditos
           this.checkCredits();
+          
+          // Reseta o checkbox de inglês para este plano
+          if (this.includeEnglishResume.hasOwnProperty(plan.id)) {
+            this.includeEnglishResume[plan.id] = false;
+          }
           
           // Mostra mensagem de sucesso
           console.log('✅ Compra realizada com sucesso!', response);
@@ -242,27 +297,18 @@ export class AnalyzerComponent implements OnInit {
     });
   }
 
-  openAuthModal(): void {
-    const dialogRef = this.dialog.open(AuthModalComponent, {
-      width: '90%',
-      maxWidth: '520px',
-      disableClose: false,
-      panelClass: 'auth-modal-panel',
-      autoFocus: false
-    });
-
-    dialogRef.componentInstance.authSuccess.subscribe(() => {
-      // Atualiza dados após login/cadastro
-      this.checkCredits();
-    });
+  openLogin(): void {
+    this.router.navigate(['/login']);
   }
 
-  openLogin(): void {
-    this.openAuthModal();
+  openAuthModal(): void {
+    // Redireciona para a tela de login
+    this.router.navigate(['/login']);
   }
 
   logout(): void {
     this.authService.logout();
+    this.router.navigate(['/login']);
     this.userCredits = 0;
     this.showPlans = true;
   }

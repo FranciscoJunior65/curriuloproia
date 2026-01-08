@@ -1,0 +1,74 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug Angular no Chrome",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${webRoot}/*",
+        "/./*": "${webRoot}/*",
+        "/src/*": "${webRoot}/*",
+        "/*": "*",
+        "/./~/*": "${webRoot}/node_modules/*"
+      },
+      "preLaunchTask": "npm: start",
+      "postDebugTask": null,
+      "runtimeArgs": [
+        "--remote-debugging-port=9222"
+      ],
+      "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile"
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach ao Chrome",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${webRoot}/*",
+        "/./*": "${webRoot}/*",
+        "/src/*": "${webRoot}/*",
+        "/*": "*",
+        "/./~/*": "${webRoot}/node_modules/*"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Backend (Node.js)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--inspect"
+      ],
+      "program": "${workspaceFolder}/backend/src/app.js",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "restart": true,
+      "protocol": "inspector",
+      "sourceMaps": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Full Stack (Frontend + Backend)",
+      "configurations": [
+        "Debug Angular no Chrome",
+        "Debug Backend (Node.js)"
+      ],
+      "preLaunchTask": "start:all",
+      "stopAll": true
+    }
+  ]
+}
+

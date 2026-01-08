@@ -18,25 +18,37 @@ import {
 export const getOrCreateUser = async (userId, email, name = '', passwordHash = null) => {
   try {
     const profile = await getOrCreateUserProfile(userId, email, name, passwordHash);
+    
+    // Obtém créditos disponíveis dinamicamente
+    const { getAvailableCredits } = await import('../services/supabase.service.js');
+    const availableCredits = await getAvailableCredits(userId);
+    
     return {
       id: profile.id,
       email: profile.email,
-      name: profile.name || '',
-      credits: profile.credits || 0,
-      plan: profile.plan || null,
-      createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
-      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : null,
-      hasCredits: (amount = 1) => (profile.credits || 0) >= amount,
+      name: profile.name || profile.nome || '',
+      credits: availableCredits, // Créditos calculados dinamicamente da tabela creditos
+      plan: profile.plan || profile.plano || null,
+      createdAt: profile.created_at ? new Date(profile.created_at) : (profile.criado_em ? new Date(profile.criado_em) : new Date()),
+      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : (profile.ultima_analise ? new Date(profile.ultima_analise) : null),
+      hasCredits: async (amount = 1) => {
+        // Usa a função userHasCredits que verifica na tabela creditos
+        return await userHasCredits(userId, amount);
+      },
       useCredits: async (amount = 1) => {
-        if ((profile.credits || 0) < amount) {
+        // Verifica créditos antes de usar
+        const hasCredits = await userHasCredits(userId, amount);
+        if (!hasCredits) {
           throw new Error('Créditos insuficientes');
         }
         await deductCreditsFromUser(userId, amount);
-        return (profile.credits || 0) - amount;
+        // Retorna créditos restantes
+        return await getAvailableCredits(userId);
       },
       addCredits: async (amount) => {
         await addCreditsToUser(userId, amount);
-        return (profile.credits || 0) + amount;
+        // Retorna créditos atualizados
+        return await getAvailableCredits(userId);
       }
     };
   } catch (error) {
@@ -56,11 +68,11 @@ export const getUserByEmail = async (email) => {
     return {
       id: profile.id,
       email: profile.email,
-      name: profile.name || '',
-      credits: profile.credits || 0,
-      plan: profile.plan || null,
-      createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
-      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : null,
+      name: profile.name || profile.nome || '',
+      credits: profile.credits || profile.creditos || 0,
+      plan: profile.plan || profile.plano || null,
+      createdAt: profile.created_at ? new Date(profile.created_at) : (profile.criado_em ? new Date(profile.criado_em) : new Date()),
+      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : (profile.ultima_analise ? new Date(profile.ultima_analise) : null),
       password: '' // Não retornamos senha do Supabase
     };
   } catch (error) {
@@ -77,25 +89,36 @@ export const getUser = async (userId) => {
     const profile = await getUserProfile(userId);
     if (!profile) return null;
     
+    // Obtém créditos disponíveis dinamicamente
+    const { getAvailableCredits } = await import('../services/supabase.service.js');
+    const availableCredits = await getAvailableCredits(userId);
+    
     return {
       id: profile.id,
       email: profile.email,
-      name: profile.name || '',
-      credits: profile.credits || 0,
-      plan: profile.plan || null,
-      createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
-      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : null,
-      hasCredits: (amount = 1) => (profile.credits || 0) >= amount,
+      name: profile.name || profile.nome || '',
+      credits: availableCredits, // Créditos calculados dinamicamente da tabela creditos
+      plan: profile.plan || profile.plano || null,
+      createdAt: profile.created_at ? new Date(profile.created_at) : (profile.criado_em ? new Date(profile.criado_em) : new Date()),
+      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : (profile.ultima_analise ? new Date(profile.ultima_analise) : null),
+      hasCredits: async (amount = 1) => {
+        // Usa a função userHasCredits que verifica na tabela creditos
+        return await userHasCredits(userId, amount);
+      },
       useCredits: async (amount = 1) => {
-        if ((profile.credits || 0) < amount) {
+        // Verifica créditos antes de usar
+        const hasCredits = await userHasCredits(userId, amount);
+        if (!hasCredits) {
           throw new Error('Créditos insuficientes');
         }
         await deductCreditsFromUser(userId, amount);
-        return (profile.credits || 0) - amount;
+        // Retorna créditos restantes
+        return await getAvailableCredits(userId);
       },
       addCredits: async (amount) => {
         await addCreditsToUser(userId, amount);
-        return (profile.credits || 0) + amount;
+        // Retorna créditos atualizados
+        return await getAvailableCredits(userId);
       }
     };
   } catch (error) {
@@ -149,9 +172,9 @@ export const getAllUsers = async () => {
     }
     
     const { data, error } = await supabaseAdmin
-      .from('user_profiles')
+      .from('perfis_usuarios')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('criado_em', { ascending: false });
     
     if (error) {
       console.error('Erro ao listar usuários:', error);
@@ -161,11 +184,11 @@ export const getAllUsers = async () => {
     return (data || []).map(profile => ({
       id: profile.id,
       email: profile.email,
-      name: profile.name || '',
-      credits: profile.credits || 0,
-      plan: profile.plan || null,
-      createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
-      lastAnalysis: profile.last_analysis ? new Date(profile.last_analysis) : null
+      name: profile.nome || '',
+      credits: profile.creditos || 0,
+      plan: profile.plano || null,
+      createdAt: profile.criado_em ? new Date(profile.criado_em) : new Date(),
+      lastAnalysis: profile.ultima_analise ? new Date(profile.ultima_analise) : null
     }));
   } catch (error) {
     console.error('Erro ao listar usuários:', error);

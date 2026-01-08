@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'seu_secret_key_super_seguro_aqui_mude_em_producao';
 
 console.log('🔐 Middleware - JWT_SECRET configurado:', JWT_SECRET ? 'sim (tamanho: ' + JWT_SECRET.length + ')' : 'não');
 

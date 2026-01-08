@@ -17,7 +17,8 @@ build/
 *.log
 
 # IDEs
-.vscode/
+.vscode/chrome-debug-profile/
+.vscode/settings.json
 .idea/
 *.swp
 *.swo

@@ -112,31 +112,67 @@ export const PRICING_PLANS = {
   single: {
     id: 'single',
     name: 'Análise Única',
-    description: '1 análise completa + 1 currículo melhorado em PDF',
+    description: '1 análise completa otimizada para sites de vagas',
     analyses: 1,
-    priceBRL: 9.90, // Preço acessível
+    priceBRL: 10.90,
     priceUSD: 1.98,
     features: [
       '1 análise completa com IA',
-      'Score detalhado',
-      'Recomendações personalizadas',
-      '1 currículo melhorado em PDF'
+      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)',
+      'Score detalhado e recomendações personalizadas',
+      'Currículo melhorado em PDF ou WORD',
+      'Palavras-chave estratégicas',
+      'Análise única para um site específico'
     ]
   },
   pack3: {
     id: 'pack3',
     name: 'Pacote 3 Análises',
-    description: '3 análises completas + 3 currículos melhorados',
+    description: '3 análises completas otimizadas para diferentes sites',
     analyses: 3,
-    priceBRL: 24.90, // Economia de ~16% comparado a 3x single
-    priceUSD: 4.98,
-    savings: 'Economize R$ 4,80',
+    priceBRL: 27.90, // Economia de R$ 5,80 comparado a 3x single
+    priceUSD: 5.58,
+    savings: 'Economize R$ 5,80',
     features: [
       '3 análises completas com IA',
-      'Score detalhado para cada',
+      'Otimização para diferentes sites de vagas',
+      'Score detalhado para cada análise',
       'Recomendações personalizadas',
-      '3 currículos melhorados em PDF',
+      '3 currículos melhorados em PDF ou WORD',
       'Melhor custo-benefício'
+    ]
+  },
+  pack5: {
+    id: 'pack5',
+    name: 'Pacote 5 Análises',
+    description: '5 análises completas otimizadas para diferentes sites',
+    analyses: 5,
+    priceBRL: 37.90, // Economia de R$ 16,60 comparado a 5x single
+    priceUSD: 7.58,
+    savings: 'Economize R$ 16,60',
+    features: [
+      '5 análises completas com IA',
+      'Otimização para diferentes sites de vagas',
+      'Score detalhado para cada análise',
+      'Recomendações personalizadas',
+      '5 currículos melhorados em PDF ou WORD',
+      'Máxima economia'
+    ]
+  },
+  english: {
+    id: 'english',
+    name: 'Currículo em Inglês',
+    description: 'Geração de currículo profissional em inglês (apenas PDF e WORD, sem análise)',
+    analyses: 0, // Não adiciona créditos, é apenas serviço
+    priceBRL: 9.90, // Preço normal quando comprado separadamente
+    priceBRLBundle: 5.90, // Preço promocional quando comprado junto com análise
+    priceUSD: 1.98,
+    features: [
+      'Currículo traduzido e adaptado para padrões internacionais',
+      'Formatação ATS-friendly',
+      'Download em PDF ou WORD',
+      'Otimizado para vagas globais',
+      'Adaptação cultural profissional'
     ]
   }
 };

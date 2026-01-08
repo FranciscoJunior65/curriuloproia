@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm: start",
+      "type": "npm",
+      "script": "start",
+      "path": "frontend",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": {
+          "regexp": "^([^\\s].*):(\\d+):(\\d+):\\s+(warning|error)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": ".*Local:.*http://localhost:4200.*"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      }
+    },
+    {
+      "label": "npm: start:backend",
+      "type": "npm",
+      "script": "start",
+      "path": "backend",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "javascript",
+        "pattern": {
+          "regexp": "^([^\\s].*):(\\d+):(\\d+):\\s+(warning|error)\\s*:\\s*(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": ".*Server running on port.*"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      }
+    },
+    {
+      "label": "start:all",
+      "dependsOn": [
+        "npm: start:backend",
+        "npm: start"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}
+

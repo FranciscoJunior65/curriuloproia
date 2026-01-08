@@ -8,7 +8,7 @@ const createTransporter = () => {
   const emailSecure = process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true';
   const emailUser = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
   const emailPassword = process.env.EMAIL_PASSWORD || process.env.EMAIL_SENDER_PASSWORD;
-  const emailSenderName = process.env.EMAIL_SENDER_NAME || 'CurriculosPro IA';
+  const emailSenderName = process.env.EMAIL_SENDER_NAME || 'CurriculoPro IA';
 
   if (!emailUser || !emailPassword) {
     console.warn('⚠️  Email não configurado. Variáveis EMAIL_USER e EMAIL_PASSWORD são necessárias.');
@@ -87,7 +87,7 @@ export const sendVerificationEmail = async (email, code, name = '') => {
   }
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-  const appName = process.env.EMAIL_SENDER_NAME || 'CurriculosPro IA';
+  const appName = 'CurriculoPro IA'; // Sempre usa CurriculoPro IA para emails do serviço
   const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
   const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO; // Cópia para outro email
 
@@ -165,7 +165,7 @@ export const sendVerificationEmail = async (email, code, name = '') => {
           
           <div class="footer">
             <p>Este é um email automático, por favor não responda.</p>
-            <p>&copy; ${new Date().getFullYear()} ${appName}. Todos os direitos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} GetPush Tecnologia. Todos os direitos reservados.</p>
           </div>
         </div>
       </body>
@@ -214,7 +214,7 @@ export const sendWelcomeEmail = async (email, name = '') => {
   }
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-  const appName = process.env.EMAIL_SENDER_NAME || 'CurriculosPro IA';
+  const appName = 'CurriculoPro IA'; // Sempre usa CurriculoPro IA para emails do serviço
   const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
   const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
 
@@ -278,7 +278,7 @@ export const sendWelcomeEmail = async (email, name = '') => {
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
             <p>Este é um email automático, por favor não responda.</p>
-            <p>&copy; ${new Date().getFullYear()} ${appName}. Todos os direitos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} GetPush Tecnologia. Todos os direitos reservados.</p>
           </div>
         </div>
       </body>
@@ -310,7 +310,7 @@ export const sendWelcomeEmail = async (email, name = '') => {
 /**
  * Envia email de notificação de login
  */
-export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '') => {
+export const sendLoginNotificationEmail = async (email, name = '') => {
   if (!transporter) {
     transporter = createTransporter();
   }
@@ -319,7 +319,7 @@ export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '
     throw new Error('Serviço de email não configurado');
   }
 
-  const appName = process.env.EMAIL_SENDER_NAME || 'CurriculosPro IA';
+  const appName = 'CurriculoPro IA'; // Sempre usa CurriculoPro IA para emails do serviço
   const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
   const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
   const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -328,7 +328,7 @@ export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '
     from: `"${appName}" <${emailSender}>`,
     to: email,
     cc: emailCopy ? [emailCopy] : undefined,
-    subject: `🔐 Login realizado - ${appName}`,
+    subject: `🔐 Login Realizado - ${appName}`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -367,8 +367,7 @@ export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '
           
           <div class="alert">
             <strong>Detalhes do acesso:</strong><br>
-            Data e hora: ${now}<br>
-            ${ipAddress ? `Endereço IP: ${ipAddress}<br>` : ''}
+            Data e hora: ${now}
           </div>
           
           <p><strong>Não foi você?</strong></p>
@@ -378,7 +377,7 @@ export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
             <p>Este é um email automático de segurança.</p>
-            <p>&copy; ${new Date().getFullYear()} ${appName}. Todos os direitos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} GetPush Tecnologia. Todos os direitos reservados.</p>
           </div>
         </div>
       </body>
@@ -391,7 +390,6 @@ export const sendLoginNotificationEmail = async (email, name = '', ipAddress = '
       
       Detalhes do acesso:
       Data e hora: ${now}
-      ${ipAddress ? `Endereço IP: ${ipAddress}` : ''}
       
       Não foi você? Se você não realizou este login, altere sua senha imediatamente.
       
@@ -422,7 +420,7 @@ export const sendVerificationLinkEmail = async (email, token, name = '') => {
   }
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-  const appName = process.env.EMAIL_SENDER_NAME || 'CurriculosPro IA';
+  const appName = 'CurriculoPro IA'; // Sempre usa CurriculoPro IA para emails do serviço
   const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
   const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
   const verificationLink = `${frontendUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
@@ -486,7 +484,7 @@ export const sendVerificationLinkEmail = async (email, token, name = '') => {
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
             <p>Este é um email automático, por favor não responda.</p>
-            <p>&copy; ${new Date().getFullYear()} ${appName}. Todos os direitos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} GetPush Tecnologia. Todos os direitos reservados.</p>
           </div>
         </div>
       </body>
@@ -516,3 +514,254 @@ export const sendVerificationLinkEmail = async (email, token, name = '') => {
   }
 };
 
+/**
+ * Envia email de notificação de mudança de senha
+ */
+export const sendPasswordChangeNotificationEmail = async (email, name = '') => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+  
+  if (!transporter) {
+    throw new Error('Serviço de email não configurado');
+  }
+
+  const appName = 'CurriculosPro IA';
+  const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
+  const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
+  const now = new Date().toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const mailOptions = {
+    from: `"${appName}" <${emailSender}>`,
+    to: email,
+    cc: emailCopy ? [emailCopy] : undefined,
+    subject: `🔐 Senha alterada - ${appName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .container {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+          }
+          .alert {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+          .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 style="color: #4CAF50;">✅ Senha Alterada com Sucesso</h2>
+          
+          <p>Olá${name ? `, ${name}` : ''}!</p>
+          
+          <p>Sua senha foi alterada com sucesso na sua conta do <strong>${appName}</strong>.</p>
+          
+          <div class="info-box">
+            <p><strong>Detalhes da alteração:</strong></p>
+            <p>Data e hora: <strong>${now}</strong></p>
+          </div>
+          
+          <div class="alert">
+            <p><strong>⚠️ Importante:</strong></p>
+            <p>Se você não realizou esta alteração, entre em contato conosco imediatamente através do nosso suporte.</p>
+          </div>
+          
+          <p>Para sua segurança, recomendamos:</p>
+          <ul>
+            <li>Usar uma senha forte e única</li>
+            <li>Não compartilhar sua senha com ninguém</li>
+            <li>Alterar sua senha periodicamente</li>
+          </ul>
+          
+          <p>Se foi você quem alterou a senha, pode ignorar este email.</p>
+          
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
+            <p>Este é um email automático, por favor não responda.</p>
+            <p>&copy; ${new Date().getFullYear()} CurriculosPro IA. Todos os direitos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `
+      Olá${name ? `, ${name}` : ''}!
+      
+      Sua senha foi alterada com sucesso na sua conta do ${appName}.
+      
+      Detalhes da alteração:
+      Data e hora: ${now}
+      
+      ⚠️ IMPORTANTE: Se você não realizou esta alteração, entre em contato conosco imediatamente.
+      
+      Para sua segurança, recomendamos usar uma senha forte e única, não compartilhar sua senha com ninguém e alterar sua senha periodicamente.
+      
+      Se foi você quem alterou a senha, pode ignorar este email.
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email de notificação de mudança de senha enviado:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email de notificação de mudança de senha:', error);
+    throw error;
+  }
+};
+
+/**
+ * Envia email com link de recuperação de senha
+ */
+export const sendPasswordResetEmail = async (email, token, name = '') => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+  
+  if (!transporter) {
+    throw new Error('Serviço de email não configurado');
+  }
+
+  const appName = 'CurriculosPro IA';
+  const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
+  const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+  const resetLink = `${frontendUrl}/login?token=${token}`;
+
+  const mailOptions = {
+    from: `"${appName}" <${emailSender}>`,
+    to: email,
+    cc: emailCopy ? [emailCopy] : undefined,
+    subject: `🔐 Recuperação de Senha - ${appName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .container {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+          }
+          .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(to right, #6366f1, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+          }
+          .alert {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 style="color: #6366f1;">Recuperação de Senha</h2>
+          
+          <p>Olá${name ? `, ${name}` : ''}!</p>
+          
+          <p>Recebemos uma solicitação para redefinir a senha da sua conta no <strong>${appName}</strong>.</p>
+          
+          <p>Clique no botão abaixo para redefinir sua senha:</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetLink}" class="button">Redefinir Senha</a>
+          </div>
+          
+          <p>Ou copie e cole este link no seu navegador:</p>
+          <p style="word-break: break-all; color: #6366f1;">${resetLink}</p>
+          
+          <div class="alert">
+            <p><strong>⚠️ Importante:</strong></p>
+            <ul>
+              <li>Este link expira em 1 hora</li>
+              <li>Se você não solicitou esta recuperação, ignore este email</li>
+              <li>Não compartilhe este link com ninguém</li>
+            </ul>
+          </div>
+          
+          <p>Se você não solicitou esta recuperação, pode ignorar este email. Sua senha permanecerá a mesma.</p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
+            <p>Este é um email automático, por favor não responda.</p>
+            <p>&copy; ${new Date().getFullYear()} CurriculosPro IA. Todos os direitos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `
+      Olá${name ? `, ${name}` : ''}!
+      
+      Recebemos uma solicitação para redefinir a senha da sua conta no ${appName}.
+      
+      Clique no link abaixo para redefinir sua senha:
+      ${resetLink}
+      
+      ⚠️ IMPORTANTE:
+      - Este link expira em 1 hora
+      - Se você não solicitou esta recuperação, ignore este email
+      - Não compartilhe este link com ninguém
+      
+      Se você não solicitou esta recuperação, pode ignorar este email. Sua senha permanecerá a mesma.
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email de recuperação de senha enviado:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email de recuperação de senha:', error);
+    throw error;
+  }
+};

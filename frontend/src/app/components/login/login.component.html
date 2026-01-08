@@ -1,0 +1,297 @@
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-card__image">
+      <div class="login-card__image-overlay">
+        <p class="login-card__badge">CurriculoPro IA</p>
+        <h2 class="login-card__headline">
+          Seu currículo profissional,
+          <span>impulsionado por IA.</span>
+        </h2>
+        <p class="login-card__subtitle">
+          Analise, otimize e melhore seu currículo com inteligência artificial em poucos minutos.
+        </p>
+      </div>
+    </div>
+
+    <div class="login-card__content">
+      <div class="login-card__inner">
+        <p class="login-card__brand">CurriculoPro IA</p>
+        
+        <!-- Tela de verificação de email -->
+        <div *ngIf="showVerificationStep">
+          <h1 class="login-card__title">Verifique seu email</h1>
+          <p class="login-card__description">
+            Enviamos um código de verificação de 6 dígitos para <strong>{{ registeredEmail }}</strong>
+          </p>
+
+          <form (ngSubmit)="verifyEmail()" class="login-form">
+            <div class="login-form__field">
+              <label class="login-form__label">Código de verificação</label>
+              <input
+                type="text"
+                [(ngModel)]="verificationCode"
+                name="verificationCode"
+                (input)="onVerificationCodeInput($event)"
+                required
+                maxlength="6"
+                class="login-form__input"
+                placeholder="000000"
+                pattern="[0-9]{6}"
+              />
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="verifyLoading || !verificationCode || verificationCode.length !== 6">
+              <span *ngIf="!verifyLoading">Verificar</span>
+              <span *ngIf="verifyLoading">Verificando...</span>
+            </button>
+          </form>
+
+          <p class="login-card__switch">
+            Não recebeu o código?
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="resendVerificationCode()"
+              [disabled]="resendLoading"
+            >
+              {{ resendLoading ? 'Reenviando...' : 'Reenviar código' }}
+            </button>
+          </p>
+
+          <p class="login-card__switch" style="margin-top: 1rem;">
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="toggleMode(); showVerificationStep = false;"
+            >
+              Voltar ao login
+            </button>
+          </p>
+        </div>
+
+        <!-- Tela de recuperação de senha -->
+        <div *ngIf="showForgotPassword && !showResetPassword">
+          <h1 class="login-card__title">Recuperar Senha</h1>
+          <p class="login-card__description">
+            Digite seu email e enviaremos um link para redefinir sua senha.
+          </p>
+
+          <form (ngSubmit)="requestPasswordReset()" class="login-form">
+            <div class="login-form__field">
+              <label class="login-form__label">Email</label>
+              <input
+                type="email"
+                [(ngModel)]="forgotPasswordEmail"
+                name="forgotPasswordEmail"
+                required
+                class="login-form__input"
+                placeholder="seu@email.com"
+              />
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <div *ngIf="forgotPasswordSuccess" class="login-form__success">
+              {{ forgotPasswordSuccess }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="forgotPasswordLoading">
+              <span *ngIf="!forgotPasswordLoading">Enviar link de recuperação</span>
+              <span *ngIf="forgotPasswordLoading">Enviando...</span>
+            </button>
+          </form>
+
+          <p class="login-card__switch">
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="showForgotPassword = false; error = ''; forgotPasswordSuccess = '';"
+            >
+              Voltar ao login
+            </button>
+          </p>
+        </div>
+
+        <!-- Tela de redefinir senha -->
+        <div *ngIf="showResetPassword">
+          <h1 class="login-card__title">Redefinir Senha</h1>
+          <p class="login-card__description">
+            Digite sua nova senha.
+          </p>
+
+          <form (ngSubmit)="resetPassword()" class="login-form">
+            <div class="login-form__field">
+              <label class="login-form__label">Nova Senha</label>
+              <div class="login-form__password-wrapper">
+                <input
+                  [type]="showNewPassword ? 'text' : 'password'"
+                  [(ngModel)]="newPassword"
+                  name="newPassword"
+                  required
+                  class="login-form__input login-form__input--password"
+                  placeholder="Mínimo de 6 caracteres"
+                  minlength="6"
+                />
+                <button
+                  type="button"
+                  class="login-form__password-toggle"
+                  (click)="showNewPassword = !showNewPassword"
+                  tabindex="-1"
+                >
+                  <mat-icon>{{ showNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="login-form__field">
+              <label class="login-form__label">Confirmar Nova Senha</label>
+              <div class="login-form__password-wrapper">
+                <input
+                  [type]="showConfirmPassword ? 'text' : 'password'"
+                  [(ngModel)]="confirmPassword"
+                  name="confirmPassword"
+                  required
+                  class="login-form__input login-form__input--password"
+                  placeholder="Digite a senha novamente"
+                  minlength="6"
+                />
+                <button
+                  type="button"
+                  class="login-form__password-toggle"
+                  (click)="showConfirmPassword = !showConfirmPassword"
+                  tabindex="-1"
+                >
+                  <mat-icon>{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="resetPasswordLoading">
+              <span *ngIf="!resetPasswordLoading">Redefinir Senha</span>
+              <span *ngIf="resetPasswordLoading">Redefinindo...</span>
+            </button>
+          </form>
+
+          <p class="login-card__switch">
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="showResetPassword = false; showForgotPassword = false; error = '';"
+            >
+              Voltar ao login
+            </button>
+          </p>
+        </div>
+
+        <!-- Tela de login/cadastro -->
+        <div *ngIf="!showVerificationStep && !showForgotPassword && !showResetPassword">
+          <h1 class="login-card__title">
+            {{ isLogin ? 'Bem-vindo de volta' : 'Crie sua conta' }}
+          </h1>
+          <p class="login-card__description">
+            {{
+              isLogin
+                ? 'Entre para analisar e otimizar seus currículos com IA.'
+                : 'Leva menos de 1 minuto para começar a melhorar seu currículo com inteligência artificial.'
+            }}
+          </p>
+
+          <form (ngSubmit)="submit()" class="login-form">
+            <div *ngIf="!isLogin" class="login-form__field">
+              <label class="login-form__label">Nome completo</label>
+              <input
+                type="text"
+                [(ngModel)]="nome"
+                name="nome"
+                required
+                class="login-form__input"
+                placeholder="Como está no seu currículo"
+              />
+            </div>
+
+            <div class="login-form__field">
+              <label class="login-form__label">Email</label>
+              <input
+                type="email"
+                [(ngModel)]="email"
+                name="email"
+                required
+                class="login-form__input"
+                placeholder="seu@email.com"
+              />
+            </div>
+
+            <div class="login-form__field">
+              <div class="login-form__password-header">
+                <label class="login-form__label">Senha</label>
+                <button
+                  type="button"
+                  class="login-form__forgot-password"
+                  (click)="showForgotPassword = true"
+                  *ngIf="isLogin"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
+              <div class="login-form__password-wrapper">
+                <input
+                  [type]="showPassword ? 'text' : 'password'"
+                  [(ngModel)]="senha"
+                  name="senha"
+                  required
+                  class="login-form__input login-form__input--password"
+                  placeholder="Mínimo de 6 caracteres"
+                  minlength="6"
+                />
+                <button
+                  type="button"
+                  class="login-form__password-toggle"
+                  (click)="togglePasswordVisibility()"
+                  [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                  tabindex="-1"
+                >
+                  <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <div *ngIf="success" class="login-form__success">
+              {{ success }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="loading">
+              <span *ngIf="!loading">{{ isLogin ? 'Entrar' : 'Criar conta' }}</span>
+              <span *ngIf="loading">{{ isLogin ? 'Entrando...' : 'Criando conta...' }}</span>
+            </button>
+          </form>
+
+          <p class="login-card__switch">
+            {{ isLogin ? 'Ainda não tem conta?' : 'Já tem conta?' }}
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="toggleMode()"
+            >
+              {{ isLogin ? 'Criar conta grátis' : 'Fazer login' }}
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

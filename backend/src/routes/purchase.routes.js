@@ -36,7 +36,7 @@ router.post('/mock', async (req, res) => {
         const jwt = await import('jsonwebtoken');
         const token = authHeader.substring(7);
         // Tenta verificar, mas não falha se inválido
-        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'seu_secret_key_super_seguro_aqui_mude_em_producao');
         userId = decoded.userId;
         console.log('✅ Token válido, userId extraído:', userId);
       } catch (err) {

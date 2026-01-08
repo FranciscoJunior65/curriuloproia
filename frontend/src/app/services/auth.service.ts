@@ -14,9 +14,11 @@ export interface User {
 
 export interface AuthResponse {
   success: boolean;
-  token: string;
-  user: User;
+  token?: string;
+  user?: User;
   message?: string;
+  error?: string;
+  requiresVerification?: boolean;
 }
 
 @Injectable({
@@ -58,8 +60,8 @@ export class AuthService {
     }
   }
 
-  register(email: string, password: string, name?: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/register`, {
+  register(email: string, password: string, name?: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, {
       email,
       password,
       name
@@ -72,7 +74,7 @@ export class AuthService {
       code
     }).pipe(
       tap(response => {
-        if (response.success) {
+        if (response.success && response.token && response.user) {
           this.setToken(response.token);
           this.setUser(response.user);
         }
@@ -92,7 +94,7 @@ export class AuthService {
       password
     }).pipe(
       tap(response => {
-        if (response.success) {
+        if (response.success && response.token && response.user) {
           this.setToken(response.token);
           this.setUser(response.user);
         }
@@ -153,6 +155,14 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
+  // Método público para atualizar usuário do localStorage (usado pelo guard)
+  refreshUserFromStorage(): void {
+    const stored = this.getStoredUser();
+    if (stored) {
+      this.currentUserSubject.next(stored);
+    }
+  }
+
   private setToken(token: string): void {
     localStorage.setItem(this.tokenKey, token);
   }
@@ -169,6 +179,19 @@ export class AuthService {
   private getStoredUser(): User | null {
     const userStr = localStorage.getItem(this.userKey);
     return userStr ? JSON.parse(userStr) : null;
+  }
+
+  forgotPassword(email: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/forgot-password`, {
+      email
+    });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/reset-password`, {
+      token,
+      newPassword
+    });
   }
 }
 

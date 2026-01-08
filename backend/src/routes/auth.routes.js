@@ -1,5 +1,6 @@
 import express from 'express';
-import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken } from '../controllers/auth.controller.js';
+import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken, changePassword, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -154,6 +155,89 @@ router.post('/resend-verification', resendVerificationCode);
  *         description: Redireciona para frontend com token ou erro
  */
 router.get('/verify-email-link', verifyEmailByToken);
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Troca a senha do usuário autenticado
+ *     tags: [Autenticação]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Senha alterada com sucesso
+ *       401:
+ *         description: Senha atual incorreta ou não autorizado
+ *       400:
+ *         description: Dados inválidos
+ */
+router.post('/change-password', authenticate, changePassword);
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Solicita recuperação de senha
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Email enviado (se o email estiver cadastrado)
+ */
+router.post('/forgot-password', forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Redefine senha usando token de recuperação
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Senha redefinida com sucesso
+ *       400:
+ *         description: Token inválido ou expirado
+ */
+router.post('/reset-password', resetPassword);
 
 export default router;
 

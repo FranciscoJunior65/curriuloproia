@@ -27,14 +27,32 @@ export const analyzeResume = async (req, res) => {
     // Verificação de créditos (obrigatório se autenticado)
     if (userId) {
       const user = await getUser(userId);
-      if (!user || !user.hasCredits()) {
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'Usuário não encontrado',
+          message: 'Usuário não encontrado no sistema.'
+        });
+      }
+      
+      console.log(`🔍 Verificando créditos para usuário ${userId}. Créditos disponíveis: ${user.credits || 0}`);
+      
+      // Verifica créditos disponíveis (agora é async)
+      const hasCredits = await user.hasCredits(1);
+      console.log(`💳 Usuário tem créditos suficientes? ${hasCredits}`);
+      
+      if (!hasCredits) {
+        console.log(`❌ Créditos insuficientes. Disponível: ${user.credits || 0}, Necessário: 1`);
         return res.status(402).json({
           success: false,
           error: 'Créditos insuficientes',
           message: 'Você não possui créditos suficientes. Por favor, adquira um plano.',
-          requiresPayment: true
+          requiresPayment: true,
+          creditsAvailable: user.credits || 0
         });
       }
+      
+      console.log(`✅ Créditos verificados. Prosseguindo com análise...`);
     } else {
       // Se não estiver autenticado, requer login
       return res.status(401).json({

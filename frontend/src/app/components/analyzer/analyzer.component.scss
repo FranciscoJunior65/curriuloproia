@@ -70,3 +70,24 @@ mat-chip {
   display: inline-block;
 }
 
+// Estilos para ícones dos cards de serviços
+mat-icon.text-4xl {
+  font-size: 2.5rem !important;
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  line-height: 2.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+mat-icon.text-lg {
+  font-size: 1.125rem !important;
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+  line-height: 1.125rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
