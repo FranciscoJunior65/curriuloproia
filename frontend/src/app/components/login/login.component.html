@@ -194,7 +194,7 @@
         </div>
 
         <!-- Tela de login/cadastro -->
-        <div *ngIf="!showVerificationStep && !showForgotPassword && !showResetPassword">
+        <div *ngIf="!showVerificationStep && !showForgotPassword && !showResetPassword && !showLoginCodeStep">
           <h1 class="login-card__title">
             {{ isLogin ? 'Bem-vindo de volta' : 'Crie sua conta' }}
           </h1>
@@ -206,7 +206,29 @@
             }}
           </p>
 
-          <form (ngSubmit)="submit()" class="login-form">
+          <!-- Seleção de método de login (apenas para login) -->
+          <div *ngIf="isLogin" class="login-form__method-selector">
+            <button
+              type="button"
+              class="login-form__method-btn"
+              [class.login-form__method-btn--active]="loginMethod === 'password'"
+              (click)="loginMethod = 'password'"
+            >
+              <mat-icon>lock</mat-icon>
+              <span>Senha</span>
+            </button>
+            <button
+              type="button"
+              class="login-form__method-btn"
+              [class.login-form__method-btn--active]="loginMethod === 'code'"
+              (click)="loginMethod = 'code'; showLoginCodeStep = true; error = ''; success = '';"
+            >
+              <mat-icon>email</mat-icon>
+              <span>Código</span>
+            </button>
+          </div>
+
+          <form (ngSubmit)="submit()" class="login-form" *ngIf="!isLogin || loginMethod === 'password'">
             <div *ngIf="!isLogin" class="login-form__field">
               <label class="login-form__label">Nome completo</label>
               <input
@@ -231,13 +253,13 @@
               />
             </div>
 
-            <div class="login-form__field">
+            <div class="login-form__field" *ngIf="!isLogin || loginMethod === 'password'">
               <div class="login-form__password-header">
                 <label class="login-form__label">Senha</label>
                 <button
                   type="button"
                   class="login-form__forgot-password"
-                  (click)="showForgotPassword = true"
+                  (click)="showForgotPassword = true; error = ''; success = '';"
                   *ngIf="isLogin"
                 >
                   Esqueci minha senha
@@ -287,6 +309,173 @@
               (click)="toggleMode()"
             >
               {{ isLogin ? 'Criar conta grátis' : 'Fazer login' }}
+            </button>
+          </p>
+        </div>
+
+        <!-- Tela de login com código -->
+        <div *ngIf="showLoginCodeStep && !showForgotPassword && !showResetPassword">
+          <h1 class="login-card__title">Login com Código</h1>
+          <p class="login-card__description">
+            Digite seu email para receber um código de login.
+          </p>
+
+          <!-- Formulário para solicitar código -->
+          <form (ngSubmit)="requestLoginCode()" class="login-form" *ngIf="!codeSent">
+            <div class="login-form__field">
+              <label class="login-form__label">Email</label>
+              <input
+                type="email"
+                [(ngModel)]="loginCodeEmail"
+                name="loginCodeEmail"
+                required
+                class="login-form__input"
+                placeholder="seu@email.com"
+              />
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <div *ngIf="success" class="login-form__success">
+              {{ success }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="requestCodeLoading">
+              <span *ngIf="!requestCodeLoading">Enviar código</span>
+              <span *ngIf="requestCodeLoading">Enviando...</span>
+            </button>
+          </form>
+
+          <!-- Formulário para inserir código -->
+          <form (ngSubmit)="verifyLoginCode()" class="login-form" *ngIf="codeSent">
+            <div class="login-form__field">
+              <label class="login-form__label">Código de Login</label>
+              <div class="login-form__code-container">
+                <input
+                  #codeInput0
+                  type="text"
+                  [value]="loginCodeDigits[0] || ''"
+                  name="codeDigit0"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 0)"
+                  (keydown)="onLoginCodeKeyDown($event, 0)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+                <input
+                  #codeInput1
+                  type="text"
+                  [value]="loginCodeDigits[1] || ''"
+                  name="codeDigit1"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 1)"
+                  (keydown)="onLoginCodeKeyDown($event, 1)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+                <input
+                  #codeInput2
+                  type="text"
+                  [value]="loginCodeDigits[2] || ''"
+                  name="codeDigit2"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 2)"
+                  (keydown)="onLoginCodeKeyDown($event, 2)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+                <input
+                  #codeInput3
+                  type="text"
+                  [value]="loginCodeDigits[3] || ''"
+                  name="codeDigit3"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 3)"
+                  (keydown)="onLoginCodeKeyDown($event, 3)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+                <input
+                  #codeInput4
+                  type="text"
+                  [value]="loginCodeDigits[4] || ''"
+                  name="codeDigit4"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 4)"
+                  (keydown)="onLoginCodeKeyDown($event, 4)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+                <input
+                  #codeInput5
+                  type="text"
+                  [value]="loginCodeDigits[5] || ''"
+                  name="codeDigit5"
+                  required
+                  class="login-form__code-digit"
+                  maxlength="1"
+                  pattern="[0-9]"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  (input)="onLoginCodeInput($event, 5)"
+                  (keydown)="onLoginCodeKeyDown($event, 5)"
+                  (paste)="onLoginCodePaste($event)"
+                />
+              </div>
+            </div>
+
+            <div *ngIf="error" class="login-form__error">
+              {{ error }}
+            </div>
+
+            <div *ngIf="success" class="login-form__success">
+              {{ success }}
+            </div>
+
+            <button type="submit" class="login-form__submit" [disabled]="loginCodeLoading">
+              <span *ngIf="!loginCodeLoading">Entrar</span>
+              <span *ngIf="loginCodeLoading">Verificando...</span>
+            </button>
+
+            <button
+              type="button"
+              class="login-form__resend-code"
+              (click)="codeSent = false; loginCode = ''; loginCodeDigits = ['', '', '', '', '', '']; loginCodeEmail = ''; success = ''; error = '';"
+              [disabled]="requestCodeLoading"
+            >
+              Reenviar código
+            </button>
+          </form>
+
+          <p class="login-card__switch">
+            <button
+              type="button"
+              class="login-card__switch-button"
+              (click)="showLoginCodeStep = false; loginCode = ''; loginCodeDigits = ['', '', '', '', '', '']; loginCodeEmail = ''; error = ''; success = ''; loginMethod = 'password'; codeSent = false;"
+            >
+              Voltar ao login
             </button>
           </p>
         </div>

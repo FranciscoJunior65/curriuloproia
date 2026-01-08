@@ -1,12 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import session from 'express-session';
+import passport from 'passport';
 import analyzeRoutes from './routes/analyze.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import testRoutes from './routes/test.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import purchaseRoutes from './routes/purchase.routes.js';
 import { setupSwagger } from './config/swagger.js';
+import { setupGoogleStrategy } from './config/passport.js';
 
 dotenv.config();
 
@@ -14,9 +17,31 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session para OAuth
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'seu_secret_key_super_seguro_aqui_mude_em_producao',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+  }
+}));
+
+// Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Configurar estratégia do Google
+setupGoogleStrategy();
 
 // Swagger Documentation
 setupSwagger(app);

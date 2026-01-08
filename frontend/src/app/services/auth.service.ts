@@ -163,11 +163,11 @@ export class AuthService {
     }
   }
 
-  private setToken(token: string): void {
+  public setToken(token: string): void {
     localStorage.setItem(this.tokenKey, token);
   }
 
-  private setUser(user: User): void {
+  public setUser(user: User): void {
     console.log('AuthService - setUser chamado com:', user);
     localStorage.setItem(this.userKey, JSON.stringify(user));
     this.currentUserSubject.next(user);
@@ -192,6 +192,26 @@ export class AuthService {
       token,
       newPassword
     });
+  }
+
+  requestLoginCode(email: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/request-login-code`, {
+      email
+    });
+  }
+
+  verifyLoginCode(email: string, code: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-login-code`, {
+      email,
+      code
+    }).pipe(
+      tap(response => {
+        if (response.success && response.token && response.user) {
+          this.setToken(response.token);
+          this.setUser(response.user);
+        }
+      })
+    );
   }
 }
 

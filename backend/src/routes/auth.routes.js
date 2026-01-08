@@ -1,6 +1,7 @@
 import express from 'express';
-import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken, changePassword, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
+import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken, changePassword, forgotPassword, resetPassword, requestLoginCode, verifyLoginCode, googleCallback } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import passport from 'passport';
 
 const router = express.Router();
 
@@ -238,6 +239,97 @@ router.post('/forgot-password', forgotPassword);
  *         description: Token inválido ou expirado
  */
 router.post('/reset-password', resetPassword);
+
+/**
+ * @swagger
+ * /api/auth/request-login-code:
+ *   post:
+ *     summary: Solicita código de login por email (login sem senha)
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Código enviado (se o email estiver cadastrado)
+ */
+router.post('/request-login-code', requestLoginCode);
+
+/**
+ * @swagger
+ * /api/auth/verify-login-code:
+ *   post:
+ *     summary: Valida código de login e faz login
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - code
+ *             properties:
+ *               email:
+ *                 type: string
+ *               code:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login realizado com sucesso
+ *       400:
+ *         description: Código inválido ou expirado
+ */
+router.post('/verify-login-code', verifyLoginCode);
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   get:
+ *     summary: Inicia autenticação com Google OAuth
+ *     tags: [Autenticação]
+ *     responses:
+ *       302:
+ *         description: Redireciona para o Google
+ */
+router.get('/google', (req, res, next) => {
+  // Verifica se as credenciais do Google estão configuradas
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    return res.redirect(`${frontendUrl}/login?error=google_not_configured`);
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
+
+/**
+ * @swagger
+ * /api/auth/google/callback:
+ *   get:
+ *     summary: Callback do Google OAuth
+ *     tags: [Autenticação]
+ *     responses:
+ *       302:
+ *         description: Redireciona para o frontend com token
+ */
+router.get('/google/callback', (req, res, next) => {
+  // Verifica se as credenciais do Google estão configuradas
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    return res.redirect(`${frontendUrl}/login?error=google_not_configured`);
+  }
+  passport.authenticate('google', { 
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:4200'}/login?error=google_auth_failed` 
+  })(req, res, next);
+}, googleCallback);
 
 export default router;
 

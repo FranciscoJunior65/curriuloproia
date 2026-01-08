@@ -44,6 +44,16 @@ export class LoginComponent implements OnInit {
   resetPasswordLoading = false;
   resetToken = '';
 
+  // Estados para login com código
+  loginMethod: 'password' | 'code' | 'google' = 'password';
+  showLoginCodeStep = false;
+  loginCodeEmail = '';
+  loginCode = '';
+  loginCodeDigits: string[] = ['', '', '', '', '', '']; // Array para os 6 dígitos
+  loginCodeLoading = false;
+  requestCodeLoading = false;
+  codeSent = false; // Flag para controlar se o código foi enviado
+
   constructor(
     private authService: AuthService,
     private router: Router
@@ -123,6 +133,85 @@ export class LoginComponent implements OnInit {
     }
   }
 
+  // Métodos para login com código
+  requestLoginCode() {
+    this.error = '';
+    this.success = '';
+    
+    if (!this.loginCodeEmail) {
+      this.error = 'Email é obrigatório';
+      return;
+    }
+
+    this.requestCodeLoading = true;
+    this.authService.requestLoginCode(this.loginCodeEmail).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.success = response.message || 'Código enviado! Verifique seu email.';
+          this.loginCode = ''; // Limpa para mostrar o campo de código
+          this.loginCodeDigits = ['', '', '', '', '', '']; // Limpa os dígitos
+          this.error = ''; // Limpa erros anteriores
+          this.codeSent = true; // Marca que o código foi enviado
+        } else {
+          this.error = response.error || 'Erro ao solicitar código de login';
+        }
+        this.requestCodeLoading = false;
+      },
+      error: (err) => {
+        this.error = err.error?.error || err.error?.message || 'Erro ao solicitar código de login';
+        this.requestCodeLoading = false;
+      }
+    });
+  }
+
+  verifyLoginCode() {
+    this.error = '';
+    this.success = '';
+    
+    // Atualiza o código completo a partir dos dígitos
+    this.loginCode = this.loginCodeDigits.join('');
+    
+    if (!this.loginCodeEmail || !this.loginCode) {
+      this.error = 'Email e código são obrigatórios';
+      return;
+    }
+
+    if (this.loginCode.length !== 6) {
+      this.error = 'O código deve ter 6 dígitos';
+      return;
+    }
+
+    this.loginCodeLoading = true;
+    this.authService.verifyLoginCode(this.loginCodeEmail, this.loginCode).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.success = 'Login realizado com sucesso!';
+          setTimeout(() => {
+            this.router.navigate(['/']);
+          }, 1000);
+        } else {
+          this.error = response.error || 'Código inválido ou expirado';
+          this.loginCodeLoading = false;
+        }
+      },
+      error: (err) => {
+        this.error = err.error?.error || err.error?.message || 'Código inválido ou expirado';
+        this.loginCodeLoading = false;
+      }
+    });
+  }
+
+  // Método para login com Google
+  loginWithGoogle() {
+    this.error = '';
+    this.success = '';
+    
+    // Redireciona para o endpoint de OAuth do Google
+    const apiUrl = 'http://localhost:3000/api';
+    const googleAuthUrl = `${apiUrl}/auth/google`;
+    window.location.href = googleAuthUrl;
+  }
+
   verifyEmail() {
     if (!this.verificationCode || this.verificationCode.length !== 6) {
       this.error = 'Código de verificação deve ter 6 dígitos';
@@ -169,14 +258,150 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  onVerificationCodeInput(event: any) {
+  onVerificationCodeInput(event: Event) {
     // Remove caracteres não numéricos e limita a 6 dígitos
-    let value = event.target.value.replace(/\D/g, '');
+    const target = event.target as HTMLInputElement;
+    if (!target) return;
+    
+    let value = target.value.replace(/\D/g, '');
     if (value.length > 6) {
       value = value.substring(0, 6);
     }
     this.verificationCode = value;
-    event.target.value = value;
+    target.value = value;
+  }
+
+  onLoginCodeInput(event: Event, index: number) {
+    const target = event.target as HTMLInputElement;
+    if (!target) return;
+    
+    // Pega o valor atual do campo
+    let currentValue = target.value;
+    
+    // Remove caracteres não numéricos
+    let value = currentValue.replace(/\D/g, '');
+    
+    // Se digitou mais de um caractere, pega apenas o último
+    if (value.length > 1) {
+      value = value.charAt(value.length - 1);
+    }
+    
+    // Limita a apenas 1 dígito
+    value = value.slice(0, 1);
+    
+    // Atualiza apenas o dígito atual no array (sem afetar os outros)
+    const oldValue = this.loginCodeDigits[index];
+    this.loginCodeDigits[index] = value;
+    
+    // Força o valor do campo para garantir que está correto
+    if (target.value !== value) {
+      target.value = value;
+    }
+    
+    // Atualiza o código completo
+    this.loginCode = this.loginCodeDigits.join('');
+    
+    // Se digitou um número e não é o último campo, avança para o próximo
+    if (value && value !== oldValue && index < 5) {
+      setTimeout(() => {
+        const nextInput = document.querySelector(`input[name="codeDigit${index + 1}"]`) as HTMLInputElement;
+        if (nextInput) {
+          // Limpa o próximo campo antes de focar
+          nextInput.value = '';
+          this.loginCodeDigits[index + 1] = '';
+          nextInput.focus();
+        }
+      }, 10);
+    }
+  }
+
+  onLoginCodeKeyDown(event: KeyboardEvent, index: number) {
+    const target = event.target as HTMLInputElement;
+    
+    // Permite navegação com setas
+    if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      const prevInput = document.querySelector(`input[name="codeDigit${index - 1}"]`) as HTMLInputElement;
+      if (prevInput) {
+        prevInput.focus();
+      }
+      return;
+    }
+    
+    if (event.key === 'ArrowRight' && index < 5) {
+      event.preventDefault();
+      const nextInput = document.querySelector(`input[name="codeDigit${index + 1}"]`) as HTMLInputElement;
+      if (nextInput) {
+        nextInput.focus();
+      }
+      return;
+    }
+    
+    // Se pressionou Backspace e o campo está vazio, volta para o anterior
+    if (event.key === 'Backspace' && !target.value && index > 0) {
+      event.preventDefault();
+      this.loginCodeDigits[index] = '';
+      this.loginCode = this.loginCodeDigits.join('');
+      const prevInput = document.querySelector(`input[name="codeDigit${index - 1}"]`) as HTMLInputElement;
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.value = '';
+        this.loginCodeDigits[index - 1] = '';
+        this.loginCode = this.loginCodeDigits.join('');
+      }
+      return;
+    }
+    
+    // Se pressionou Backspace e o campo tem valor, limpa e fica no mesmo campo
+    if (event.key === 'Backspace' && target.value) {
+      this.loginCodeDigits[index] = '';
+      this.loginCode = this.loginCodeDigits.join('');
+      return;
+    }
+    
+    // Se pressionou Delete, limpa o campo atual
+    if (event.key === 'Delete') {
+      this.loginCodeDigits[index] = '';
+      this.loginCode = this.loginCodeDigits.join('');
+      return;
+    }
+    
+    // Previne que caracteres não numéricos sejam digitados
+    if (event.key.length === 1 && !/[0-9]/.test(event.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      event.preventDefault();
+      return;
+    }
+  }
+
+  onLoginCodePaste(event: ClipboardEvent) {
+    event.preventDefault();
+    const pastedData = event.clipboardData?.getData('text') || '';
+    const digits = pastedData.replace(/\D/g, '').slice(0, 6).split('');
+    
+    // Preenche os campos com os dígitos colados
+    for (let i = 0; i < 6; i++) {
+      this.loginCodeDigits[i] = digits[i] || '';
+      // Atualiza o valor do input diretamente
+      const input = document.querySelector(`input[name="codeDigit${i}"]`) as HTMLInputElement;
+      if (input) {
+        input.value = digits[i] || '';
+      }
+    }
+    
+    // Atualiza o código completo
+    this.loginCode = this.loginCodeDigits.join('');
+    
+    // Foca no último campo preenchido ou no primeiro vazio
+    const firstEmptyIndex = this.loginCodeDigits.findIndex(d => !d);
+    const focusIndex = firstEmptyIndex === -1 ? 5 : firstEmptyIndex;
+    const focusInput = document.querySelector(`input[name="codeDigit${focusIndex}"]`) as HTMLInputElement;
+    if (focusInput) {
+      focusInput.focus();
+    }
+  }
+
+  trackByIndex(index: number): number {
+    return index;
   }
 
   togglePasswordVisibility() {
@@ -270,13 +495,37 @@ export class LoginComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Verifica se há token de reset na URL
+    // Verifica se há token de reset ou OAuth na URL
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    if (token) {
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+
+    if (token && success === 'true') {
+      // Token do Google OAuth
+      this.authService.setToken(token);
+      this.authService.verifyToken().subscribe({
+        next: (response) => {
+          if (response.success && response.user) {
+            this.authService.setUser(response.user);
+            this.router.navigate(['/']);
+          }
+        },
+        error: () => {
+          this.error = 'Erro ao fazer login com Google';
+        }
+      });
+    } else if (token) {
+      // Token de reset de senha
       this.resetToken = token;
       this.showResetPassword = true;
       this.showForgotPassword = false;
+    } else if (error) {
+      if (error === 'google_not_configured') {
+        this.error = 'Login com Google não está configurado no momento. Use outro método de login.';
+      } else {
+        this.error = 'Erro ao fazer login com Google. Tente novamente.';
+      }
     }
   }
 }

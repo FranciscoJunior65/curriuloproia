@@ -281,13 +281,13 @@ export const updateUserProfile = async (userId, updates) => {
 /**
  * Atualiza código de verificação do usuário
  */
-export const updateVerificationCode = async (userId, code) => {
+export const updateVerificationCode = async (userId, code, expiresInMinutes = 15) => {
   if (!supabaseAdmin) {
     throw new Error('Supabase não configurado');
   }
 
   const expiresAt = new Date();
-  expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+  expiresAt.setMinutes(expiresAt.getMinutes() + expiresInMinutes);
 
   const { data, error } = await supabaseAdmin
     .from('perfis_usuarios')
@@ -340,6 +340,54 @@ export const verifyEmailCode = async (email, code) => {
     .from('perfis_usuarios')
     .update({
       email_verificado: true,
+      codigo_verificacao: null,
+      codigo_verificacao_expira_em: null,
+      atualizado_em: new Date().toISOString()
+    })
+    .eq('id', profile.id)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  return await mapProfileToEnglish(updated);
+};
+
+/**
+ * Verifica código de login (não marca email como verificado, apenas valida o código)
+ */
+export const verifyLoginCode = async (email, code) => {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase não configurado');
+  }
+
+  const { data: profile, error: fetchError } = await supabaseAdmin
+    .from('perfis_usuarios')
+    .select('*')
+    .eq('email', email)
+    .single();
+
+  if (fetchError || !profile) {
+    throw new Error('Usuário não encontrado');
+  }
+
+  if (profile.codigo_verificacao !== code) {
+    throw new Error('Código de login inválido');
+  }
+
+  const now = new Date();
+  const expiresAt = profile.codigo_verificacao_expira_em ? new Date(profile.codigo_verificacao_expira_em) : null;
+  
+  if (expiresAt && now > expiresAt) {
+    throw new Error('Código de login expirado');
+  }
+
+  // Limpa o código após validação (mas não marca email como verificado)
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from('perfis_usuarios')
+    .update({
       codigo_verificacao: null,
       codigo_verificacao_expira_em: null,
       atualizado_em: new Date().toISOString()

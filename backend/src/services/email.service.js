@@ -765,3 +765,121 @@ export const sendPasswordResetEmail = async (email, token, name = '') => {
     throw error;
   }
 };
+
+/**
+ * Envia email com código de login (sem senha)
+ */
+export const sendLoginCodeEmail = async (email, code, name = '') => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+  
+  if (!transporter) {
+    throw new Error('Serviço de email não configurado');
+  }
+
+  const appName = 'CurriculosPro IA';
+  const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
+  const emailCopy = process.env.EMAIL_COPY || process.env.EMAIL_COPY_TO;
+
+  const mailOptions = {
+    from: `"${appName}" <${emailSender}>`,
+    to: email,
+    cc: emailCopy ? [emailCopy] : undefined,
+    subject: `🔐 Seu código de login - ${appName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .container {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+          }
+          .code-box {
+            background: linear-gradient(to right, #6366f1, #8b5cf6);
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            letter-spacing: 8px;
+            margin: 30px 0;
+          }
+          .alert {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 style="color: #6366f1;">Código de Login</h2>
+          
+          <p>Olá${name ? `, ${name}` : ''}!</p>
+          
+          <p>Use o código abaixo para fazer login no <strong>${appName}</strong>:</p>
+          
+          <div class="code-box">
+            ${code}
+          </div>
+          
+          <div class="alert">
+            <p><strong>⚠️ Importante:</strong></p>
+            <ul>
+              <li>Este código expira em 10 minutos</li>
+              <li>Não compartilhe este código com ninguém</li>
+              <li>Se você não solicitou este código, ignore este email</li>
+            </ul>
+          </div>
+          
+          <p>Este código é válido apenas para esta sessão de login.</p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;">
+            <p>Este é um email automático, por favor não responda.</p>
+            <p>&copy; ${new Date().getFullYear()} CurriculosPro IA. Todos os direitos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `
+      Olá${name ? `, ${name}` : ''}!
+      
+      Use o código abaixo para fazer login no ${appName}:
+      
+      ${code}
+      
+      ⚠️ IMPORTANTE:
+      - Este código expira em 10 minutos
+      - Não compartilhe este código com ninguém
+      - Se você não solicitou este código, ignore este email
+      
+      Este código é válido apenas para esta sessão de login.
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email com código de login enviado:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email com código de login:', error);
+    throw error;
+  }
+};

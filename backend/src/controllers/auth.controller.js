@@ -2,8 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { getOrCreateUser, getUser, saveUser, getUserByEmail } from '../models/user.model.js';
-import { verifyUserPassword, getOrCreateUserProfile, verifyEmailCode, updateVerificationCode, getUserProfileByEmail, updateVerificationToken, verifyEmailToken, getUserProfile, updateUserProfile, getUserByResetToken } from '../services/supabase.service.js';
-import { sendVerificationEmail, generateVerificationCode, sendWelcomeEmail, sendLoginNotificationEmail, sendVerificationLinkEmail, sendPasswordResetEmail, sendPasswordChangeNotificationEmail } from '../services/email.service.js';
+import { verifyUserPassword, getOrCreateUserProfile, verifyEmailCode, verifyLoginCode as verifyLoginCodeService, updateVerificationCode, getUserProfileByEmail, updateVerificationToken, verifyEmailToken, getUserProfile, updateUserProfile, getUserByResetToken } from '../services/supabase.service.js';
+import { sendVerificationEmail, generateVerificationCode, sendWelcomeEmail, sendLoginNotificationEmail, sendVerificationLinkEmail, sendPasswordResetEmail, sendPasswordChangeNotificationEmail, sendLoginCodeEmail } from '../services/email.service.js';
 
 dotenv.config();
 
@@ -597,5 +597,144 @@ export const resetPassword = async (req, res) => {
       error: error.message || 'Token inválido ou expirado',
       message: error.message
     });
+  }
+};
+
+/**
+ * Solicita código de login por email (login sem senha)
+ */
+export const requestLoginCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email é obrigatório'
+      });
+    }
+
+    // Busca o usuário por email
+    const profile = await getUserProfileByEmail(email, false);
+    
+    if (!profile) {
+      // Por segurança, não revela se o email existe ou não
+      return res.json({
+        success: true,
+        message: 'Se o email estiver cadastrado, você receberá um código de login.'
+      });
+    }
+
+    // Para login com código, não é necessário que o email esteja verificado
+    // O código de login serve como verificação adicional
+
+    // Gera código de login (6 dígitos)
+    const loginCode = generateVerificationCode();
+    
+    // Salva o código no banco (expira em 10 minutos)
+    await updateVerificationCode(profile.id, loginCode, 10);
+
+    // Envia email com código de login
+    try {
+      await sendLoginCodeEmail(profile.email, loginCode, profile.name || '');
+    } catch (emailError) {
+      console.error('Erro ao enviar email com código de login:', emailError);
+      // Por segurança, não revela o erro
+    }
+
+    // Sempre retorna sucesso (por segurança)
+    res.json({
+      success: true,
+      message: 'Se o email estiver cadastrado, você receberá um código de login.'
+    });
+  } catch (error) {
+    console.error('Erro ao solicitar código de login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao processar solicitação',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Valida código de login e faz login (sem senha)
+ */
+export const verifyLoginCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email e código são obrigatórios'
+      });
+    }
+
+    // Verifica o código de login
+    const profile = await verifyLoginCodeService(email, code);
+
+    // Gera token JWT
+    const token = jwt.sign(
+      { userId: profile.id, email: profile.email },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Envia email de notificação de login
+    try {
+      await sendLoginNotificationEmail(profile.email, profile.name || '');
+    } catch (emailError) {
+      console.error('Erro ao enviar email de notificação de login:', emailError);
+      // Não bloqueia o login se o email falhar
+    }
+
+    res.json({
+      success: true,
+      message: 'Login realizado com sucesso',
+      token,
+      user: {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        credits: profile.credits || 0,
+        user_type: profile.user_type || 'cliente'
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao verificar código de login:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Código inválido ou expirado',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Callback do OAuth do Google
+ */
+export const googleCallback = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:4200'}/login?error=google_auth_failed`);
+    }
+
+    // Gera token JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Redireciona para o frontend com o token
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    res.redirect(`${frontendUrl}/login?token=${token}&success=true`);
+  } catch (error) {
+    console.error('Erro no callback do Google:', error);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    res.redirect(`${frontendUrl}/login?error=google_auth_error`);
   }
 };
