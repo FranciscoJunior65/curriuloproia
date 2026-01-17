@@ -15,6 +15,7 @@ export interface AnalysisResult {
     score: number;
   };
   creditsRemaining?: number | null;
+  resumeId?: string | null; // ID do currículo no banco de dados
   metadata?: {
     fileName: string;
     fileSize: number;
@@ -165,10 +166,16 @@ export class AnalyzerService {
     ) as Observable<Blob>;
   }
 
-  searchJobs(analysis: any, siteId: string, location?: string): Observable<any> {
+  searchJobs(analysis: any, siteId: string, location?: string, resumeText?: string, resumeId?: string): Observable<any> {
     const body: any = { analysis, siteId };
     if (location) {
       body.location = location;
+    }
+    if (resumeText) {
+      body.resumeText = resumeText;
+    }
+    if (resumeId) {
+      body.resumeId = resumeId;
     }
     
     return this.http.post(
@@ -178,6 +185,77 @@ export class AnalyzerService {
         headers: this.getAuthHeaders()
       }
     );
+  }
+
+  startInterview(resumeText: string, analysis: any, siteId?: string, resumeId?: string): Observable<any> {
+    const body: any = { resumeText, analysis };
+    if (siteId) {
+      body.siteId = siteId;
+    }
+    if (resumeId) {
+      body.resumeId = resumeId;
+    }
+    
+    return this.http.post(
+      `${this.apiUrl}/analyze/interview/start`,
+      body,
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  evaluateAnswer(question: string, answer: string, resumeText: string, analysis: any, simulationId?: string): Observable<any> {
+    const body: any = { question, answer, resumeText, analysis };
+    if (simulationId) {
+      body.simulationId = simulationId;
+    }
+    
+    return this.http.post(
+      `${this.apiUrl}/analyze/interview/evaluate`,
+      body,
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  finishInterview(simulationId: string, allAnswers: any[]): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/analyze/interview/finish`,
+      { simulationId, allAnswers },
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  getInterview(simulationId: string): Observable<any> {
+    return this.http.get(
+      `${this.apiUrl}/analyze/interview/${simulationId}`,
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  listUserInterviews(): Observable<any> {
+    return this.http.get(
+      `${this.apiUrl}/analyze/interview/user/list`,
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  downloadInterview(simulationId: string): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}/analyze/interview/${simulationId}/download`,
+      { 
+        headers: this.getAuthHeaders(),
+        responseType: 'blob'
+      }
+    ) as Observable<Blob>;
   }
 }
 

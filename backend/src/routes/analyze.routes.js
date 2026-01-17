@@ -4,6 +4,7 @@ import { analyzeResume } from '../controllers/analyze.controller.js';
 import { generateImprovedResumeAndPDF } from '../controllers/resume-generator.controller.js';
 import { generateCoverLetterAndPDF } from '../controllers/cover-letter.controller.js';
 import { searchJobs } from '../controllers/job-search.controller.js';
+import { startInterview, evaluateInterviewAnswer, finishInterview, getInterview, listUserInterviews, downloadInterview } from '../controllers/interview-simulation.controller.js';
 import { getPlans, createPaymentSession, verifyPayment, getCredits } from '../controllers/payment.controller.js';
 import { listJobSites } from '../controllers/job-sites.controller.js';
 import { handleWebhook } from '../services/stripe.service.js';
@@ -211,6 +212,131 @@ router.post('/generate-cover-letter', generateCoverLetterAndPDF);
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/search-jobs', searchJobs);
+
+/**
+ * @swagger
+ * /api/analyze/interview/start:
+ *   post:
+ *     summary: Inicia uma simulação de entrevista
+ *     tags: [Análise]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - resumeText
+ *               - analysis
+ *             properties:
+ *               resumeText:
+ *                 type: string
+ *               analysis:
+ *                 type: object
+ *               siteId:
+ *                 type: string
+ *               resumeId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Simulação iniciada com sucesso
+ */
+router.post('/interview/start', startInterview);
+
+/**
+ * @swagger
+ * /api/analyze/interview/evaluate:
+ *   post:
+ *     summary: Avalia uma resposta do candidato
+ *     tags: [Análise]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - question
+ *               - answer
+ *               - resumeText
+ *               - analysis
+ *     responses:
+ *       200:
+ *         description: Resposta avaliada com sucesso
+ */
+router.post('/interview/evaluate', evaluateInterviewAnswer);
+
+/**
+ * @swagger
+ * /api/analyze/interview/finish:
+ *   post:
+ *     summary: Finaliza a simulação de entrevista
+ *     tags: [Análise]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - simulationId
+ *     responses:
+ *       200:
+ *         description: Simulação finalizada com sucesso
+ */
+router.post('/interview/finish', finishInterview);
+
+/**
+ * @swagger
+ * /api/analyze/interview/{simulationId}:
+ *   get:
+ *     summary: Busca uma entrevista salva por ID
+ *     tags: [Análise]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Entrevista encontrada
+ */
+router.get('/interview/:simulationId', getInterview);
+
+/**
+ * @swagger
+ * /api/analyze/interview/user/list:
+ *   get:
+ *     summary: Lista todas as entrevistas do usuário
+ *     tags: [Análise]
+ *     responses:
+ *       200:
+ *         description: Lista de entrevistas
+ */
+router.get('/interview/user/list', listUserInterviews);
+
+/**
+ * @swagger
+ * /api/analyze/interview/{simulationId}/download:
+ *   get:
+ *     summary: Faz download de uma entrevista em formato texto
+ *     tags: [Análise]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Arquivo de texto para download
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ */
+router.get('/interview/:simulationId/download', downloadInterview);
 
 // Payment routes
 router.get('/plans', getPlans);

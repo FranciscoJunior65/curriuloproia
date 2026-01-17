@@ -1,5 +1,5 @@
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 /**
  * Serviço para buscar vagas em diferentes sites de emprego
@@ -252,12 +252,68 @@ export const searchGenericJobs = async (siteName, searchTerms, location = 'Brasi
 };
 
 /**
- * Busca vagas baseado no site selecionado e análise do currículo
+ * Extrai dados completos de uma vaga (descrição, requisitos, salário)
  */
-export const searchJobsBySite = async (siteId, analysis, location = 'Brasil') => {
+export const extractJobDetails = async (jobUrl, siteName) => {
   try {
-    // Importa serviço de sites de vagas
+    const response = await axios.get(jobUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      },
+      timeout: 10000
+    });
+    
+    const $ = cheerio.load(response.data);
+    const details = {
+      description: '',
+      requirements: [],
+      salary: '',
+      contractType: '',
+      experienceLevel: ''
+    };
+    
+    // Extrai descrição (varia por site)
+    if (siteName.toLowerCase().includes('catho')) {
+      details.description = $('.job-description, .descricao-vaga, [data-testid*="description"]').first().text().trim();
+      details.salary = $('.salary, .salario, [data-testid*="salary"]').first().text().trim();
+    } else if (siteName.toLowerCase().includes('indeed')) {
+      details.description = $('#jobDescriptionText, .jobsearch-jobDescriptionText').first().text().trim();
+      details.salary = $('.salaryText, [data-testid*="salary"]').first().text().trim();
+    } else {
+      // Genérico
+      details.description = $('.description, .job-description, [class*="description"]').first().text().trim();
+    }
+    
+    // Extrai requisitos (tenta encontrar listas)
+    $('ul li, ol li').each((index, element) => {
+      const text = $(element).text().trim().toLowerCase();
+      if (text.includes('requisito') || text.includes('exigência') || text.includes('necessário')) {
+        details.requirements.push($(element).text().trim());
+      }
+    });
+    
+    return details;
+  } catch (error) {
+    console.warn(`⚠️ Erro ao extrair detalhes da vaga ${jobUrl}:`, error.message);
+    return {
+      description: '',
+      requirements: [],
+      salary: '',
+      contractType: '',
+      experienceLevel: ''
+    };
+  }
+};
+
+/**
+ * Busca vagas com múltiplas combinações e extrai dados completos
+ */
+export const searchJobsAdvanced = async (siteId, resumeText, analysis, location = 'Brasil', userId = null, resumeId = null) => {
+  try {
+    // Importa serviços necessários
     const { getJobSiteById } = await import('./job-sites.service.js');
+    const { generateSearchKeywordsWithAI, generateSearchCombinations, calculateCompatibilityScore } = await import('./job-search-ai.service.js');
+    const { saveFoundJobs } = await import('./job-search-db.service.js');
     
     // Busca informações do site
     const site = await getJobSiteById(siteId);
@@ -265,12 +321,137 @@ export const searchJobsBySite = async (siteId, analysis, location = 'Brasil') =>
       throw new Error('Site de vagas não encontrado');
     }
     
-    // Extrai termos de busca da análise
-    const searchTerms = extractSearchTerms(analysis);
+    console.log(`🔍 Iniciando busca avançada no ${site.nome}...`);
     
+    // 1. Gera palavras-chave otimizadas com IA
+    const keywords = await generateSearchKeywordsWithAI(resumeText, analysis, site);
+    console.log(`✅ ${keywords.length} palavras-chave geradas`);
+    
+    // 2. Gera combinações de busca
+    const searchCombinations = generateSearchCombinations(keywords, 8);
+    console.log(`✅ ${searchCombinations.length} combinações de busca criadas`);
+    
+    // 3. Faz múltiplas buscas
+    const allJobs = [];
+    const siteName = site.nome.toLowerCase();
+    
+    for (const combination of searchCombinations) {
+      try {
+        let searchResults;
+        
+        if (siteName.includes('catho')) {
+          searchResults = await searchCathoJobs(combination, location);
+        } else if (siteName.includes('indeed')) {
+          searchResults = await searchIndeedJobs(combination, location);
+        } else if (siteName.includes('linkedin')) {
+          searchResults = await searchLinkedInJobs(combination, location);
+        } else {
+          searchResults = await searchGenericJobs(site.nome, combination, location);
+        }
+        
+        if (searchResults.jobs && searchResults.jobs.length > 0) {
+          // Extrai detalhes completos de cada vaga
+          for (const job of searchResults.jobs) {
+            // Evita duplicatas
+            const isDuplicate = allJobs.some(j => j.url === job.url || (j.title === job.title && j.company === job.company));
+            if (!isDuplicate) {
+              // Extrai detalhes adicionais
+              try {
+                const details = await extractJobDetails(job.url, site.nome);
+                job.description = details.description;
+                job.requirements = details.requirements;
+                job.salary = details.salary;
+                job.contractType = details.contractType;
+                job.experienceLevel = details.experienceLevel;
+              } catch (detailError) {
+                console.warn(`⚠️ Erro ao extrair detalhes da vaga ${job.url}:`, detailError.message);
+              }
+              
+              // Calcula score de compatibilidade
+              const compatibility = calculateCompatibilityScore(job, analysis, keywords);
+              job.compatibilityScore = compatibility.score;
+              job.matchedKeywords = compatibility.matchedKeywords;
+              
+              allJobs.push(job);
+            }
+          }
+        }
+        
+        // Pequeno delay entre buscas para evitar bloqueio
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (searchError) {
+        console.warn(`⚠️ Erro na busca com combinação ${combination.join(' ')}:`, searchError.message);
+        continue;
+      }
+    }
+    
+    // 4. Remove duplicatas e ordena por score
+    const uniqueJobs = [];
+    const seenUrls = new Set();
+    
+    for (const job of allJobs) {
+      const key = `${job.url}_${job.title}_${job.company}`;
+      if (!seenUrls.has(key)) {
+        seenUrls.add(key);
+        uniqueJobs.push(job);
+      }
+    }
+    
+    // Ordena por score de compatibilidade
+    uniqueJobs.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+    
+    console.log(`✅ ${uniqueJobs.length} vagas únicas encontradas`);
+    
+    // 5. Salva no banco de dados se userId e resumeId foram fornecidos
+    if (userId && resumeId && uniqueJobs.length > 0) {
+      try {
+        await saveFoundJobs(userId, resumeId, siteId, uniqueJobs);
+        console.log(`✅ ${uniqueJobs.length} vagas salvas no banco de dados`);
+      } catch (saveError) {
+        console.error('❌ Erro ao salvar vagas no banco:', saveError);
+        // Continua mesmo se não conseguir salvar
+      }
+    }
+    
+    return {
+      site: site.nome,
+      url: site.url_base,
+      jobs: uniqueJobs.slice(0, 50), // Limita a 50 vagas
+      totalFound: uniqueJobs.length,
+      searchKeywords: keywords,
+      searchCombinations: searchCombinations.length,
+      message: `${uniqueJobs.length} vagas encontradas após ${searchCombinations.length} buscas`
+    };
+    
+  } catch (error) {
+    console.error('❌ Erro na busca avançada:', error);
+    throw new Error(`Erro ao buscar vagas: ${error.message}`);
+  }
+};
+
+/**
+ * Busca vagas baseado no site selecionado e análise do currículo
+ * (Mantido para compatibilidade, mas agora usa busca avançada)
+ */
+export const searchJobsBySite = async (siteId, analysis, location = 'Brasil', resumeText = null, userId = null, resumeId = null) => {
+  // Se resumeText foi fornecido, usa busca avançada
+  if (resumeText) {
+    return await searchJobsAdvanced(siteId, resumeText, analysis, location, userId, resumeId);
+  }
+  
+  // Caso contrário, usa busca simples (compatibilidade)
+  try {
+    const { getJobSiteById } = await import('./job-sites.service.js');
+    
+    const site = await getJobSiteById(siteId);
+    if (!site) {
+      throw new Error('Site de vagas não encontrado');
+    }
+    
+    const searchTerms = extractSearchTerms(analysis);
     console.log(`🔍 Buscando vagas no ${site.nome} com termos: ${searchTerms.join(', ')}`);
     
-    // Seleciona a função de busca baseado no nome do site
     const siteName = site.nome.toLowerCase();
     
     if (siteName.includes('linkedin')) {
@@ -280,7 +461,6 @@ export const searchJobsBySite = async (siteId, analysis, location = 'Brasil') =>
     } else if (siteName.includes('indeed')) {
       return await searchIndeedJobs(searchTerms, location);
     } else {
-      // Para outros sites, retorna busca genérica
       return await searchGenericJobs(site.nome, searchTerms, location);
     }
   } catch (error) {

@@ -386,8 +386,13 @@ IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou dep
       curriculoId: curriculoId
     });
 
-    console.error('❌ Erro ao chamar Gemini:', error);
-    throw new Error(`Erro na análise com Gemini: ${error.message}`);
+    // Se for erro de quota, apenas loga como aviso (fallback será tentado)
+    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('Quota')) {
+      console.warn('⚠️  Quota do Gemini excedida, será usado fallback para OpenAI');
+    } else {
+      console.error('❌ Erro ao chamar Gemini:', error);
+    }
+    throw error; // Re-lança o erro para o fallback funcionar
   }
 };
 
@@ -638,18 +643,28 @@ export const analyzeResumeWithAI = async (resumeText, userId = null, curriculoId
     }
   } catch (error) {
     // Se falhar, tenta fallback
-    console.warn(`⚠️  Erro com ${provider}, tentando fallback...`);
+    const isQuotaError = error.status === 429 || error.message?.includes('quota') || error.message?.includes('Quota');
+    
+    if (isQuotaError) {
+      console.warn(`⚠️  Quota excedida em ${provider}, tentando fallback...`);
+    } else {
+      console.warn(`⚠️  Erro com ${provider}, tentando fallback...`);
+    }
     
     if (provider === 'gemini' && openai) {
       try {
+        console.log('🔄 Usando OpenAI como fallback...');
         return await analyzeResumeWithOpenAI(resumeText, userId, curriculoId, siteId);
       } catch (fallbackError) {
+        console.error('❌ Fallback também falhou:', fallbackError);
         throw new Error(`Erro com ambos os provedores. Gemini: ${error.message}, OpenAI: ${fallbackError.message}`);
       }
     } else if (provider === 'openai' && genAI) {
       try {
+        console.log('🔄 Usando Gemini como fallback...');
         return await analyzeResumeWithGemini(resumeText, userId, curriculoId, siteId);
       } catch (fallbackError) {
+        console.error('❌ Fallback também falhou:', fallbackError);
         throw new Error(`Erro com ambos os provedores. OpenAI: ${error.message}, Gemini: ${fallbackError.message}`);
       }
     }
