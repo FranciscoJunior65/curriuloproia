@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getDailyUsage, getMonthlyUsage, getSales, getSalesStatistics } from '../controllers/admin.controller.js';
+import { getDashboardStats, getDailyUsage, getMonthlyUsage, getSales, getSalesStatistics, getAIUsageStatistics, getJobSiteStats, getJobSiteDetailedStatsController } from '../controllers/admin.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -101,6 +101,78 @@ router.get('/sales', getSales);
  *         description: Estatísticas de vendas
  */
 router.get('/sales/statistics', getSalesStatistics);
+
+/**
+ * @swagger
+ * /api/admin/ai-usage:
+ *   get:
+ *     summary: Obtém estatísticas de uso de IA
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month]
+ *           default: day
+ *         description: Período para análise
+ *     responses:
+ *       200:
+ *         description: Estatísticas de uso de IA
+ */
+router.get('/ai-usage', getAIUsageStatistics);
+
+/**
+ * @swagger
+ * /api/admin/job-sites/stats:
+ *   get:
+ *     summary: Obtém estatísticas de uso por site de vagas
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Estatísticas de sites de vagas
+ */
+router.get('/job-sites/stats', getJobSiteStats);
+
+/**
+ * @swagger
+ * /api/admin/job-sites/:siteId/stats:
+ *   get:
+ *     summary: Obtém estatísticas detalhadas de um site específico
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: siteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Estatísticas detalhadas do site
+ */
+router.get('/job-sites/:siteId/stats', getJobSiteDetailedStatsController);
 
 export default router;
 

@@ -1,14 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+// Carrega variáveis de ambiente antes de acessá-las
+dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
+// Verifica se as variáveis existem (verificação mais simples)
+const hasUrl = supabaseUrl && String(supabaseUrl).trim().length > 0;
+const hasKey = supabaseServiceKey && String(supabaseServiceKey).trim().length > 0;
+
+if (!hasUrl || !hasKey) {
   console.warn('⚠️  Supabase não configurado. Variáveis SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são necessárias.');
+  console.warn(`   SUPABASE_URL: ${hasUrl ? '✅ configurado' : '❌ não configurado ou vazio'}`);
+  console.warn(`   SUPABASE_SERVICE_ROLE_KEY: ${hasKey ? '✅ configurado' : '❌ não configurado ou vazio'}`);
+  if (supabaseUrl) console.warn(`   SUPABASE_URL valor (primeiros 30 chars): ${String(supabaseUrl).substring(0, 30)}...`);
+  if (supabaseServiceKey) console.warn(`   SUPABASE_SERVICE_ROLE_KEY length: ${String(supabaseServiceKey).length}`);
+} else {
+  console.log('✅ Supabase configurado corretamente');
 }
 
-export const supabaseAdmin = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
+export const supabaseAdmin = hasUrl && hasKey
+  ? createClient(String(supabaseUrl).trim(), String(supabaseServiceKey).trim(), {
       auth: {
         autoRefreshToken: false,
         persistSession: false
@@ -106,6 +120,7 @@ export const mapCreditToEnglish = (credit) => {
     usedAt: credit.usado_em || credit.usedAt,
     actionType: credit.tipo_acao || credit.actionType,
     resumeFileName: credit.nome_arquivo_curriculo || credit.resumeFileName,
+    siteId: credit.id_site_vagas || credit.siteId || null,
     createdAt: credit.criado_em || credit.created_at
   };
 };
@@ -605,7 +620,7 @@ export const getUserPurchases = async (userId, limit = 50) => {
 /**
  * Registra uso de crédito
  */
-export const recordCreditUsage = async (userId, actionType, creditsUsed = 1, resumeFileName = null) => {
+export const recordCreditUsage = async (userId, actionType, creditsUsed = 1, resumeFileName = null, siteId = null) => {
   if (!supabaseAdmin) {
     throw new Error('Supabase não configurado');
   }
@@ -625,14 +640,23 @@ export const recordCreditUsage = async (userId, actionType, creditsUsed = 1, res
   // Marca como usado
   const creditIds = credits.map(c => c.id);
   const now = new Date().toISOString();
+  
+  // Prepara dados de atualização
+  const updateData = {
+    usado: true,
+    usado_em: now,
+    tipo_acao: actionType,
+    nome_arquivo_curriculo: resumeFileName
+  };
+  
+  // Adiciona siteId se fornecido
+  if (siteId) {
+    updateData.id_site_vagas = siteId;
+  }
+  
   const { error: updateError } = await supabaseAdmin
     .from('creditos')
-    .update({
-      usado: true,
-      usado_em: now,
-      tipo_acao: actionType,
-      nome_arquivo_curriculo: resumeFileName
-    })
+    .update(updateData)
     .in('id', creditIds);
 
   if (updateError) {

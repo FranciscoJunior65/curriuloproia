@@ -109,7 +109,17 @@ export const analyzeResume = async (req, res) => {
 
     // Analisar com IA
     console.log('🤖 Iniciando análise com IA...');
-    const analysis = await analyzeResumeWithAI(text);
+    // Obtém curriculoId e siteId se disponível (para tracking)
+    const curriculoId = req.body.curriculoId || req.query.curriculoId || null;
+    const siteId = req.body.siteId || req.query.siteId || null;
+    
+    if (siteId) {
+      console.log(`🌐 Site de vagas selecionado: ${siteId}`);
+    } else {
+      console.log('⚠️  Nenhum site de vagas selecionado (análise genérica)');
+    }
+    
+    const analysis = await analyzeResumeWithAI(text, userId, curriculoId, siteId);
 
     const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`✨ Análise concluída em ${processingTime}s`);
@@ -123,11 +133,12 @@ export const analyzeResume = async (req, res) => {
         const useMock = process.env.USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === '1';
         
         if (!useMock) {
-          // Modo real: deduz crédito
-          await deductCreditsFromUser(userId, 1);
-          // Registra o uso de crédito
-          await recordCreditUsage(userId, 'analysis', 1, req.file.originalname);
-          console.log(`💳 Crédito usado.`);
+          // Modo real: registra o uso de crédito (já deduz automaticamente)
+          // NÃO chamar deductCreditsFromUser aqui, pois recordCreditUsage já faz isso
+          // Obtém siteId do body ou query
+          const siteId = req.body.siteId || req.query.siteId || null;
+          await recordCreditUsage(userId, 'analysis', 1, req.file.originalname, siteId);
+          console.log(`💳 Crédito usado${siteId ? ` para site ${siteId}` : ''}.`);
         } else {
           // Modo mock: não deduz crédito
           console.log('🎭 Modo MOCK: crédito NÃO foi deduzido');

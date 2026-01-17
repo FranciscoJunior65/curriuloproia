@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -54,6 +55,9 @@ export class LoginComponent implements OnInit {
   requestCodeLoading = false;
   codeSent = false; // Flag para controlar se o código foi enviado
 
+  // Proteção de dados
+  acceptPrivacyPolicy = false;
+
   constructor(
     private authService: AuthService,
     private router: Router
@@ -64,6 +68,7 @@ export class LoginComponent implements OnInit {
     this.error = '';
     this.showVerificationStep = false;
     this.registeredEmail = '';
+    this.acceptPrivacyPolicy = false; // Reseta o checkbox ao alternar entre login e cadastro
   }
 
   submit() {
@@ -82,21 +87,48 @@ export class LoginComponent implements OnInit {
             this.loading = false;
           }
         },
-        error: (err) => {
+        error: (err: HttpErrorResponse) => {
+          this.loading = false;
+          
+          // Erro de conexão/rede (não conseguiu conectar na API)
+          if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+            this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+            return;
+          }
+          
+          // Erro de autenticação (credenciais incorretas)
+          if (err.status === 401) {
+            this.error = 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.';
+            return;
+          }
+          
           // Se o erro for email não verificado, mostra etapa de verificação
           if (err.error?.requiresVerification) {
             this.showVerificationStep = true;
             this.registeredEmail = this.email;
             this.error = err.error?.message || 'Por favor, verifique seu email antes de fazer login';
-          } else {
-            this.error = err.error?.error || err.error?.message || 'Erro ao fazer login';
+            return;
           }
-          this.loading = false;
+          
+          // Outros erros (500, etc) - problema interno
+          if (err.status >= 500) {
+            this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+            return;
+          }
+          
+          // Erro genérico
+          this.error = err.error?.error || err.error?.message || 'Erro ao fazer login. Tente novamente.';
         }
       });
     } else {
       if (!this.nome) {
         this.error = 'Nome é obrigatório';
+        this.loading = false;
+        return;
+      }
+      
+      if (!this.acceptPrivacyPolicy) {
+        this.error = 'Você precisa aceitar a Política de Privacidade e os Termos de Uso para criar uma conta';
         this.loading = false;
         return;
       }
@@ -118,17 +150,32 @@ export class LoginComponent implements OnInit {
           }
           this.loading = false;
         },
-        error: (err) => {
-          // Se o email já existe mas não está verificado, mostra etapa de verificação
-          if (err.error?.requiresVerification) {
-            this.showVerificationStep = true;
-            this.registeredEmail = this.email;
-            this.error = err.error?.message || 'Email já cadastrado. Por favor, verifique seu email.';
-          } else {
-            this.error = err.error?.error || err.error?.message || 'Erro ao registrar';
-          }
-          this.loading = false;
+      error: (err: HttpErrorResponse) => {
+        this.loading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
         }
+        
+        // Se o email já existe mas não está verificado, mostra etapa de verificação
+        if (err.error?.requiresVerification) {
+          this.showVerificationStep = true;
+          this.registeredEmail = this.email;
+          this.error = err.error?.message || 'Email já cadastrado. Por favor, verifique seu email.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao registrar. Tente novamente.';
+      }
       });
     }
   }
@@ -157,9 +204,29 @@ export class LoginComponent implements OnInit {
         }
         this.requestCodeLoading = false;
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Erro ao solicitar código de login';
+      error: (err: HttpErrorResponse) => {
         this.requestCodeLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro de autenticação (email não encontrado ou não verificado)
+        if (err.status === 401 || err.status === 403) {
+          this.error = err.error?.error || err.error?.message || 'Email não encontrado ou não verificado. Verifique seu email e tente novamente.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao solicitar código de login. Tente novamente.';
       }
     });
   }
@@ -194,9 +261,29 @@ export class LoginComponent implements OnInit {
           this.loginCodeLoading = false;
         }
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Código inválido ou expirado';
+      error: (err: HttpErrorResponse) => {
         this.loginCodeLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro de autenticação (código inválido ou expirado)
+        if (err.status === 401 || err.status === 400) {
+          this.error = err.error?.error || err.error?.message || 'Código inválido ou expirado. Solicite um novo código.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao verificar código. Tente novamente.';
       }
     });
   }
@@ -231,9 +318,29 @@ export class LoginComponent implements OnInit {
           this.verifyLoading = false;
         }
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Erro ao verificar código';
+      error: (err: HttpErrorResponse) => {
         this.verifyLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro de autenticação (código inválido ou expirado)
+        if (err.status === 401 || err.status === 400) {
+          this.error = err.error?.error || err.error?.message || 'Código inválido ou expirado. Solicite um novo código.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao verificar código. Tente novamente.';
       }
     });
   }
@@ -251,9 +358,23 @@ export class LoginComponent implements OnInit {
         }
         this.resendLoading = false;
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Erro ao reenviar código';
+      error: (err: HttpErrorResponse) => {
         this.resendLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao reenviar código. Tente novamente.';
       }
     });
   }
@@ -428,9 +549,23 @@ export class LoginComponent implements OnInit {
           this.forgotPasswordLoading = false;
         }
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Erro ao enviar link de recuperação';
+      error: (err: HttpErrorResponse) => {
         this.forgotPasswordLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico (mesmo que email não exista, por segurança não revelamos)
+        this.error = 'Se o email estiver cadastrado, você receberá um link de recuperação. Verifique sua caixa de entrada.';
       }
     });
   }
@@ -487,9 +622,29 @@ export class LoginComponent implements OnInit {
           this.resetPasswordLoading = false;
         }
       },
-      error: (err) => {
-        this.error = err.error?.error || err.error?.message || 'Erro ao redefinir senha. O token pode ter expirado.';
+      error: (err: HttpErrorResponse) => {
         this.resetPasswordLoading = false;
+        
+        // Erro de conexão/rede (não conseguiu conectar na API)
+        if (err.status === 0 || err.status === undefined || err.error instanceof ProgressEvent) {
+          this.error = 'Erro ao conectar com o servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro de autenticação (token inválido ou expirado)
+        if (err.status === 401 || err.status === 400) {
+          this.error = err.error?.error || err.error?.message || 'Token inválido ou expirado. Solicite um novo link de recuperação.';
+          return;
+        }
+        
+        // Outros erros (500, etc) - problema interno
+        if (err.status >= 500) {
+          this.error = 'Erro interno do servidor. O sistema pode estar temporariamente fora do ar. Por favor, tente novamente em alguns instantes ou entre em contato com o suporte.';
+          return;
+        }
+        
+        // Erro genérico
+        this.error = err.error?.error || err.error?.message || 'Erro ao redefinir senha. Tente novamente.';
       }
     });
   }

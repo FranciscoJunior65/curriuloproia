@@ -1,10 +1,170 @@
+// Regra global para garantir que chips nunca cortem texto
+::ng-deep {
+  // Remove qualquer ellipsis ou truncamento do Material
+  .mdc-evolution-chip,
+  .mat-mdc-chip {
+    text-overflow: clip !important;
+    overflow: visible !important;
+    
+    .mdc-evolution-chip__text-label,
+    .mat-mdc-chip-text,
+    .mdc-evolution-chip__cell,
+    .mdc-evolution-chip__action {
+      text-overflow: clip !important;
+      overflow: visible !important;
+      white-space: normal !important;
+      max-width: 100% !important;
+    }
+  }
+}
+
 mat-card {
   border-radius: 12px;
 }
 
-mat-chip {
-  background-color: #e0e7ff;
-  color: #4338ca;
+// Estilos para chips responsivos - CORREÇÃO AGRESSIVA
+::ng-deep mat-chip {
+  background-color: #e0e7ff !important;
+  color: #4338ca !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  word-wrap: break-word !important;
+  white-space: normal !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  padding: 12px 16px !important;
+  line-height: 1.6 !important;
+  display: block !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  overflow: visible !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+  margin: 8px 0 !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+  border-radius: 8px !important;
+  
+  // Remove qualquer limite de altura ou overflow
+  .mdc-evolution-chip__cell,
+  .mdc-evolution-chip__action,
+  .mdc-evolution-chip__text-label {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.6 !important;
+    display: block !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  
+  // Texto do chip
+  .mat-mdc-chip-text,
+  .mdc-evolution-chip__text-label {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    line-height: 1.6 !important;
+    display: block !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}
+
+// Estilos específicos para os chips de pontos fortes e melhorias
+::ng-deep .chips-container mat-chip {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+  margin: 10px 0 !important;
+  
+  // Força quebra de linha em TODOS os elementos internos
+  * {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    text-overflow: clip !important;
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+  
+  // Remove ellipsis do Material
+  .mdc-evolution-chip__text-label,
+  .mat-mdc-chip-text {
+    text-overflow: clip !important;
+    overflow: visible !important;
+    white-space: normal !important;
+  }
+}
+
+// Container dos chips - garante responsividade total
+::ng-deep .chips-container {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  
+  mat-chip {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    display: block !important;
+  }
+}
+
+// Cards responsivos - SEM overflow hidden para permitir expansão
+::ng-deep mat-card {
+  border-radius: 12px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  
+  mat-card-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    word-wrap: break-word !important;
+    padding: 24px !important;
+  }
+}
+
+// Grid responsivo para os cards de análise
+::ng-deep .grid.md\\:grid-cols-2 {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 1.5rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  mat-card {
+    min-width: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 
 @keyframes fadeIn {

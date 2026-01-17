@@ -51,6 +51,17 @@ export class AnalyzerComponent implements OnInit {
   isAuthenticated = false;
   isAdmin = false;
 
+  // Job Sites
+  jobSites: any[] = [];
+  selectedSiteId: string | null = null;
+  loadingSites = false;
+  analysisCompleted = false; // Flag para travar após análise
+  generatingWord = false;
+  generatingPDF = false;
+  generatingCoverLetter = false;
+  resumeChanges: any = null; // Armazena mudanças após geração
+  showInterviewChat = false; // Controla exibição do chat
+
   constructor(
     private analyzerService: AnalyzerService,
     private authService: AuthService,
@@ -143,8 +154,25 @@ export class AnalyzerComponent implements OnInit {
     }
 
     this.loadPlans();
+    this.loadJobSites();
     // Verifica se retornou do pagamento
     this.checkPaymentStatus();
+  }
+
+  loadJobSites(): void {
+    this.loadingSites = true;
+    this.analyzerService.getJobSites().subscribe({
+      next: (response: any) => {
+        this.jobSites = response.sites || [];
+        this.loadingSites = false;
+      },
+      error: (err) => {
+        console.error('Erro ao carregar sites de vagas:', err);
+        this.loadingSites = false;
+        // Se não conseguir carregar, continua sem sites (modo compatibilidade)
+        this.jobSites = [];
+      }
+    });
   }
 
   loadPlans(): void {
@@ -323,6 +351,13 @@ export class AnalyzerComponent implements OnInit {
     return 'Usuário';
   }
 
+  getSelectedSiteName(): string | null {
+    if (!this.selectedSiteId) return null;
+    if (this.selectedSiteId === 'generic') return 'Análise Genérica';
+    const site = this.jobSites.find(s => s.id === this.selectedSiteId);
+    return site ? site.nome : null;
+  }
+
   // Método para verificar pagamento após retorno do Stripe
   checkPaymentStatus(): void {
     const urlParams = new URLSearchParams(window.location.search);
@@ -353,6 +388,9 @@ export class AnalyzerComponent implements OnInit {
       this.selectedFile = input.files[0];
       this.error = null;
       this.result = null;
+      this.selectedSiteId = null; // Reseta seleção de site ao trocar arquivo
+      this.analysisCompleted = false; // Reseta flag ao trocar arquivo
+      this.resumeChanges = null; // Limpa mudanças anteriores
     }
   }
 
@@ -369,13 +407,20 @@ export class AnalyzerComponent implements OnInit {
       return;
     }
 
+    // Valida se site foi selecionado
+    if (!this.selectedSiteId) {
+      this.error = 'Por favor, selecione um site de vagas antes de analisar';
+      return;
+    }
+
     this.loading = true;
     this.error = null;
     this.result = null;
 
-    this.analyzerService.analyzeResume(this.selectedFile).subscribe({
+    this.analyzerService.analyzeResume(this.selectedFile, this.selectedSiteId || undefined).subscribe({
       next: (result) => {
         this.result = result;
+        this.analysisCompleted = true; // Trava após análise completa
         this.loading = false;
         // Atualiza créditos após análise
         if (result.creditsRemaining !== null && result.creditsRemaining !== undefined) {
@@ -428,37 +473,165 @@ export class AnalyzerComponent implements OnInit {
     return 'Precisa de melhorias. Siga as recomendações para otimizar seu currículo.';
   }
 
-  generateImprovedResume(): void {
+  generateImprovedResume(format: 'pdf' | 'word' = 'pdf'): void {
     if (!this.result) {
       this.error = 'Nenhuma análise disponível';
       return;
     }
 
-    this.generatingResume = true;
+    if (format === 'pdf') {
+      this.generatingPDF = true;
+    } else {
+      this.generatingWord = true;
+    }
     this.error = null;
 
+    // TODO: Implementar endpoint que aceita formato e siteId
     this.analyzerService.generateImprovedResume(
       this.result.originalText,
-      this.result.analysis
+      this.result.analysis,
+      format,
+      this.selectedSiteId || undefined
+    ).subscribe({
+      next: (response: any) => {
+        // Se retornar blob (arquivo)
+        if (response instanceof Blob) {
+          const url = window.URL.createObjectURL(response);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } else if (response.changes) {
+          // Se retornar mudanças
+          this.resumeChanges = response;
+          // Se também tiver blob, faz download
+          if (response.blob) {
+            const url = window.URL.createObjectURL(response.blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+          }
+        }
+        
+        if (format === 'pdf') {
+          this.generatingPDF = false;
+        } else {
+          this.generatingWord = false;
+        }
+      },
+      error: (err) => {
+        this.error = err.error?.message || 'Erro ao gerar currículo melhorado';
+        if (format === 'pdf') {
+          this.generatingPDF = false;
+        } else {
+          this.generatingWord = false;
+        }
+      }
+    });
+  }
+
+  generateCoverLetter(): void {
+    if (!this.result) {
+      this.error = 'Nenhuma análise disponível';
+      return;
+    }
+
+    if (!this.selectedSiteId) {
+      this.error = 'Por favor, selecione um site de vagas para personalizar a carta';
+      return;
+    }
+
+    this.generatingCoverLetter = true;
+    this.error = null;
+
+    this.analyzerService.generateCoverLetter(
+      this.result.originalText,
+      this.result.analysis,
+      this.selectedSiteId || undefined
     ).subscribe({
       next: (blob: Blob) => {
         // Cria um link temporário para download
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'curriculo-melhorado.pdf';
+        link.download = 'carta-apresentacao.pdf';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        this.generatingResume = false;
+        this.generatingCoverLetter = false;
       },
       error: (err) => {
-        this.error = err.error?.message || 'Erro ao gerar currículo melhorado';
-        this.generatingResume = false;
+        this.error = err.error?.message || 'Erro ao gerar carta de apresentação';
+        this.generatingCoverLetter = false;
+        console.error('Erro ao gerar carta de apresentação:', err);
       }
     });
+  }
+
+  searchJobs(): void {
+    if (!this.result) {
+      this.error = 'Nenhuma análise disponível';
+      return;
+    }
+
+    if (!this.selectedSiteId) {
+      this.error = 'Por favor, selecione um site de vagas para pesquisar';
+      return;
+    }
+
+    this.loading = true;
+    this.error = null;
+
+    this.analyzerService.searchJobs(
+      this.result.analysis,
+      this.selectedSiteId,
+      'Brasil' // Pode ser expandido para permitir localização customizada
+    ).subscribe({
+      next: (response: any) => {
+        this.loading = false;
+        
+        if (response.success && response.jobs && response.jobs.length > 0) {
+          // Abre as vagas em uma nova aba ou mostra em modal
+          // Por enquanto, vamos abrir a URL de busca
+          if (response.url) {
+            window.open(response.url, '_blank');
+          }
+          
+          // Mostra mensagem com quantidade de vagas
+          alert(`✅ ${response.jobs.length} vaga(s) encontrada(s) no ${response.site}!\n\nA busca foi aberta em uma nova aba.`);
+        } else if (response.url) {
+          // Se não encontrou vagas automaticamente, abre a URL de busca
+          window.open(response.url, '_blank');
+          alert(`🔍 Busca realizada no ${response.site}!\n\nA página de busca foi aberta em uma nova aba.`);
+        } else {
+          this.error = response.message || 'Nenhuma vaga encontrada';
+        }
+      },
+      error: (err) => {
+        this.error = err.error?.message || 'Erro ao buscar vagas';
+        this.loading = false;
+        console.error('Erro ao buscar vagas:', err);
+      }
+    });
+  }
+
+  openInterviewSimulation(): void {
+    if (!this.result || !this.selectedSiteId) {
+      this.error = 'Análise e site são necessários para simulação';
+      return;
+    }
+
+    this.showInterviewChat = true;
+    // TODO: Implementar chat de simulação
   }
 }
 

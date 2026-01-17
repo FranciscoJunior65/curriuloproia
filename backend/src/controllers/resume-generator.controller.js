@@ -4,7 +4,7 @@ export const generateImprovedResumeAndPDF = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { originalText, analysis } = req.body;
+    const { originalText, analysis, siteId } = req.body;
 
     // Validação
     if (!originalText || !analysis) {
@@ -24,9 +24,19 @@ export const generateImprovedResumeAndPDF = async (req, res) => {
     }
 
     console.log('📝 Gerando currículo melhorado...');
+    console.log('📋 Dados recebidos:', {
+      hasOriginalText: !!originalText,
+      hasAnalysis: !!analysis,
+      siteId: siteId || 'NÃO FORNECIDO'
+    });
+    if (siteId) {
+      console.log(`📍 Site de vagas selecionado: ${siteId}`);
+    } else {
+      console.warn('⚠️ ATENÇÃO: Nenhum site de vagas foi fornecido! O currículo será genérico.');
+    }
 
-    // Gera o currículo melhorado
-    const improvedResume = await generateImprovedResume(originalText, analysis);
+    // Gera o currículo melhorado (com siteId para personalização)
+    const improvedResume = await generateImprovedResume(originalText, analysis, siteId || null);
 
     console.log('📄 Gerando PDF...');
 

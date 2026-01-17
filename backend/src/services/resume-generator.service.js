@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import PDFDocument from 'pdfkit';
+import { getJobSiteById } from './job-sites.service.js';
 
 dotenv.config();
 
@@ -12,10 +13,46 @@ const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 
 /**
  * Gera um currículo melhorado baseado na análise e no currículo original
+ * @param {string} originalText - Texto original do currículo
+ * @param {object} analysis - Análise do currículo
+ * @param {string|null} siteId - ID do site de vagas para personalização
  */
-export const generateImprovedResume = async (originalText, analysis) => {
+export const generateImprovedResume = async (originalText, analysis, siteId = null) => {
   try {
-    const systemPrompt = `Você é um especialista em redação de currículos profissionais. 
+    let siteInfo = '';
+    let siteKeywords = [];
+    let siteCharacteristics = {};
+
+    // Busca informações do site de vagas se fornecido
+    if (siteId) {
+      console.log(`📍 Buscando informações do site de vagas: ${siteId}`);
+      try {
+        const site = await getJobSiteById(siteId);
+        if (site) {
+          console.log(`✅ Site encontrado: ${site.nome}`);
+          console.log(`🔑 Palavras-chave: ${Array.isArray(site.palavras_chave_padrao) ? site.palavras_chave_padrao.join(', ') : 'Nenhuma'}`);
+          siteKeywords = Array.isArray(site.palavras_chave_padrao) ? site.palavras_chave_padrao : [];
+          siteCharacteristics = site.caracteristicas && typeof site.caracteristicas === 'object' ? site.caracteristicas : {};
+          
+          siteInfo = `
+═══════════════════════════════════════════════════════════════
+CONTEXTO CRÍTICO - SITE DE VAGAS SELECIONADO:
+Este currículo será usado no site: ${site.nome}
+${site.descricao ? `Descrição do site: ${site.descricao}` : ''}
+${site.caracteristicas ? `Características específicas do site: ${JSON.stringify(site.caracteristicas, null, 2)}` : ''}
+${siteKeywords.length > 0 ? `PALAVRAS-CHAVE PRIORITÁRIAS PARA ESTE SITE (ESSENCIAIS PARA ATS): ${siteKeywords.join(', ')}` : ''}
+═══════════════════════════════════════════════════════════════
+
+IMPORTANTE: Toda a geração DEVE ser adaptada especificamente para o site ${site.nome}.
+As palavras-chave acima são CRÍTICAS e devem ser incorporadas naturalmente no texto.
+`;
+        }
+      } catch (error) {
+        console.warn('⚠️ Erro ao buscar informações do site:', error.message);
+      }
+    }
+
+    const systemPrompt = `Você é um especialista em redação de currículos profissionais otimizados para ATS (Applicant Tracking Systems) e análise por IA de recrutadores.
 Sua função é reescrever e melhorar currículos aplicando as recomendações fornecidas, mantendo todas as informações verdadeiras e relevantes do currículo original.
 
 IMPORTANTE:
@@ -24,17 +61,28 @@ IMPORTANTE:
 - Melhore a formatação e organização
 - Use linguagem profissional e clara
 - Mantenha a estrutura padrão de currículo (Dados Pessoais, Objetivo, Experiência, Formação, Habilidades)
-- Não invente informações que não estavam no original`;
+- Não invente informações que não estavam no original
+- Otimize o currículo para passar por sistemas ATS e análise de IA
+${siteKeywords.length > 0 ? `- Use naturalmente as seguintes palavras-chave estratégicas relevantes para o site: ${siteKeywords.join(', ')}` : ''}
+${siteId ? `- Adapte o currículo especificamente para o site ${siteInfo.includes('site:') ? siteInfo.split('site:')[1].split('\n')[0].trim() : 'selecionado'}` : ''}`;
+
+    const pontosFortes = Array.isArray(analysis.pontosFortes) ? analysis.pontosFortes.join(', ') : (analysis.pontosFortes || 'Não especificado');
+    const pontosMelhorar = Array.isArray(analysis.pontosMelhorar) ? analysis.pontosMelhorar.join(', ') : (analysis.pontosMelhorar || 'Não especificado');
+    const recomendacoes = Array.isArray(analysis.recomendacoes) ? analysis.recomendacoes.join('; ') : (analysis.recomendacoes || 'Não especificado');
 
     const userPrompt = `Com base no currículo original e na análise fornecida, gere uma versão melhorada do currículo.
+
+${siteInfo}
 
 CURRÍCULO ORIGINAL:
 ${originalText}
 
 ANÁLISE E RECOMENDAÇÕES:
-- Pontos Fortes: ${analysis.pontosFortes.join(', ')}
-- Pontos a Melhorar: ${analysis.pontosMelhorar.join(', ')}
-- Recomendações: ${analysis.recomendacoes.join('; ')}
+- Pontos Fortes: ${pontosFortes}
+- Pontos a Melhorar: ${pontosMelhorar}
+- Recomendações: ${recomendacoes}
+
+${siteId ? `IMPORTANTE: Este currículo será usado no site ${siteInfo.includes('site:') ? siteInfo.split('site:')[1].split('\n')[0].trim() : 'selecionado'}. Adapte o conteúdo, palavras-chave e formatação para este contexto específico.` : ''}
 
 Gere um currículo melhorado que:
 1. Mantém todas as informações verdadeiras do original
@@ -42,6 +90,9 @@ Gere um currículo melhorado que:
 3. Melhora a organização e clareza
 4. Destaque os pontos fortes identificados
 5. Corrige ou melhora os pontos fracos mencionados
+${siteKeywords.length > 0 ? `6. Incorpora naturalmente as palavras-chave estratégicas: ${siteKeywords.join(', ')} - estas são CRÍTICAS para passar por sistemas ATS e análise de IA` : ''}
+${siteId ? `7. Está otimizado especificamente para o site ${siteInfo.includes('site:') ? siteInfo.split('site:')[1].split('\n')[0].trim() : 'selecionado'}` : ''}
+8. É otimizado para passar por sistemas ATS e análise de IA de recrutadores
 
 Retorne APENAS o texto do currículo melhorado, sem explicações adicionais.`;
 

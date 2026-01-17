@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface AnalysisResult {
@@ -42,21 +42,34 @@ export class AnalyzerService {
     return headers;
   }
 
-  analyzeResume(file: File): Observable<AnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    return this.http.post<AnalysisResult>(`${this.apiUrl}/analyze/upload`, formData, {
-      headers: this.getAuthHeaders()
-    });
-  }
 
-  generateImprovedResume(originalText: string, analysis: any): Observable<Blob> {
-    return this.http.post(
-      `${this.apiUrl}/analyze/generate-improved`,
-      { originalText, analysis },
-      { responseType: 'blob' }
-    );
+  generateImprovedResume(originalText: string, analysis: any, format: 'pdf' | 'word' = 'pdf', siteId?: string): Observable<Blob | any> {
+    const body: any = { originalText, analysis, format };
+    if (siteId) {
+      body.siteId = siteId;
+    }
+    
+    const headers = this.getAuthHeaders();
+    
+    if (format === 'pdf') {
+      return this.http.post(
+        `${this.apiUrl}/analyze/generate-improved`,
+        body,
+        { 
+          headers,
+          responseType: 'blob'
+        }
+      ) as Observable<Blob>;
+    } else {
+      return this.http.post(
+        `${this.apiUrl}/analyze/generate-improved`,
+        body,
+        { 
+          headers,
+          responseType: 'json'
+        }
+      );
+    }
   }
 
   getPlans(): Observable<any> {
@@ -118,6 +131,53 @@ export class AnalyzerService {
     return this.http.get(url, {
       headers: this.getAuthHeaders()
     });
+  }
+
+  getJobSites(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/analyze/job-sites`);
+  }
+
+  analyzeResume(file: File, siteId?: string): Observable<AnalysisResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (siteId) {
+      formData.append('siteId', siteId);
+    }
+    
+    return this.http.post<AnalysisResult>(`${this.apiUrl}/analyze/upload`, formData, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  generateCoverLetter(resumeText: string, analysis: any, siteId?: string): Observable<Blob> {
+    const body: any = { resumeText, analysis };
+    if (siteId) {
+      body.siteId = siteId;
+    }
+    
+    return this.http.post(
+      `${this.apiUrl}/analyze/generate-cover-letter`,
+      body,
+      { 
+        headers: this.getAuthHeaders(),
+        responseType: 'blob'
+      }
+    ) as Observable<Blob>;
+  }
+
+  searchJobs(analysis: any, siteId: string, location?: string): Observable<any> {
+    const body: any = { analysis, siteId };
+    if (location) {
+      body.location = location;
+    }
+    
+    return this.http.post(
+      `${this.apiUrl}/analyze/search-jobs`,
+      body,
+      { 
+        headers: this.getAuthHeaders()
+      }
+    );
   }
 }
 

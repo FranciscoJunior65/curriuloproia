@@ -1,6 +1,8 @@
 import { getAllUsers } from '../models/user.model.js';
 import { supabaseAdmin, getAllPurchases, getSalesStats } from '../services/supabase.service.js';
 import { userHasCredits } from '../services/supabase.service.js';
+import { getAIUsageStats } from '../services/ai-usage.service.js';
+import { getJobSiteUsageStats, getJobSiteRanking, getJobSiteDetailedStats } from '../services/analytics.service.js';
 
 /**
  * Obtém estatísticas gerais do sistema
@@ -387,3 +389,95 @@ export const getSalesStatistics = async (req, res) => {
   }
 };
 
+/**
+ * Obtém estatísticas de uso de IA
+ */
+export const getAIUsageStatistics = async (req, res) => {
+  try {
+    const { period = 'day' } = req.query;
+
+    const stats = await getAIUsageStats(period);
+
+    if (!stats) {
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao obter estatísticas de uso de IA'
+      });
+    }
+
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Erro ao obter estatísticas de uso de IA:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao obter estatísticas de uso de IA',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Obtém estatísticas de uso por site de vagas
+ */
+export const getJobSiteStats = async (req, res) => {
+  try {
+    const { startDate, endDate, limit } = req.query;
+    
+    const stats = await getJobSiteUsageStats(
+      startDate || null,
+      endDate || null
+    );
+    
+    const ranking = await getJobSiteRanking(
+      limit ? parseInt(limit) : 10,
+      startDate || null,
+      endDate || null
+    );
+    
+    res.json({
+      success: true,
+      stats: stats,
+      ranking: ranking,
+      total: stats.length
+    });
+  } catch (error) {
+    console.error('Erro ao obter estatísticas de sites:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao obter estatísticas de sites',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Obtém estatísticas detalhadas de um site específico
+ */
+export const getJobSiteDetailedStatsController = async (req, res) => {
+  try {
+    const { siteId } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    const stats = await getJobSiteDetailedStats(
+      siteId || null,
+      startDate || null,
+      endDate || null
+    );
+    
+    res.json({
+      success: true,
+      stats: stats,
+      total: stats.length
+    });
+  } catch (error) {
+    console.error('Erro ao obter estatísticas detalhadas:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao obter estatísticas detalhadas',
+      message: error.message
+    });
+  }
+};

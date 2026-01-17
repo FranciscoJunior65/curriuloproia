@@ -435,11 +435,12 @@
                 class="hidden"
               />
 
-              <div *ngIf="!selectedFile" class="space-y-4">
-                <mat-icon class="text-6xl text-indigo-500"
-                  >cloud_upload</mat-icon
-                >
-                <div>
+              <div *ngIf="!selectedFile" class="space-y-4 flex flex-col items-center">
+                <mat-icon 
+                  class="text-indigo-500"
+                  style="font-size: 64px; width: 64px; height: 64px; line-height: 64px;"
+                >cloud_upload</mat-icon>
+                <div class="text-center">
                   <p class="text-lg font-semibold text-gray-700 mb-2">
                     Clique para selecionar ou arraste seu arquivo
                   </p>
@@ -449,11 +450,12 @@
                 </div>
               </div>
 
-              <div *ngIf="selectedFile" class="space-y-4">
-                <mat-icon class="text-6xl text-green-500"
-                  >check_circle</mat-icon
-                >
-                <div>
+              <div *ngIf="selectedFile" class="space-y-4 flex flex-col items-center">
+                <mat-icon 
+                  class="text-green-500"
+                  style="font-size: 64px; width: 64px; height: 64px; line-height: 64px;"
+                >check_circle</mat-icon>
+                <div class="text-center">
                   <p class="text-lg font-semibold text-gray-700 mb-2">
                     Arquivo selecionado
                   </p>
@@ -467,24 +469,107 @@
               </div>
             </label>
 
-            <!-- Analyze Button -->
+            <!-- Site Selection (mostra após selecionar arquivo) -->
+            <div *ngIf="selectedFile" class="w-full max-w-2xl">
+              <mat-card class="shadow-lg border-l-4" [class.border-indigo-500]="!selectedSiteId" [class.border-green-500]="selectedSiteId">
+                <mat-card-content class="p-6">
+                  <!-- Site Selecionado (quando já tem um selecionado) -->
+                  <div *ngIf="selectedSiteId && getSelectedSiteName()" class="mb-4">
+                    <div class="flex items-center justify-between bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 rounded-full">
+                          <mat-icon class="text-green-600">check_circle</mat-icon>
+                        </div>
+                        <div>
+                          <p class="text-sm font-medium text-gray-600">Site selecionado:</p>
+                          <p class="text-lg font-bold text-gray-800">{{ getSelectedSiteName() }}</p>
+                        </div>
+                      </div>
+                      <!-- Botão Alterar só aparece se ainda não fez análise -->
+                      <button
+                        *ngIf="!analysisCompleted"
+                        type="button"
+                        (click)="selectedSiteId = null"
+                        class="px-4 py-2 text-sm font-medium text-indigo-600 bg-white border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                      >
+                        <mat-icon class="text-base">edit</mat-icon>
+                        Alterar
+                      </button>
+                      <!-- Indicador de travado após análise -->
+                      <div *ngIf="analysisCompleted" class="px-4 py-2 text-sm font-medium text-gray-500 bg-gray-100 border border-gray-300 rounded-lg flex items-center gap-2">
+                        <mat-icon class="text-base">lock</mat-icon>
+                        Análise concluída
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Seleção de Site (quando não tem selecionado ou quer alterar) -->
+                  <div *ngIf="!selectedSiteId">
+                    <div class="text-center mb-6">
+                      <mat-icon class="text-5xl text-indigo-600 mb-3" style="font-size: 48px; width: 48px; height: 48px; line-height: 48px;">public</mat-icon>
+                      <h3 class="text-xl font-bold text-gray-800 mb-2">
+                        Selecione o site de vagas
+                      </h3>
+                      <p class="text-gray-600 text-sm">
+                        Escolha o site para o qual você deseja otimizar seu currículo. A análise será personalizada para este site.
+                      </p>
+                    </div>
+                    
+                    <div *ngIf="loadingSites" class="text-center py-8">
+                      <mat-spinner diameter="40" class="inline-block"></mat-spinner>
+                      <p class="text-gray-600 mt-4">Carregando sites...</p>
+                    </div>
+
+                    <div *ngIf="!loadingSites && jobSites.length > 0" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <button
+                        *ngFor="let site of jobSites"
+                        type="button"
+                        (click)="selectedSiteId = site.id"
+                        class="p-4 rounded-lg border-2 border-gray-300 bg-white text-gray-700 transition-all hover:shadow-md hover:border-indigo-400 text-sm font-medium flex items-center justify-center min-h-[60px]"
+                      >
+                        {{ site.nome }}
+                      </button>
+                    </div>
+
+                    <div *ngIf="!loadingSites && jobSites.length === 0" class="text-center py-4">
+                      <p class="text-gray-500 text-sm">
+                        Nenhum site disponível no momento. A análise será feita de forma genérica.
+                      </p>
+                      <button
+                        type="button"
+                        (click)="selectedSiteId = 'generic'"
+                        class="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        Continuar sem selecionar site
+                      </button>
+                    </div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <!-- Analyze Button (só aparece após selecionar site e antes da análise) -->
             <button
+              *ngIf="selectedFile && selectedSiteId && !analysisCompleted"
               mat-raised-button
               color="primary"
               (click)="analyze()"
-              [disabled]="!selectedFile || loading"
+              [disabled]="loading"
               class="w-full md:w-auto px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
-              [class.opacity-50]="!selectedFile || loading"
+              [class.opacity-50]="loading"
             >
-              <mat-spinner
-                *ngIf="loading"
-                diameter="24"
-                class="inline-block mr-3"
-              ></mat-spinner>
-              <mat-icon *ngIf="!loading" class="mr-2">analytics</mat-icon>
-              <span>{{
-                loading ? "Analisando com IA..." : "Analisar Currículo Agora"
-              }}</span>
+              <span *ngIf="loading" class="flex items-center">
+                <mat-spinner
+                  diameter="20"
+                  class="inline-block mr-3"
+                  style="display: inline-block;"
+                ></mat-spinner>
+                <span>Analisando com IA...</span>
+              </span>
+              <span *ngIf="!loading" class="flex items-center">
+                <mat-icon class="mr-2">analytics</mat-icon>
+                <span>Analisar Currículo Agora</span>
+              </span>
             </button>
 
             <!-- Error Message -->
@@ -540,7 +625,7 @@
               </div>
               <h2 class="text-xl font-bold text-gray-800">Pontos Fortes</h2>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="chips-container">
               <mat-chip
                 *ngFor="let ponto of result.analysis.pontosFortes"
                 class="bg-green-50 text-green-800"
@@ -562,7 +647,7 @@
                 Oportunidades de Melhoria
               </h2>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="chips-container">
               <mat-chip
                 *ngFor="let ponto of result.analysis.pontosMelhorar"
                 class="bg-orange-50 text-orange-800"
@@ -620,7 +705,7 @@
               Habilidades Identificadas
             </h2>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="chips-container">
             <mat-chip
               *ngFor="let habilidade of result.analysis.habilidades"
               class="bg-indigo-50 text-indigo-800"
@@ -654,52 +739,182 @@
         </mat-card-content>
       </mat-card>
 
-      <!-- CTA: Gerar Currículo Melhorado -->
-      <mat-card
-        class="shadow-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white"
-      >
-        <mat-card-content class="p-8">
-          <div class="text-center">
-            <div class="mb-4">
-              <mat-icon class="text-6xl text-yellow-300 mb-4"
-                >auto_awesome</mat-icon
-              >
+      <!-- Seção de Ações Pós-Análise -->
+      <div class="space-y-6">
+        <!-- Gerar Currículo Melhorado -->
+        <mat-card class="shadow-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
+          <mat-card-content class="p-8">
+            <div class="text-center mb-6">
+              <div class="mb-4">
+                <mat-icon class="text-6xl text-yellow-300 mb-4">auto_awesome</mat-icon>
+              </div>
+              <h2 class="text-3xl font-bold mb-3">
+                Currículo Profissional Otimizado
+              </h2>
+              <p class="text-lg text-indigo-100 mb-6 max-w-2xl mx-auto">
+                Receba uma versão melhorada do seu currículo aplicando todas as recomendações da análise.
+                Otimizado com palavras-chave do site {{ getSelectedSiteName() || 'selecionado' }}.
+              </p>
             </div>
-            <h2 class="text-3xl font-bold mb-3">
-              Currículo Profissional Otimizado
-            </h2>
-            <p class="text-lg text-indigo-100 mb-6 max-w-2xl mx-auto">
-              Receba uma versão melhorada do seu currículo aplicando todas as
-              recomendações da análise. Pronto para download em PDF ou WORD
-              profissional.
-            </p>
-            <button
-              mat-raised-button
-              (click)="generateImprovedResume()"
-              [disabled]="generatingResume"
-              class="bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all"
-            >
-              <mat-spinner
-                *ngIf="generatingResume"
-                diameter="24"
-                class="inline-block mr-3"
-              ></mat-spinner>
-              <mat-icon *ngIf="!generatingResume" class="mr-2"
-                >download</mat-icon
+            
+            <!-- Botões de Download Separados -->
+            <div class="flex flex-col md:flex-row gap-4 justify-center mb-4">
+              <button
+                mat-raised-button
+                (click)="generateImprovedResume('pdf')"
+                [disabled]="generatingPDF"
+                class="bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
               >
-              <span>{{
-                generatingResume
-                  ? "Gerando PDF Profissional..."
-                  : "Gerar e Baixar Agora"
-              }}</span>
-            </button>
-            <p class="text-sm text-indigo-200 mt-4">
-              ✨ PDF ou WORD formatado profissionalmente • Aplicação automática das
-              melhorias • Palavras-chave otimizadas
+                <mat-spinner
+                  *ngIf="generatingPDF"
+                  diameter="20"
+                  class="inline-block mr-3"
+                ></mat-spinner>
+                <mat-icon *ngIf="!generatingPDF" class="mr-2">picture_as_pdf</mat-icon>
+                <span>{{ generatingPDF ? "Gerando PDF..." : "Baixar PDF" }}</span>
+              </button>
+              
+              <button
+                mat-raised-button
+                (click)="generateImprovedResume('word')"
+                [disabled]="generatingWord"
+                class="bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
+              >
+                <mat-spinner
+                  *ngIf="generatingWord"
+                  diameter="20"
+                  class="inline-block mr-3"
+                ></mat-spinner>
+                <mat-icon *ngIf="!generatingWord" class="mr-2">description</mat-icon>
+                <span>{{ generatingWord ? "Gerando Word..." : "Baixar Word" }}</span>
+              </button>
+            </div>
+            
+            <p class="text-sm text-indigo-200 text-center">
+              ✨ Formatado profissionalmente • Palavras-chave otimizadas para {{ getSelectedSiteName() || 'o site selecionado' }} • ATS-friendly
             </p>
-          </div>
-        </mat-card-content>
-      </mat-card>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Resumo de Alterações (aparece após gerar) -->
+        <mat-card *ngIf="resumeChanges" class="shadow-xl border-l-4 border-green-500">
+          <mat-card-content class="p-6">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="p-2 bg-green-100 rounded-full">
+                <mat-icon class="text-green-600">check_circle</mat-icon>
+              </div>
+              <h2 class="text-xl font-bold text-gray-800">Resumo das Alterações Realizadas</h2>
+            </div>
+            <div class="space-y-3">
+              <div *ngFor="let change of resumeChanges.changes" class="p-3 bg-gray-50 rounded-lg">
+                <p class="font-semibold text-gray-800">{{ change.type }}</p>
+                <p class="text-gray-600 text-sm">{{ change.description }}</p>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Outras Ações -->
+        <div class="grid md:grid-cols-3 gap-4">
+          <!-- Carta de Apresentação -->
+          <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
+            <mat-card-content class="p-6 text-center">
+              <div class="p-3 bg-blue-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <mat-icon class="text-blue-600 text-3xl">mail</mat-icon>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Carta de Apresentação</h3>
+              <p class="text-gray-600 text-sm mb-4">
+                Crie uma carta personalizada baseada no site {{ getSelectedSiteName() || 'selecionado' }}
+              </p>
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="generateCoverLetter()"
+                [disabled]="generatingCoverLetter"
+                class="w-full"
+              >
+                <mat-spinner
+                  *ngIf="generatingCoverLetter"
+                  diameter="20"
+                  class="inline-block mr-2"
+                ></mat-spinner>
+                <mat-icon *ngIf="!generatingCoverLetter" class="mr-2">edit</mat-icon>
+                <span>{{ generatingCoverLetter ? "Gerando..." : "Criar Carta" }}</span>
+              </button>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Pesquisar Vagas -->
+          <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
+            <mat-card-content class="p-6 text-center">
+              <div class="p-3 bg-green-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <mat-icon class="text-green-600 text-3xl">search</mat-icon>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Pesquisar Vagas</h3>
+              <p class="text-gray-600 text-sm mb-4">
+                Encontre oportunidades no {{ getSelectedSiteName() || 'site selecionado' }} baseado na sua análise
+              </p>
+              <button
+                mat-raised-button
+                color="accent"
+                (click)="searchJobs()"
+                class="w-full"
+              >
+                <mat-icon class="mr-2">work</mat-icon>
+                <span>Buscar Vagas</span>
+              </button>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Simulação de Entrevista -->
+          <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
+            <mat-card-content class="p-6 text-center">
+              <div class="p-3 bg-purple-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <mat-icon class="text-purple-600 text-3xl">chat</mat-icon>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Simular Entrevista</h3>
+              <p class="text-gray-600 text-sm mb-4">
+                Pratique com IA baseado no seu currículo e no site {{ getSelectedSiteName() || 'selecionado' }}
+              </p>
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="openInterviewSimulation()"
+                class="w-full"
+              >
+                <mat-icon class="mr-2">record_voice_over</mat-icon>
+                <span>Iniciar Simulação</span>
+              </button>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <!-- Chat de Simulação de Entrevista -->
+        <mat-card *ngIf="showInterviewChat" class="shadow-xl">
+          <mat-card-content class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-bold text-gray-800">Simulação de Entrevista</h3>
+              <button mat-icon-button (click)="showInterviewChat = false">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <div class="border rounded-lg p-4 h-96 overflow-y-auto mb-4 bg-gray-50">
+              <!-- Mensagens do chat aparecerão aqui -->
+              <p class="text-gray-500 text-center">Chat de simulação será implementado aqui</p>
+            </div>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                placeholder="Digite sua resposta..."
+                class="flex-1 px-4 py-2 border rounded-lg"
+              />
+              <button mat-raised-button color="primary">
+                <mat-icon>send</mat-icon>
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
     </div>
 
     <!-- Benefits Section (shown when no result) -->

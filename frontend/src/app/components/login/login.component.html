@@ -287,6 +287,25 @@
               </div>
             </div>
 
+            <!-- Checkbox de proteção de dados (apenas no cadastro) -->
+            <div *ngIf="!isLogin" class="login-form__privacy">
+              <label class="login-form__privacy-label">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="acceptPrivacyPolicy"
+                  name="acceptPrivacyPolicy"
+                  required
+                  class="login-form__privacy-checkbox"
+                />
+                <span class="login-form__privacy-text">
+                  Concordo com a 
+                  <a href="/politica-de-privacidade" target="_blank" class="login-form__privacy-link">Política de Privacidade</a>
+                  e 
+                  <a href="/termos-de-uso" target="_blank" class="login-form__privacy-link">Termos de Uso</a>
+                </span>
+              </label>
+            </div>
+
             <div *ngIf="error" class="login-form__error">
               {{ error }}
             </div>
@@ -295,7 +314,7 @@
               {{ success }}
             </div>
 
-            <button type="submit" class="login-form__submit" [disabled]="loading">
+            <button type="submit" class="login-form__submit" [disabled]="loading || (!isLogin && !acceptPrivacyPolicy)">
               <span *ngIf="!loading">{{ isLogin ? 'Entrar' : 'Criar conta' }}</span>
               <span *ngIf="loading">{{ isLogin ? 'Entrando...' : 'Criando conta...' }}</span>
             </button>

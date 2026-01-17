@@ -123,6 +123,55 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
+ * /api/test/env-check:
+ *   get:
+ *     summary: Verifica variáveis de ambiente (sem expor valores completos)
+ *     tags: [Test]
+ *     responses:
+ *       200:
+ *         description: Status das variáveis
+ */
+router.get('/env-check', (req, res) => {
+  const envCheck = {
+    supabase: {
+      hasUrl: !!process.env.SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      urlPreview: process.env.SUPABASE_URL ? `${process.env.SUPABASE_URL.substring(0, 30)}...` : 'não definido',
+      serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0,
+      configured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    },
+    gemini: {
+      hasApiKey: !!process.env.GEMINI_API_KEY,
+      apiKeyLength: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 0,
+      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash-preview (padrão)',
+      provider: process.env.AI_PROVIDER || 'gemini (padrão)',
+      configured: !!process.env.GEMINI_API_KEY
+    },
+    openai: {
+      hasApiKey: !!process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || 'gpt-4 (padrão)',
+      configured: !!process.env.OPENAI_API_KEY
+    },
+    jwt: {
+      hasSecret: !!process.env.JWT_SECRET,
+      configured: !!process.env.JWT_SECRET
+    }
+  };
+
+  res.json({
+    success: true,
+    env: envCheck,
+    issues: [
+      !envCheck.supabase.configured && '⚠️ Supabase não configurado (SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY)',
+      !envCheck.gemini.configured && '⚠️ Gemini não configurado (GEMINI_API_KEY)',
+      !envCheck.jwt.configured && '⚠️ JWT Secret não configurado (JWT_SECRET)'
+    ].filter(Boolean),
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * @swagger
  * /api/test/email-config:
  *   get:
  *     summary: Verifica configuração de email
@@ -450,6 +499,165 @@ router.post('/send-email', async (req, res) => {
           'Verifique se a senha contém caracteres especiais que precisam estar entre aspas no .env'
         ] : []
       }
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/test/gemini:
+ *   get:
+ *     summary: Testa conexão com Gemini
+ *     tags: [Test]
+ *     responses:
+ *       200:
+ *         description: Conexão OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Conexão com Gemini OK!"
+ *                 response:
+ *                   type: string
+ *                   example: "OK"
+ *                 responseTime:
+ *                   type: string
+ *                   example: "500ms"
+ *                 debug:
+ *                   type: object
+ *                 connection:
+ *                   type: string
+ *                   example: "OK"
+ *                 timestamp:
+ *                   type: string
+ *       500:
+ *         description: Erro na conexão
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ *                 connection:
+ *                   type: string
+ *                   example: "ERRO"
+ */
+router.get('/gemini', async (req, res) => {
+  try {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    
+    // Verifica se a chave está configurada
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const aiProvider = process.env.AI_PROVIDER || 'gemini';
+    // Modelos válidos: gemini-3-flash-preview (mais recente), gemini-1.5-flash-preview, gemini-1.5-flash, gemini-1.5-pro
+    let geminiModel = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
+    
+    // Se o modelo for gemini-pro (deprecated), força usar gemini-3-flash-preview
+    if (geminiModel === 'gemini-pro') {
+      console.warn(`⚠️  Modelo ${geminiModel} está deprecated. Usando gemini-3-flash-preview`);
+      geminiModel = 'gemini-3-flash-preview';
+    }
+    
+    const debugInfo = {
+      hasApiKey: !!geminiApiKey,
+      apiKeyPreview: geminiApiKey ? `${geminiApiKey.substring(0, 20)}...` : 'não definido',
+      apiKeyLength: geminiApiKey ? geminiApiKey.length : 0,
+      provider: aiProvider,
+      model: geminiModel,
+      modelFromEnv: process.env.GEMINI_MODEL || 'não definido (usando padrão)'
+    };
+    
+    console.log(`🤖 Testando Gemini com modelo: ${geminiModel}`);
+
+    if (!geminiApiKey) {
+      return res.status(500).json({
+        success: false,
+        error: 'Gemini não configurado',
+        message: 'GEMINI_API_KEY não encontrada no arquivo .env',
+        debug: debugInfo,
+        help: [
+          '1. Obtenha uma API key em: https://ai.google.dev/',
+          '2. Adicione no arquivo .env: GEMINI_API_KEY=sua-chave-aqui',
+          '3. Reinicie o servidor após adicionar a variável'
+        ]
+      });
+    }
+
+    // Tenta inicializar o Gemini
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: geminiModel });
+
+    // Faz uma requisição de teste simples
+    const startTime = Date.now();
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: 'Responda apenas: OK' }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 10,
+      }
+    });
+
+    const response = await result.response;
+    const responseText = response.text();
+    const responseTime = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      message: 'Conexão com Gemini OK!',
+      response: responseText,
+      responseTime: `${responseTime}ms`,
+      debug: debugInfo,
+      connection: 'OK',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Erro ao testar Gemini:', error);
+    
+    let errorMessage = error.message || 'Erro desconhecido';
+    let errorDetails = null;
+
+    // Tratamento de erros específicos
+    if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('401')) {
+      errorMessage = 'Chave de API inválida';
+      errorDetails = 'Verifique se a GEMINI_API_KEY está correta no arquivo .env';
+    } else if (error.message?.includes('PERMISSION_DENIED')) {
+      errorMessage = 'Permissão negada';
+      errorDetails = 'A chave de API não tem permissão para usar o Gemini';
+    } else if (error.message?.includes('QUOTA_EXCEEDED') || error.message?.includes('429')) {
+      errorMessage = 'Quota excedida';
+      errorDetails = 'Limite de requisições atingido. Aguarde alguns minutos.';
+    } else if (error.message?.includes('404') || error.message?.includes('not found')) {
+      errorMessage = 'Modelo não encontrado';
+      errorDetails = `O modelo "${process.env.GEMINI_MODEL || 'gemini-pro'}" não está disponível. Use: gemini-1.5-flash ou gemini-1.5-pro`;
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao conectar com Gemini',
+      message: errorMessage,
+      details: errorDetails,
+      connection: 'ERRO',
+      debug: {
+        modelUsed: process.env.GEMINI_MODEL || 'gemini-3-flash-preview (padrão)',
+        availableModels: ['gemini-3-flash-preview', 'gemini-1.5-flash-preview', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+        suggestion: 'Adicione no .env: GEMINI_MODEL=gemini-3-flash-preview'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });

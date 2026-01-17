@@ -109,6 +109,7 @@ const server = app.listen(PORT, () => {
   console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
   console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
   console.log(`🧪 Test Supabase: http://localhost:${PORT}/api/test/supabase`);
+  console.log(`🤖 Test Gemini: http://localhost:${PORT}/api/test/gemini`);
   console.log(`📊 Admin Dashboard: http://localhost:4200/admin`);
 });
 
