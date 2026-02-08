@@ -6,6 +6,7 @@ import { FinanceiroComponent } from './components/financeiro/financeiro.componen
 import { ChangePasswordComponent } from './components/change-password/change-password.component';
 import { PrivacyPolicyComponent } from './components/privacy-policy/privacy-policy.component';
 import { TermsOfUseComponent } from './components/terms-of-use/terms-of-use.component';
+import { AnalysesHistoryComponent } from './components/analyses-history/analyses-history.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -15,6 +16,7 @@ export const routes: Routes = [
   { path: '', component: AnalyzerComponent, canActivate: [authGuard] },
   { path: 'admin', component: AdminDashboardComponent, canActivate: [authGuard] },
   { path: 'financeiro', component: FinanceiroComponent, canActivate: [authGuard] },
+  { path: 'historico-analises', component: AnalysesHistoryComponent, canActivate: [authGuard] },
   { path: 'trocar-senha', component: ChangePasswordComponent, canActivate: [authGuard] },
   { path: '**', redirectTo: '/login' }
 ];

@@ -2,9 +2,13 @@ import { analyzeResumeWithAI } from '../services/ai.service.js';
 import { extractTextFromFile } from '../services/file.service.js';
 import { getUser } from '../models/user.model.js';
 import { deductCreditsFromUser, recordCreditUsage } from '../services/supabase.service.js';
+import { saveImportedResume } from '../services/curriculo-db.service.js';
+import { saveAnalysis } from '../services/analise-db.service.js';
 
 export const analyzeResume = async (req, res) => {
   const startTime = Date.now();
+  let creditId = null;
+  let resumeId = null;
   
   try {
     // Obtém userId do token JWT ou do body
@@ -134,14 +138,46 @@ export const analyzeResume = async (req, res) => {
         
         if (!useMock) {
           // Modo real: registra o uso de crédito (já deduz automaticamente)
-          // NÃO chamar deductCreditsFromUser aqui, pois recordCreditUsage já faz isso
-          // Obtém siteId do body ou query
-          const siteId = req.body.siteId || req.query.siteId || null;
-          await recordCreditUsage(userId, 'analysis', 1, req.file.originalname, siteId);
-          console.log(`💳 Crédito usado${siteId ? ` para site ${siteId}` : ''}.`);
+          // Obtém o creditId retornado
+          const creditRecord = await recordCreditUsage(userId, 'analysis', 1, req.file.originalname, siteId);
+          creditId = creditRecord?.id || null;
+          console.log(`💳 Crédito usado${siteId ? ` para site ${siteId}` : ''}. CreditId: ${creditId}`);
         } else {
           // Modo mock: não deduz crédito
           console.log('🎭 Modo MOCK: crédito NÃO foi deduzido');
+        }
+        
+        // Salva o currículo no banco de dados (sem arquivo base64, mas com texto e análise)
+        if (siteId) {
+          try {
+            resumeId = await saveImportedResume(
+              userId,
+              siteId,
+              req.file.originalname,
+              req.file.mimetype || 'application/pdf',
+              text,
+              creditId,
+              analysis
+            );
+            
+            if (resumeId) {
+              console.log(`✅ Currículo salvo com ID: ${resumeId}`);
+              
+              // Salva a análise completa no banco
+              try {
+                const analysisId = await saveAnalysis(resumeId, userId, siteId, analysis);
+                if (analysisId) {
+                  console.log(`✅ Análise salva com ID: ${analysisId}`);
+                }
+              } catch (analysisError) {
+                console.error('❌ Erro ao salvar análise:', analysisError);
+                // Continua mesmo se não conseguir salvar análise
+              }
+            }
+          } catch (saveError) {
+            console.error('❌ Erro ao salvar currículo:', saveError);
+            // Continua mesmo se não conseguir salvar
+          }
         }
         
         const updatedUser = await getUser(userId);
@@ -154,6 +190,7 @@ export const analyzeResume = async (req, res) => {
       success: true,
       originalText: text,
       analysis: analysis,
+      resumeId: resumeId, // Retorna o ID do currículo salvo
       metadata: {
         fileName: req.file.originalname,
         fileSize: req.file.size,

@@ -6,7 +6,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// OpenAI DESATIVADO temporariamente para não consumir créditos
+// const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const openai = null; // Forçado para null para desativar OpenAI
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 

@@ -1,0 +1,394 @@
+<header class="bg-white shadow-sm sticky top-0 z-50">
+  <div class="w-full px-4 sm:px-6 lg:px-12 py-4">
+    <div class="flex justify-between items-center w-full">
+      <div class="flex items-center gap-4">
+        <button
+          routerLink="/"
+          class="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          <mat-icon>arrow_back</mat-icon>
+          <span class="hidden md:inline">Voltar ao Site</span>
+        </button>
+        <div class="flex items-center gap-2 ml-4">
+          <mat-icon class="text-indigo-600">history</mat-icon>
+          <span class="text-xl font-bold text-gray-800">Histórico de Análises</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <div *ngIf="authService.isAuthenticated()" class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-semibold text-gray-800">
+              {{ getUserDisplayName() }}
+            </p>
+            <p class="text-xs text-gray-500 flex items-center gap-1">
+              <mat-icon class="text-xs">stars</mat-icon>
+              <span>{{ userCredits }} crédito(s)</span>
+            </p>
+          </div>
+          <div class="relative">
+            <button
+              [matMenuTriggerFor]="userMenu"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <mat-icon class="text-indigo-600">account_circle</mat-icon>
+              <span
+                class="text-sm font-medium text-gray-700 hidden md:inline"
+                >{{ getUserDisplayName() }}</span
+              >
+              <mat-icon class="text-gray-500 text-sm">arrow_drop_down</mat-icon>
+            </button>
+            <mat-menu #userMenu="matMenu" class="mt-2">
+              <div class="p-2">
+                <div class="px-3 py-2 border-b border-gray-200 mb-2">
+                  <p class="text-sm font-semibold text-gray-800">
+                    {{ getUserDisplayName() }}
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    {{ userCredits }} crédito(s) disponível(is)
+                  </p>
+                </div>
+                <button
+                  mat-menu-item
+                  routerLink="/financeiro"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">account_balance</mat-icon>
+                  <span>Menu Financeiro</span>
+                </button>
+                <button
+                  mat-menu-item
+                  routerLink="/trocar-senha"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">lock</mat-icon>
+                  <span>Trocar Senha</span>
+                </button>
+                <button
+                  mat-menu-item
+                  (click)="authService.logout(); router.navigate(['/login'])"
+                  class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">logout</mat-icon>
+                  <span>Sair</span>
+                </button>
+              </div>
+            </mat-menu>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4 md:p-8">
+  <div class="max-w-7xl mx-auto pt-4">
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="flex justify-center items-center py-20">
+      <mat-spinner diameter="50"></mat-spinner>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error && !loading" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+      {{ error }}
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!loading && !error && analyses.length === 0" class="text-center py-20">
+      <mat-icon class="text-6xl text-gray-400 mb-4">description</mat-icon>
+      <h2 class="text-2xl font-semibold text-gray-700 mb-2">Nenhuma análise encontrada</h2>
+      <p class="text-gray-500 mb-6">Você ainda não realizou nenhuma análise de currículo.</p>
+      <button mat-raised-button color="primary" routerLink="/">
+        <mat-icon>add</mat-icon>
+        <span class="ml-2">Fazer Primeira Análise</span>
+      </button>
+    </div>
+
+    <!-- Analyses List -->
+    <div *ngIf="!loading && !error && analyses.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <mat-card 
+        *ngFor="let analysis of analyses" 
+        class="group relative overflow-hidden border-2 border-transparent hover:border-indigo-300 transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-2xl"
+        (click)="viewAnalysis(analysis)"
+      >
+        <!-- Score Badge -->
+        <div class="absolute top-12 right-4 z-10">
+          <div 
+            class="px-4 py-2 rounded-full shadow-lg font-bold text-base"
+            [ngClass]="{
+              'bg-gradient-to-r from-green-500 to-emerald-600 text-white': (analysis.score_geral || 0) >= 80,
+              'bg-gradient-to-r from-yellow-500 to-orange-500 text-white': (analysis.score_geral || 0) >= 60 && (analysis.score_geral || 0) < 80,
+              'bg-gradient-to-r from-red-500 to-pink-600 text-white': (analysis.score_geral || 0) < 60
+            }"
+          >
+            {{ analysis.score_geral || 0 }}/100
+          </div>
+        </div>
+
+        <!-- Gradient Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+        <mat-card-content class="relative p-6 pt-10">
+          <!-- File Icon -->
+          <div class="flex items-start gap-4 mb-4 mt-4">
+            <div class="p-3 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl">
+              <mat-icon class="text-indigo-600 text-3xl">description</mat-icon>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="text-lg font-bold text-gray-800 mb-1 truncate" [title]="analysis.curriculos_importados?.nome_arquivo_original || 'Currículo'">
+                {{ analysis.curriculos_importados?.nome_arquivo_original || 'Currículo' }}
+              </h3>
+              <div class="flex items-center gap-2 text-sm text-gray-600">
+                <mat-icon class="text-base">business</mat-icon>
+                <span class="truncate">{{ analysis.sites_vagas?.nome || 'Site não informado' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Date -->
+          <div class="flex items-center gap-2 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
+            <mat-icon class="text-sm">schedule</mat-icon>
+            <span>{{ formatDate(analysis.criado_em) }}</span>
+          </div>
+
+          <!-- Pontos Fortes Preview -->
+          <div class="mb-4">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pontos Fortes</h4>
+            <div class="flex flex-wrap gap-2">
+              <span 
+                *ngFor="let ponto of (analysis.pontos_fortes || []).slice(0, 2)" 
+                class="px-2 py-1 bg-green-50 text-green-700 text-xs rounded-md border border-green-200"
+              >
+                {{ ponto.length > 40 ? (ponto.substring(0, 40) + '...') : ponto }}
+              </span>
+              <span 
+                *ngIf="(analysis.pontos_fortes || []).length > 2" 
+                class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md border border-gray-200"
+              >
+                +{{ (analysis.pontos_fortes || []).length - 2 }} mais
+              </span>
+            </div>
+          </div>
+
+          <!-- Action Button -->
+          <button 
+            mat-stroked-button 
+            color="primary" 
+            class="w-full mt-4"
+            (click)="viewAnalysis(analysis); $event.stopPropagation()"
+          >
+            <mat-icon class="text-base">visibility</mat-icon>
+            <span class="ml-2">Ver Análise Completa</span>
+          </button>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Analysis Details Modal -->
+    <div 
+      *ngIf="selectedAnalysis" 
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"
+      (click)="closeDetails()"
+    >
+      <mat-card 
+        class="max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col shadow-2xl border-0 rounded-2xl animate-slideUp"
+        (click)="$event.stopPropagation()"
+      >
+        <!-- Header com gradiente -->
+        <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white p-6 relative">
+          <div class="pr-16">
+            <h2 class="text-2xl md:text-3xl font-bold mb-2 truncate">
+              {{ selectedAnalysis.curriculos_importados?.nome_arquivo_original || 'Análise de Currículo' }}
+            </h2>
+            <div class="flex flex-wrap items-center gap-4 text-indigo-100 text-sm">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-base">business</mat-icon>
+                <span>{{ selectedAnalysis.sites_vagas?.nome || 'Site não informado' }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-base">schedule</mat-icon>
+                <span>{{ formatDate(selectedAnalysis.criado_em) }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Botão X no canto superior DIREITO -->
+          <button 
+            mat-icon-button 
+            (click)="closeDetails(); $event.stopPropagation()"
+            class="absolute top-3 right-3 text-white hover:bg-white/20 transition-colors"
+            style="z-index: 100;"
+            aria-label="Fechar"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Content Scrollable -->
+        <div class="overflow-y-auto flex-1 bg-white">
+          <mat-card-content class="p-6 md:p-8">
+            <!-- Score Card -->
+            <div class="mb-8 text-center pt-4">
+              <div 
+                class="inline-flex items-center justify-center rounded-full shadow-xl mb-4"
+                style="width: 140px; height: 140px;"
+                [style.background]="getScoreGradient(selectedAnalysis.score_geral || 0)"
+              >
+                <div class="flex flex-col items-center justify-center">
+                  <span class="text-5xl font-bold text-white" style="line-height: 1;">
+                    {{ selectedAnalysis.score_geral || 0 }}
+                  </span>
+                  <span class="text-white text-sm font-medium mt-1">/100</span>
+                </div>
+              </div>
+              <p class="text-gray-600 font-medium text-lg">Score de Qualidade</p>
+            </div>
+
+          <!-- Pontos Fortes -->
+          <div class="mb-8 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-l-4 border-green-500">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="p-2 bg-green-100 rounded-lg">
+                <mat-icon class="text-green-600">check_circle</mat-icon>
+              </div>
+              <h3 class="text-xl font-bold text-gray-800">Pontos Fortes</h3>
+            </div>
+            <div class="space-y-2">
+              <div 
+                *ngFor="let ponto of selectedAnalysis.pontos_fortes" 
+                class="bg-white rounded-lg p-3 shadow-sm border border-green-200 hover:shadow-md transition-shadow"
+              >
+                <p class="text-gray-700 text-sm leading-relaxed">{{ ponto }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Oportunidades de Melhoria -->
+          <div class="mb-8 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border-l-4 border-orange-500">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="p-2 bg-orange-100 rounded-lg">
+                <mat-icon class="text-orange-600">trending_up</mat-icon>
+              </div>
+              <h3 class="text-xl font-bold text-gray-800">Oportunidades de Melhoria</h3>
+            </div>
+            <div class="space-y-2">
+              <div 
+                *ngFor="let ponto of selectedAnalysis.pontos_melhorar" 
+                class="bg-white rounded-lg p-3 shadow-sm border border-orange-200 hover:shadow-md transition-shadow"
+              >
+                <p class="text-gray-700 text-sm leading-relaxed">{{ ponto }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Experiência Profissional -->
+          <div
+            class="mb-8 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border-l-4 border-blue-500"
+            *ngIf="selectedAnalysis.resultado_completo as resultado"
+          >
+            <ng-container *ngIf="resultado.experiencia">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                  <mat-icon class="text-blue-600">work</mat-icon>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Experiência Profissional</h3>
+              </div>
+              <p class="text-gray-700 leading-relaxed bg-white rounded-lg p-4 shadow-sm border border-blue-200">
+                {{ resultado.experiencia }}
+              </p>
+            </ng-container>
+          </div>
+
+          <!-- Formação Acadêmica -->
+          <div
+            class="mb-8 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-l-4 border-purple-500"
+            *ngIf="selectedAnalysis.resultado_completo as resultadoFormacao"
+          >
+            <ng-container *ngIf="resultadoFormacao.formacao">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                  <mat-icon class="text-purple-600">school</mat-icon>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Formação Acadêmica</h3>
+              </div>
+              <p class="text-gray-700 leading-relaxed bg-white rounded-lg p-4 shadow-sm border border-purple-200">
+                {{ resultadoFormacao.formacao }}
+              </p>
+            </ng-container>
+          </div>
+
+          <!-- Habilidades -->
+          <div
+            class="mb-8 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-xl p-6 border-l-4 border-indigo-500"
+            *ngIf="selectedAnalysis.resultado_completo?.habilidades as habilidades"
+          >
+            <ng-container *ngIf="habilidades.length > 0">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-indigo-100 rounded-lg">
+                  <mat-icon class="text-indigo-600">star</mat-icon>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Habilidades Identificadas</h3>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span 
+                  *ngFor="let habilidade of habilidades" 
+                  class="px-4 py-2 bg-white text-indigo-700 rounded-lg shadow-sm border border-indigo-200 font-medium text-sm hover:shadow-md transition-shadow"
+                >
+                  {{ habilidade }}
+                </span>
+              </div>
+            </ng-container>
+          </div>
+
+          <!-- Recomendações -->
+          <div 
+            class="mb-8 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border-l-4 border-teal-500"
+            *ngIf="selectedAnalysis.recomendacoes && selectedAnalysis.recomendacoes.length > 0"
+          >
+            <div class="flex items-center gap-3 mb-4">
+              <div class="p-2 bg-teal-100 rounded-lg">
+                <mat-icon class="text-teal-600">lightbulb</mat-icon>
+              </div>
+              <h3 class="text-xl font-bold text-gray-800">Recomendações</h3>
+            </div>
+            <div class="space-y-3">
+              <div 
+                *ngFor="let recomendacao of selectedAnalysis.recomendacoes" 
+                class="bg-white rounded-lg p-4 shadow-sm border border-teal-200 hover:shadow-md transition-shadow"
+              >
+                <div class="flex items-start gap-3">
+                  <mat-icon class="text-teal-500 mt-0.5">arrow_forward</mat-icon>
+                  <p class="text-gray-700 leading-relaxed flex-1">{{ recomendacao }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="bg-gray-50 border-t border-gray-200 p-6">
+          <div class="flex flex-col sm:flex-row gap-3 justify-end">
+            <button 
+              mat-raised-button 
+              color="primary" 
+              class="flex-1 sm:flex-none"
+              (click)="generateCoverLetter(selectedAnalysis)"
+            >
+              <mat-icon>description</mat-icon>
+              <span class="ml-2">Gerar Carta de Apresentação</span>
+            </button>
+            <button 
+              mat-raised-button 
+              color="accent" 
+              class="flex-1 sm:flex-none"
+              (click)="startInterview(selectedAnalysis)"
+            >
+              <mat-icon>mic</mat-icon>
+              <span class="ml-2">Simular Entrevista</span>
+            </button>
+          </div>
+        </div>
+      </mat-card>
+    </div>
+  </div>
+</div>

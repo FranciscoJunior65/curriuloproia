@@ -7,6 +7,7 @@ import { searchJobs } from '../controllers/job-search.controller.js';
 import { startInterview, evaluateInterviewAnswer, finishInterview, getInterview, listUserInterviews, downloadInterview } from '../controllers/interview-simulation.controller.js';
 import { getPlans, createPaymentSession, verifyPayment, getCredits } from '../controllers/payment.controller.js';
 import { listJobSites } from '../controllers/job-sites.controller.js';
+import { listUserAnalyses, getAnalysis } from '../controllers/analyses.controller.js';
 import { handleWebhook } from '../services/stripe.service.js';
 
 const router = express.Router();
@@ -346,6 +347,10 @@ router.get('/credits', getCredits);
 
 // Job sites routes
 router.get('/job-sites', listJobSites);
+
+// Analyses history routes
+router.get('/analyses', listUserAnalyses);
+router.get('/analyses/:analysisId', getAnalysis);
 
 export default router;
 

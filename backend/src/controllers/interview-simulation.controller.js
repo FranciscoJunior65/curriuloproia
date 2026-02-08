@@ -37,30 +37,48 @@ export const startInterview = async (req, res) => {
 
     // Cria simulação no banco se userId e resumeId foram fornecidos
     let simulationId = null;
+    console.log('🔍 Verificando condições para criar simulação:', { 
+      userId: userId ? 'presente' : 'ausente',
+      resumeId: resumeId ? 'presente' : 'ausente',
+      siteId: siteId ? 'presente' : 'ausente'
+    });
+    
+    // Tenta criar simulação no banco
+    // NOTA: A tabela requer id_curriculo, id_usuario e id_site_vagas como NOT NULL
+    // Então só cria se tiver todos os dados necessários
     if (userId && resumeId && siteId) {
+      const insertData = {
+        id_curriculo: resumeId,
+        id_usuario: userId,
+        id_site_vagas: siteId,
+        titulo: 'Simulação de Entrevista',
+        area_foco: analysis.areaAtuacao || 'Geral',
+        perguntas_feitas: questions,
+        respostas_dadas: []
+      };
       try {
         const { data, error } = await supabaseAdmin
           .from('simulacoes_entrevista')
-          .insert({
-            id_curriculo: resumeId,
-            id_usuario: userId,
-            id_site_vagas: siteId,
-            titulo: 'Simulação de Entrevista',
-            area_foco: analysis.areaAtuacao || 'Geral',
-            perguntas_feitas: questions,
-            respostas_dadas: []
-          })
+          .insert(insertData)
           .select()
           .single();
 
         if (!error && data) {
           simulationId = data.id;
           console.log(`✅ Simulação criada no banco: ${simulationId}`);
+        } else {
+          console.error('❌ Erro ao criar simulação:', error);
+          if (error?.code === '23503') {
+            console.error('❌ Erro de foreign key - verifique se resumeId, userId ou siteId são válidos');
+          }
         }
       } catch (dbError) {
-        console.warn('⚠️ Erro ao salvar simulação no banco:', dbError);
+        console.error('❌ Erro ao salvar simulação no banco:', dbError);
         // Continua mesmo se não conseguir salvar
       }
+    } else {
+      console.warn('⚠️ Não foi possível criar simulação - faltam userId e resumeId');
+      console.warn('⚠️ A entrevista funcionará, mas não será salva no banco de dados');
     }
 
     res.json({
@@ -101,10 +119,12 @@ export const evaluateInterviewAnswer = async (req, res) => {
     const evaluation = await evaluateAnswer(question, answer, resumeText, analysis);
 
     // Salva a mensagem no banco se simulationId foi fornecido
+    console.log('🔍 Tentando salvar mensagem:', { simulationId, hasQuestion: !!question, hasAnswer: !!answer });
+    
     if (simulationId) {
       try {
         // Busca quantas respostas já foram salvas para determinar a ordem
-        const { data: existingMessages } = await supabaseAdmin
+        const { data: existingMessages, error: selectError } = await supabaseAdmin
           .from('mensagens_entrevista')
           .select('ordem')
           .eq('id_simulacao', simulationId)
@@ -112,17 +132,27 @@ export const evaluateInterviewAnswer = async (req, res) => {
           .order('ordem', { ascending: false })
           .limit(1);
 
+        if (selectError) {
+          console.error('❌ Erro ao buscar mensagens existentes:', selectError);
+        }
+
         const questionOrder = existingMessages && existingMessages.length > 0 
           ? Math.floor(existingMessages[0].ordem / 3) + 1 
           : 1;
 
         // Salva pergunta, resposta e feedback usando o serviço
-        await saveInterviewMessage(simulationId, question, answer, evaluation, questionOrder);
-        console.log(`✅ Mensagens salvas no banco (pergunta ${questionOrder})`);
+        const saved = await saveInterviewMessage(simulationId, question, answer, evaluation, questionOrder);
+        if (saved) {
+          console.log(`✅ Mensagens salvas no banco (pergunta ${questionOrder})`);
+        } else {
+          console.warn('⚠️ Algumas mensagens não foram salvas');
+        }
       } catch (dbError) {
-        console.warn('⚠️ Erro ao salvar mensagens no banco:', dbError);
+        console.error('❌ Erro ao salvar mensagens no banco:', dbError);
         // Continua mesmo se não conseguir salvar
       }
+    } else {
+      console.warn('⚠️ simulationId não fornecido - mensagens não serão salvas no banco');
     }
 
     res.json({

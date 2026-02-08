@@ -669,7 +669,8 @@ export const recordCreditUsage = async (userId, actionType, creditsUsed = 1, res
     .update({ ultima_analise: now, atualizado_em: now })
     .eq('id', userId);
 
-  return { success: true, creditsUsed };
+  // Retorna o primeiro creditId usado (para vincular ao currículo)
+  return { success: true, creditsUsed, id: creditIds[0] || null };
 };
 
 /**

@@ -53,6 +53,14 @@
                 </div>
                 <button
                   mat-menu-item
+                  routerLink="/historico-analises"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">history</mat-icon>
+                  <span>Histórico de Análises</span>
+                </button>
+                <button
+                  mat-menu-item
                   routerLink="/financeiro"
                   class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
                 >
@@ -117,12 +125,6 @@
         >
           <mat-icon class="text-[#fbbf24]">download</mat-icon>
           <span class="text-[#e5e7eb]">PDF ou WORD</span>
-        </div>
-        <div
-          class="flex items-center gap-2 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm px-4 py-2 rounded-full border border-[rgba(148,163,184,0.3)] hover:bg-[rgba(15,23,42,0.8)] transition-all"
-        >
-          <mat-icon class="text-[#fbbf24]">search</mat-icon>
-          <span class="text-[#e5e7eb]">Pesquisa de Empregos</span>
         </div>
         <div
           class="flex items-center gap-2 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm px-4 py-2 rounded-full border border-[rgba(148,163,184,0.3)] hover:bg-[rgba(15,23,42,0.8)] transition-all"
@@ -218,12 +220,6 @@
                   <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
                 </div>
                 <span class="text-gray-700 text-sm">Recomendações de melhorias</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Pesquisa de vagas nos sites relacionados</span>
               </div>
               <div class="flex items-start gap-3">
                 <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
@@ -407,8 +403,8 @@
       </mat-card>
     </div>
 
-    <!-- Upload Section -->
-    <div class="mb-12">
+    <!-- Upload Section (só mostra se tiver créditos) -->
+    <div *ngIf="!showPlans && userCredits > 0" class="mb-12">
       <mat-card class="shadow-2xl border-t-4 border-indigo-500">
         <mat-card-content class="p-8">
           <div class="text-center mb-6">
@@ -589,6 +585,19 @@
 
     <!-- Results Section -->
     <div *ngIf="result" class="space-y-8 animate-fadeIn">
+      <!-- Botão Nova Análise (no topo) -->
+      <div class="flex justify-end">
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="resetAnalysis()"
+          class="flex items-center gap-2 px-6 py-3"
+        >
+          <mat-icon>refresh</mat-icon>
+          <span>Nova Análise</span>
+        </button>
+      </div>
+
       <!-- Score Card -->
       <mat-card
         class="shadow-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
@@ -844,28 +853,6 @@
             </mat-card-content>
           </mat-card>
 
-          <!-- Pesquisar Vagas -->
-          <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
-            <mat-card-content class="p-6 text-center">
-              <div class="p-3 bg-green-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <mat-icon class="text-green-600 text-3xl">search</mat-icon>
-              </div>
-              <h3 class="text-lg font-bold text-gray-800 mb-2">Pesquisar Vagas</h3>
-              <p class="text-gray-600 text-sm mb-4">
-                Encontre oportunidades no {{ getSelectedSiteName() || 'site selecionado' }} baseado na sua análise
-              </p>
-              <button
-                mat-raised-button
-                color="accent"
-                (click)="searchJobs()"
-                class="w-full"
-              >
-                <mat-icon class="mr-2">work</mat-icon>
-                <span>Buscar Vagas</span>
-              </button>
-            </mat-card-content>
-          </mat-card>
-
           <!-- Simulação de Entrevista -->
           <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
             <mat-card-content class="p-6 text-center">
@@ -1096,7 +1083,8 @@
                       color="primary"
                       (click)="downloadInterviewFromServer()"
                       class="px-8 py-3 text-lg"
-                      [disabled]="!simulationId"
+                      [disabled]="!simulationId || interviewAnswers.length === 0"
+                      [title]="!simulationId ? 'ID da simulação não encontrado' : (interviewAnswers.length === 0 ? 'Não há respostas para baixar' : 'Baixar entrevista completa')"
                     >
                       <mat-icon class="mr-2">download</mat-icon>
                       <span>Baixar Entrevista</span>
@@ -1215,37 +1203,7 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Card 4: Pesquisa de Empregos -->
-        <mat-card
-          class="relative overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-green-500 bg-gradient-to-br from-white to-green-50"
-        >
-          <div
-            class="absolute top-0 right-0 w-32 h-32 bg-green-100 rounded-full -mr-16 -mt-16 opacity-50"
-          ></div>
-          <mat-card-content class="p-8 relative z-10">
-            <div class="flex flex-col items-center text-center">
-              <div
-                class="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mb-6 shadow-lg transform hover:scale-110 transition-transform"
-              >
-                <mat-icon class="text-white text-4xl" style="font-size: 2.5rem; width: 2.5rem; height: 2.5rem; line-height: 2.5rem;">search</mat-icon>
-              </div>
-              <h3 class="text-2xl font-bold text-gray-800 mb-3">
-                Pesquisa de Empregos
-              </h3>
-              <p class="text-gray-600 leading-relaxed mb-4">
-                Encontre as vagas ideais para seu perfil profissional. Nossa IA analisa seu currículo e busca oportunidades compatíveis em múltiplas plataformas, filtrando por estado, área de atuação e nível de experiência.
-              </p>
-              <div
-                class="mt-4 flex items-center gap-2 text-green-600 font-semibold text-sm"
-              >
-                <mat-icon class="text-lg">location_on</mat-icon>
-                <span>Busca por estado e área</span>
-              </div>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <!-- Card 5: Carta de Apresentação -->
+        <!-- Card 4: Carta de Apresentação -->
         <mat-card
           class="relative overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-blue-500 bg-gradient-to-br from-white to-blue-50"
         >
@@ -1275,7 +1233,7 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Card 6: Palavras-chave -->
+        <!-- Card 5: Palavras-chave -->
         <mat-card
           class="relative overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-orange-500 bg-gradient-to-br from-white to-orange-50"
         >

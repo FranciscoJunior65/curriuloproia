@@ -8,7 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { AuthService, User } from '../../services/auth.service';
 
@@ -61,7 +61,6 @@ export class AnalyzerComponent implements OnInit {
   generatingCoverLetter = false;
   resumeChanges: any = null; // Armazena mudanças após geração
   showInterviewChat = false; // Controla exibição do chat
-  foundJobs: any[] = []; // Vagas encontradas na busca
   interviewStarted = false; // Controla se a entrevista foi iniciada
   interviewQuestions: string[] = []; // Perguntas da entrevista
   currentQuestionIndex = 0; // Índice da pergunta atual
@@ -73,13 +72,38 @@ export class AnalyzerComponent implements OnInit {
   currentQuestionData: any = null; // Dados da pergunta atual (pergunta, resposta, feedback)
   
   // Propriedades computadas para evitar chamadas repetidas no template
-  _canShowAnswerField = false;
-  _canShowNextButton = false;
+  _canShowAnswerField: boolean = false;
+  _canShowNextButton: boolean = false;
+  
+  // Propriedades para histórico de análises
+  interviewSummary: any = null;
+
+  resetAnalysis(): void {
+    this.selectedFile = null;
+    this.result = null;
+    this.error = null;
+    this.selectedSiteId = null;
+    this.analysisCompleted = false;
+    this.resumeChanges = null;
+    this.showInterviewChat = false;
+    this.interviewStarted = false;
+    this.interviewQuestions = [];
+    this.currentQuestionIndex = 0;
+    this.interviewAnswers = [];
+    this.currentAnswer = '';
+    this.waitingForNextQuestion = false;
+    this.currentQuestionData = null;
+    this.simulationId = null;
+    this.generatingPDF = false;
+    this.generatingWord = false;
+    this.generatingCoverLetter = false;
+  }
 
   constructor(
     private analyzerService: AnalyzerService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
@@ -171,6 +195,79 @@ export class AnalyzerComponent implements OnInit {
     this.loadJobSites();
     // Verifica se retornou do pagamento
     this.checkPaymentStatus();
+    // Verifica se veio do histórico para continuar serviços
+    this.checkAnalysisFromHistory();
+  }
+
+  checkAnalysisFromHistory(): void {
+    this.route.queryParams.subscribe(params => {
+      const analysisId = params['analysisId'];
+      const action = params['action']; // 'cover-letter' ou 'interview'
+      
+      if (analysisId) {
+        console.log('📋 Carregando análise do histórico:', analysisId);
+        this.loadAnalysisFromHistory(analysisId, action);
+      }
+    });
+  }
+
+  loadAnalysisFromHistory(analysisId: string, action?: string): void {
+    this.loading = true;
+    this.error = null;
+
+    this.analyzerService.getAnalysisById(analysisId).subscribe({
+      next: (response: any) => {
+        this.loading = false;
+        if (response.success && response.analysis) {
+          const analysis = response.analysis;
+          
+          // Preenche os dados da análise
+          this.result = {
+            success: true,
+            originalText: analysis.curriculos_importados?.conteudo_extraido || '',
+            analysis: {
+              pontosFortes: analysis.pontos_fortes || [],
+              pontosMelhorar: analysis.pontos_melhorar || [],
+              experiencia: analysis.resultado_completo?.experiencia || '',
+              formacao: analysis.resultado_completo?.formacao || '',
+              habilidades: analysis.resultado_completo?.habilidades || [],
+              recomendacoes: analysis.recomendacoes || [],
+              score: analysis.score_geral || 0
+            },
+            resumeId: analysis.id_curriculo,
+            creditsRemaining: this.userCredits
+          };
+          
+          // Define o site selecionado
+          this.selectedSiteId = analysis.id_site_vagas;
+          this.analysisCompleted = true;
+          
+          // Executa ação solicitada
+          if (action === 'cover-letter') {
+            setTimeout(() => {
+              this.generateCoverLetter();
+            }, 500);
+          } else if (action === 'interview') {
+            setTimeout(() => {
+              this.openInterviewSimulation();
+            }, 500);
+          }
+          
+          // Limpa query params
+          this.router.navigate([], {
+            relativeTo: this.route,
+            queryParams: {}
+          });
+        } else {
+          this.error = 'Análise não encontrada';
+        }
+      },
+      error: (err: any) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Erro ao carregar análise';
+        console.error('Erro ao carregar análise:', err);
+      }
+    });
   }
 
   loadJobSites(): void {
@@ -248,15 +345,15 @@ export class AnalyzerComponent implements OnInit {
     this.processingPayment = true;
     this.error = null;
 
-    // Usa compra mockada (para testes - não redireciona para Stripe)
-    console.log('🛒 Iniciando compra mockada...', {
+    // Usa Stripe para pagamento real
+    console.log('💳 Iniciando pagamento via Stripe...', {
       planId: plan.id,
       planName: plan.name,
       creditsAmount: plan.analyses,
       price: plan.priceBRL
     });
 
-    // Envia userId no body para a compra mockada (permite testar mesmo com token expirado)
+    // Envia userId no body
     if (!this.userId && this.currentUser?.id) {
       this.userId = this.currentUser.id;
     }
@@ -271,53 +368,35 @@ export class AnalyzerComponent implements OnInit {
     
     // Calcula preço total (incluindo currículo em inglês se selecionado)
     let totalPrice = plan.priceBRL;
-    let includeEnglish = false;
     
     if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
       totalPrice += 5.90; // Preço promocional quando comprado junto
-      includeEnglish = true;
+      alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
     }
     
-    this.analyzerService.createMockPurchase(
+    // Obtém email do usuário para pré-preencher no Stripe
+    const userEmail = this.currentUser?.email || '';
+    
+    this.analyzerService.createPaymentSession(
       plan.id,
-      plan.name,
-      plan.analyses,
-      totalPrice,
-      this.userId, // Envia userId explicitamente
-      includeEnglish // Flag para incluir currículo em inglês
+      this.userId,
+      userEmail
     ).subscribe({
       next: (response: any) => {
-        console.log('📦 Resposta da compra:', response);
-        if (response.success) {
-          // Atualiza créditos do usuário
-          this.userCredits = response.user.credits || 0;
-          this.showPlans = false;
-          
-          // Atualiza créditos no usuário atual
-          if (this.currentUser) {
-            this.currentUser.credits = this.userCredits;
-          }
-          
-          // Recarrega créditos
-          this.checkCredits();
-          
-          // Reseta o checkbox de inglês para este plano
-          if (this.includeEnglishResume.hasOwnProperty(plan.id)) {
-            this.includeEnglishResume[plan.id] = false;
-          }
-          
-          // Mostra mensagem de sucesso
-          console.log('✅ Compra realizada com sucesso!', response);
-          alert(`✅ Compra realizada com sucesso! Você recebeu ${plan.analyses} crédito(s).`);
+        console.log('📦 Resposta da sessão Stripe:', response);
+        if (response.success && response.checkoutUrl) {
+          // Redireciona para a página de checkout do Stripe
+          console.log('✅ Redirecionando para Stripe Checkout...');
+          window.location.href = response.checkoutUrl;
         } else {
-          this.error = response.error || 'Erro ao processar compra';
+          this.error = response.error || 'Erro ao criar sessão de pagamento';
           console.error('❌ Erro na resposta:', response);
           alert(`❌ Erro: ${this.error}`);
+          this.processingPayment = false;
         }
-        this.processingPayment = false;
       },
       error: (err) => {
-        console.error('❌ Erro completo ao comprar créditos:', err);
+        console.error('❌ Erro completo ao criar sessão de pagamento:', err);
         console.error('Status:', err.status);
         console.error('Mensagem:', err.error);
         
@@ -330,8 +409,6 @@ export class AnalyzerComponent implements OnInit {
           alert('❌ Você precisa estar logado para comprar créditos. Faça login e tente novamente.');
         } else if (err.status === 404) {
           alert('❌ Usuário não encontrado. Faça logout e login novamente.');
-        } else if (err.status === 500 && err.error?.message?.includes('Tabela')) {
-          alert('❌ Erro no servidor: A tabela de compras não foi criada. Entre em contato com o suporte.');
         } else {
           alert(`❌ Erro ao processar compra: ${errorMessage}`);
         }
@@ -530,7 +607,25 @@ export class AnalyzerComponent implements OnInit {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(url);
+          }
+        }
+        
+        if (format === 'pdf') {
+          this.generatingPDF = false;
+        } else {
+          this.generatingWord = false;
+        }
+      },
+      error: (err: any) => {
+        this.error = err?.error?.message || 'Erro ao gerar currículo melhorado';
+        if (format === 'pdf') {
+          this.generatingPDF = false;
+        } else {
+          this.generatingWord = false;
+        }
+      }
+    });
   }
 
   downloadInterviewFromServer(): void {
@@ -553,29 +648,11 @@ export class AnalyzerComponent implements OnInit {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       },
-      error: (err) => {
+      error: (err: any) => {
         this.loading = false;
         console.error('Erro ao fazer download:', err);
         // Fallback para exportação local
         this.exportInterview();
-      }
-    });
-  }
-}
-        
-        if (format === 'pdf') {
-          this.generatingPDF = false;
-        } else {
-          this.generatingWord = false;
-        }
-      },
-      error: (err) => {
-        this.error = err.error?.message || 'Erro ao gerar currículo melhorado';
-        if (format === 'pdf') {
-          this.generatingPDF = false;
-        } else {
-          this.generatingWord = false;
-        }
       }
     });
   }
@@ -620,84 +697,6 @@ export class AnalyzerComponent implements OnInit {
     });
   }
 
-  searchJobs(): void {
-    if (!this.result) {
-      this.error = 'Nenhuma análise disponível';
-      return;
-    }
-
-    if (!this.selectedSiteId) {
-      this.error = 'Por favor, selecione um site de vagas para pesquisar';
-      return;
-    }
-
-    this.loading = true;
-    this.error = null;
-
-    // Prepara dados para busca avançada
-    const searchData: any = {
-      analysis: this.result.analysis,
-      siteId: this.selectedSiteId!,
-      location: 'Brasil', // Pode ser expandido para permitir localização customizada
-      resumeText: this.result.originalText || null, // Texto do currículo para IA gerar palavras-chave
-      resumeId: this.result.resumeId || null // ID do currículo para salvar vagas no banco
-    };
-
-    console.log('🔍 Iniciando busca avançada de vagas...', {
-      hasResumeText: !!searchData.resumeText,
-      resumeTextLength: searchData.resumeText?.length || 0,
-      hasResumeId: !!searchData.resumeId,
-      siteId: searchData.siteId
-    });
-
-    this.analyzerService.searchJobs(
-      searchData.analysis,
-      searchData.siteId,
-      searchData.location,
-      searchData.resumeText || undefined,
-      searchData.resumeId || undefined
-    ).subscribe({
-      next: (response: any) => {
-        this.loading = false;
-        
-        if (response.success) {
-          const totalFound = response.totalFound || response.jobs?.length || 0;
-          
-          if (totalFound > 0) {
-            // Mostra resultados
-            const message = `✅ ${totalFound} vaga(s) encontrada(s) no ${response.site}!\n\n` +
-              `🔍 ${response.searchCombinations || 0} combinações de busca realizadas\n` +
-              `📊 Vagas ordenadas por compatibilidade\n\n` +
-              `As vagas foram salvas e você pode visualizá-las abaixo.`;
-            
-            alert(message);
-            
-            // Armazena as vagas encontradas para exibição
-            this.foundJobs = response.jobs || [];
-            
-            // Se houver URL de busca, também abre em nova aba
-            if (response.url) {
-              window.open(response.url, '_blank');
-            }
-          } else if (response.url) {
-            // Se não encontrou vagas automaticamente, abre a URL de busca
-            window.open(response.url, '_blank');
-            alert(`🔍 Busca realizada no ${response.site}!\n\nA página de busca foi aberta em uma nova aba.`);
-          } else {
-            this.error = response.message || 'Nenhuma vaga encontrada';
-          }
-        } else {
-          this.error = response.message || 'Erro ao buscar vagas';
-        }
-      },
-      error: (err) => {
-        this.error = err.error?.message || 'Erro ao buscar vagas';
-        this.loading = false;
-        console.error('Erro ao buscar vagas:', err);
-      }
-    });
-  }
-
   openInterviewSimulation(): void {
     if (!this.result || !this.selectedSiteId) {
       this.error = 'Análise e site são necessários para simulação';
@@ -733,7 +732,7 @@ export class AnalyzerComponent implements OnInit {
       next: (response: any) => {
         this.loading = false;
         
-        if (response.success && response.questions && response.questions.length > 0) {
+        if (response?.success && response?.questions && response.questions.length > 0) {
           this.interviewQuestions = response.questions;
           this.simulationId = response.simulationId || null;
           this.interviewStarted = true;
@@ -741,12 +740,17 @@ export class AnalyzerComponent implements OnInit {
           this.waitingForNextQuestion = false;
           this.updateUIState();
           console.log(`✅ ${response.questions.length} perguntas geradas`);
+          console.log(`🔍 SimulationId recebido: ${this.simulationId}`);
+          
+          if (!this.simulationId) {
+            console.warn('⚠️ ATENÇÃO: simulationId não foi criado. Verifique se userId, resumeId e siteId foram fornecidos.');
+          }
         } else {
           this.error = 'Erro ao gerar perguntas da entrevista';
         }
       },
-      error: (err) => {
-        this.error = err.error?.message || 'Erro ao iniciar entrevista';
+      error: (err: any) => {
+        this.error = err?.error?.message || 'Erro ao iniciar entrevista';
         this.loading = false;
         console.error('Erro ao iniciar entrevista:', err);
       }
@@ -754,12 +758,16 @@ export class AnalyzerComponent implements OnInit {
   }
 
   submitAnswer(): void {
-    if (!this.currentAnswer.trim()) {
+    if (!this.currentAnswer?.trim()) {
+      return;
+    }
+
+    if (!this.interviewQuestions || !this.interviewQuestions[this.currentQuestionIndex]) {
       return;
     }
 
     const currentQuestion = this.interviewQuestions[this.currentQuestionIndex];
-    if (!currentQuestion) {
+    if (!this.result) {
       return;
     }
 
@@ -768,21 +776,25 @@ export class AnalyzerComponent implements OnInit {
     this.analyzerService.evaluateAnswer(
       currentQuestion,
       this.currentAnswer,
-      this.result!.originalText,
-      this.result!.analysis,
+      this.result.originalText,
+      this.result.analysis,
       this.simulationId || undefined
     ).subscribe({
       next: (response: any) => {
-        this.evaluatingAnswer = false;
+        if (this.evaluatingAnswer !== undefined) {
+          this.evaluatingAnswer = false;
+        }
 
         // Salva a resposta no histórico completo
         const answerData = {
           question: currentQuestion,
-          answer: this.currentAnswer,
-          evaluation: response.evaluation,
-          questionIndex: this.currentQuestionIndex
+          answer: this.currentAnswer || '',
+          evaluation: response?.evaluation,
+          questionIndex: this.currentQuestionIndex || 0
         };
-        this.interviewAnswers.push(answerData);
+        if (this.interviewAnswers) {
+          this.interviewAnswers.push(answerData);
+        }
 
         // Atualiza dados da pergunta atual para exibição
         this.currentQuestionData = answerData;
@@ -791,36 +803,48 @@ export class AnalyzerComponent implements OnInit {
         this.currentAnswer = '';
 
         // Marca que está aguardando próxima pergunta (não avança automaticamente)
-        this.waitingForNextQuestion = true;
+        if (this.waitingForNextQuestion !== undefined) {
+          this.waitingForNextQuestion = true;
+        }
         this.updateUIState();
       },
-      error: (err) => {
-        this.evaluatingAnswer = false;
+      error: (err: any) => {
+        if (this.evaluatingAnswer !== undefined) {
+          this.evaluatingAnswer = false;
+        }
         
         // Se for erro de quota, mostra mensagem amigável e salva resposta mesmo assim
-        if (err.status === 429 || err.error?.message?.includes('quota') || err.error?.message?.includes('Quota')) {
-          this.error = 'Limite de requisições da IA excedido. Aguarde alguns segundos e tente novamente.';
+        if (err?.status === 429 || err?.error?.message?.includes('quota') || err?.error?.message?.includes('Quota')) {
+          if (this.error !== undefined) {
+            this.error = 'Limite de requisições da IA excedido. Aguarde alguns segundos e tente novamente.';
+          }
           
           // Salva resposta mesmo sem avaliação completa
-          const currentQuestion = this.interviewQuestions[this.currentQuestionIndex];
-          const answerData = {
-            question: currentQuestion,
-            answer: this.currentAnswer,
-            evaluation: {
-              score: 70,
-              feedback: 'Resposta recebida. Avaliação completa temporariamente indisponível devido a limite de requisições.',
-              strengths: ['Resposta fornecida'],
-              improvements: ['Avaliação completa será disponibilizada em breve']
-            },
-            questionIndex: this.currentQuestionIndex
-          };
-          this.interviewAnswers.push(answerData);
-          this.currentQuestionData = answerData;
-          this.currentAnswer = '';
-          this.waitingForNextQuestion = true;
-          this.updateUIState();
+          if (this.interviewQuestions && this.currentQuestionIndex !== undefined && this.interviewAnswers) {
+            const currentQuestion = this.interviewQuestions[this.currentQuestionIndex];
+            const answerData = {
+              question: currentQuestion,
+              answer: this.currentAnswer || '',
+              evaluation: {
+                score: 70,
+                feedback: 'Resposta recebida. Avaliação completa temporariamente indisponível devido a limite de requisições.',
+                strengths: ['Resposta fornecida'],
+                improvements: ['Avaliação completa será disponibilizada em breve']
+              },
+              questionIndex: this.currentQuestionIndex
+            };
+            this.interviewAnswers.push(answerData);
+            this.currentQuestionData = answerData;
+            this.currentAnswer = '';
+            if (this.waitingForNextQuestion !== undefined) {
+              this.waitingForNextQuestion = true;
+            }
+            this.updateUIState();
+          }
         } else {
-          this.error = err.error?.message || 'Erro ao avaliar resposta';
+          if (this.error !== undefined) {
+            this.error = err?.error?.message || 'Erro ao avaliar resposta';
+          }
           console.error('Erro ao avaliar resposta:', err);
         }
       }
@@ -828,31 +852,43 @@ export class AnalyzerComponent implements OnInit {
   }
 
   finishInterview(): void {
-    if (this.simulationId && this.interviewAnswers.length > 0) {
-      this.loading = true;
-      this.analyzerService.finishInterview(this.simulationId, this.interviewAnswers).subscribe({
-        next: (response: any) => {
-          this.loading = false;
-          console.log('✅ Entrevista finalizada. Score:', response.score);
-          
-          // Pergunta se quer exportar
-          const exportInterview = confirm(`🎉 Entrevista finalizada!\n\nScore médio: ${response.score}/100\n\nTotal de perguntas respondidas: ${this.interviewAnswers.length}\n\nDeseja exportar a entrevista completa agora?`);
-          
-          if (exportInterview) {
-            this.downloadInterviewFromServer();
-          } else {
-            alert('✅ Entrevista salva! Você pode fazer download depois através do histórico.');
-          }
-        },
-        error: (err) => {
-          this.loading = false;
-          console.error('Erro ao finalizar entrevista:', err);
-          this.error = err.error?.message || 'Erro ao finalizar entrevista';
-        }
-      });
-    } else {
-      alert('Não há respostas para finalizar.');
+    console.log('🔍 Tentando finalizar entrevista:', {
+      simulationId: this.simulationId,
+      answersCount: this.interviewAnswers.length
+    });
+    
+    if (!this.simulationId) {
+      alert('Erro: ID da simulação não encontrado. A entrevista não foi salva no banco de dados.\n\nIsso pode acontecer se você não estiver autenticado ou se faltarem dados necessários.');
+      return;
     }
+    
+    if (this.interviewAnswers.length === 0) {
+      alert('Não há respostas para finalizar.');
+      return;
+    }
+    
+    this.loading = true;
+    this.analyzerService.finishInterview(this.simulationId, this.interviewAnswers).subscribe({
+      next: (response: any) => {
+        this.loading = false;
+        console.log('✅ Entrevista finalizada. Score:', response.score);
+        
+        // Pergunta se quer exportar
+        const exportInterview = confirm(`🎉 Entrevista finalizada!\n\nScore médio: ${response.score}/100\n\nTotal de perguntas respondidas: ${this.interviewAnswers.length}\n\nDeseja exportar a entrevista completa agora?`);
+        
+        if (exportInterview) {
+          this.downloadInterviewFromServer();
+        } else {
+          alert('✅ Entrevista salva! Você pode fazer download depois através do histórico.');
+        }
+      },
+      error: (err: any) => {
+        this.loading = false;
+        console.error('Erro ao finalizar entrevista:', err);
+        this.error = err?.error?.message || 'Erro ao finalizar entrevista';
+        alert(`Erro ao finalizar entrevista: ${err?.error?.message || 'Erro desconhecido'}`);
+      }
+    });
   }
 
   exportInterview(): void {
@@ -884,7 +920,7 @@ export class AnalyzerComponent implements OnInit {
     content += `========================================\n\n`;
 
     // Adiciona cada pergunta e resposta
-    this.interviewAnswers.forEach((answer, index) => {
+    this.interviewAnswers.forEach((answer: any, index: number) => {
       content += `PERGUNTA ${index + 1}:\n`;
       content += `${answer.question}\n\n`;
       content += `RESPOSTA:\n`;
@@ -926,31 +962,34 @@ export class AnalyzerComponent implements OnInit {
   }
 
   getCurrentQuestion(): string {
+    if (!this.interviewQuestions || this.currentQuestionIndex === undefined) return '';
     return this.interviewQuestions[this.currentQuestionIndex] || '';
   }
 
   isLastQuestion(): boolean {
+    if (!this.interviewQuestions || this.currentQuestionIndex === undefined) return false;
     return this.currentQuestionIndex >= this.interviewQuestions.length - 1;
   }
 
   getProgress(): number {
-    if (this.interviewQuestions.length === 0) return 0;
+    if (!this.interviewQuestions || this.interviewQuestions.length === 0) return 0;
+    if (!this.interviewAnswers) return 0;
     // Progresso baseado nas respostas dadas, não na pergunta atual
     return ((this.interviewAnswers.length) / this.interviewQuestions.length) * 100;
   }
 
   getInterviewSummary(): any {
-    if (this.interviewAnswers.length === 0) return null;
+    if (!this.interviewAnswers || this.interviewAnswers.length === 0) return null;
     
-    const scores = this.interviewAnswers.map(a => a.evaluation?.score || 0);
-    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const scores = this.interviewAnswers.map((a: any) => a.evaluation?.score || 0);
+    const averageScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
     const minScore = Math.min(...scores);
     const maxScore = Math.max(...scores);
     
     // Conta quantas respostas foram boas (>= 70), médias (50-69) e ruins (< 50)
-    const goodAnswers = scores.filter(s => s >= 70).length;
-    const averageAnswers = scores.filter(s => s >= 50 && s < 70).length;
-    const poorAnswers = scores.filter(s => s < 50).length;
+    const goodAnswers = scores.filter((s: number) => s >= 70).length;
+    const averageAnswers = scores.filter((s: number) => s >= 50 && s < 70).length;
+    const poorAnswers = scores.filter((s: number) => s < 50).length;
     
     // Encontra a melhor e pior resposta
     const bestAnswerIndex = scores.indexOf(maxScore);
@@ -974,7 +1013,8 @@ export class AnalyzerComponent implements OnInit {
     this.currentQuestionData = null;
     
     // Sempre avança para próxima pergunta se ainda houver
-    if (this.currentQuestionIndex < this.interviewQuestions.length - 1) {
+    if (this.interviewQuestions && this.currentQuestionIndex !== undefined && 
+        this.currentQuestionIndex < this.interviewQuestions.length - 1) {
       this.currentQuestionIndex++;
       this.waitingForNextQuestion = false;
     } else {
@@ -986,12 +1026,17 @@ export class AnalyzerComponent implements OnInit {
 
   updateUIState(): void {
     // Atualiza propriedades computadas para evitar chamadas repetidas no template
-    this._canShowAnswerField = !this.waitingForNextQuestion && 
-                               this.currentQuestionIndex < this.interviewQuestions.length &&
-                               this.interviewAnswers.length === this.currentQuestionIndex;
-    
-    this._canShowNextButton = this.waitingForNextQuestion && 
-                              this.interviewAnswers.length < this.interviewQuestions.length;
+    if (this.interviewQuestions && this.currentQuestionIndex !== undefined && this.interviewAnswers) {
+      this._canShowAnswerField = !this.waitingForNextQuestion && 
+                                 this.currentQuestionIndex < this.interviewQuestions.length &&
+                                 this.interviewAnswers.length === this.currentQuestionIndex;
+      
+      this._canShowNextButton = this.waitingForNextQuestion && 
+                                this.interviewAnswers.length < this.interviewQuestions.length;
+    } else {
+      this._canShowAnswerField = false;
+      this._canShowNextButton = false;
+    }
   }
 
   canShowAnswerField(): boolean {

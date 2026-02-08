@@ -14,9 +14,11 @@ if (!process.env.GEMINI_API_KEY) {
   console.warn('⚠️  GEMINI_API_KEY não configurada no .env');
 }
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-}) : null;
+// OpenAI DESATIVADO temporariamente para não consumir créditos
+// const openai = process.env.OPENAI_API_KEY ? new OpenAI({
+//   apiKey: process.env.OPENAI_API_KEY
+// }) : null;
+const openai = null; // Forçado para null para desativar OpenAI
 
 // Inicializa Gemini
 let genAI = null;
@@ -321,7 +323,7 @@ IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou dep
       ],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 2000,
+        maxOutputTokens: 4000, // Aumentado para evitar cortes no JSON
       }
     });
 
@@ -340,13 +342,50 @@ IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou dep
       responseContent = responseContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
-    // Parse do JSON
+    // Parse do JSON com tentativa de reparar JSON incompleto
     let analysis;
     try {
       analysis = JSON.parse(responseContent);
     } catch (parseError) {
-      console.error('Erro ao fazer parse do JSON. Resposta recebida:', responseContent.substring(0, 200));
-      throw new Error(`Resposta da IA não está em formato JSON válido: ${parseError.message}`);
+      console.error('Erro ao fazer parse do JSON. Resposta recebida:', responseContent.substring(0, 500));
+      console.error('Erro completo:', parseError.message);
+      
+      // Tenta reparar JSON incompleto
+      try {
+        // Se o JSON está incompleto, tenta fechar as estruturas abertas
+        let repairedJson = responseContent.trim();
+        
+        // Conta quantas chaves/colchetes estão abertos
+        const openBraces = (repairedJson.match(/\{/g) || []).length;
+        const closeBraces = (repairedJson.match(/\}/g) || []).length;
+        const openBrackets = (repairedJson.match(/\[/g) || []).length;
+        const closeBrackets = (repairedJson.match(/\]/g) || []).length;
+        
+        // Fecha strings abertas se necessário
+        if (repairedJson.endsWith('"') || repairedJson.endsWith("'")) {
+          // String já está fechada
+        } else if (repairedJson.match(/["'][^"']*$/)) {
+          // String não fechada, fecha ela
+          repairedJson += '"';
+        }
+        
+        // Fecha arrays abertos
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          repairedJson += ']';
+        }
+        
+        // Fecha objetos abertos
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          repairedJson += '}';
+        }
+        
+        // Tenta parse novamente
+        analysis = JSON.parse(repairedJson);
+        console.log('✅ JSON reparado com sucesso');
+      } catch (repairError) {
+        console.error('❌ Não foi possível reparar o JSON:', repairError.message);
+        throw new Error(`Resposta da IA não está em formato JSON válido: ${parseError.message}`);
+      }
     }
 
     // Validação da estrutura
@@ -642,34 +681,18 @@ export const analyzeResumeWithAI = async (resumeText, userId = null, curriculoId
       throw new Error(`Provedor desconhecido: ${provider}`);
     }
   } catch (error) {
-    // Se falhar, tenta fallback
-    const isQuotaError = error.status === 429 || error.message?.includes('quota') || error.message?.includes('Quota');
+    // Se falhar, usa mock como fallback (já que OpenAI está desativado)
+    const isQuotaError = error.status === 429 || error.status === 503 || error.message?.includes('quota') || error.message?.includes('Quota') || error.message?.includes('overloaded');
     
     if (isQuotaError) {
-      console.warn(`⚠️  Quota excedida em ${provider}, tentando fallback...`);
+      console.warn(`⚠️  Serviço de IA indisponível (${provider}), usando análise MOCKADA como fallback...`);
     } else {
-      console.warn(`⚠️  Erro com ${provider}, tentando fallback...`);
+      console.warn(`⚠️  Erro com ${provider}, usando análise MOCKADA como fallback...`);
     }
     
-    if (provider === 'gemini' && openai) {
-      try {
-        console.log('🔄 Usando OpenAI como fallback...');
-        return await analyzeResumeWithOpenAI(resumeText, userId, curriculoId, siteId);
-      } catch (fallbackError) {
-        console.error('❌ Fallback também falhou:', fallbackError);
-        throw new Error(`Erro com ambos os provedores. Gemini: ${error.message}, OpenAI: ${fallbackError.message}`);
-      }
-    } else if (provider === 'openai' && genAI) {
-      try {
-        console.log('🔄 Usando Gemini como fallback...');
-        return await analyzeResumeWithGemini(resumeText, userId, curriculoId, siteId);
-      } catch (fallbackError) {
-        console.error('❌ Fallback também falhou:', fallbackError);
-        throw new Error(`Erro com ambos os provedores. OpenAI: ${error.message}, Gemini: ${fallbackError.message}`);
-      }
-    }
-    
-    throw error;
+    // Como OpenAI está desativado, sempre usa mock como fallback
+    console.log('🎭 Usando análise MOCKADA devido a erro no provedor de IA');
+    return await analyzeResumeWithAIMock(resumeText, siteId);
   }
 };
 

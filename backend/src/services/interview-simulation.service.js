@@ -6,7 +6,9 @@ import { getJobSiteById } from './job-sites.service.js';
 dotenv.config();
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// OpenAI DESATIVADO temporariamente para não consumir créditos
+// const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const openai = null; // Forçado para null para desativar OpenAI
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 const DEFAULT_PROVIDER = process.env.AI_PROVIDER || 'gemini';
@@ -61,16 +63,8 @@ FORMATO DE RESPOSTA (JSON array):
         const responseText = response.text();
         questions = parseQuestionsFromResponse(responseText);
       } else if (openai) {
-        const completion = await openai.chat.completions.create({
-          model: DEFAULT_OPENAI_MODEL,
-          messages: [
-            { role: 'system', content: 'Você é um recrutador técnico experiente. Retorne apenas um array JSON de perguntas.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 1500
-        });
-        questions = parseQuestionsFromResponse(completion.choices[0].message.content);
+        // OpenAI desativado - não usar
+        throw new Error('OpenAI está desativado temporariamente');
       } else {
         throw new Error('Nenhuma IA configurada');
       }
@@ -242,55 +236,8 @@ INSTRUÇÕES:
   } catch (error) {
     console.error('❌ Erro ao avaliar resposta:', error);
     
-    // Se for erro de quota, tenta usar OpenAI como fallback
-    if ((error.status === 429 || error.message?.includes('quota') || error.message?.includes('Quota')) && openai) {
-      console.log('⚠️ Quota do Gemini excedida, tentando OpenAI como fallback...');
-      try {
-        const fallbackPrompt = `Você é um recrutador técnico avaliando uma resposta de entrevista.
-
-PERGUNTA:
-${question}
-
-RESPOSTA DO CANDIDATO:
-${answer}
-
-CONTEXTO DO CURRÍCULO:
-${resumeText.substring(0, 1000)}
-
-ANÁLISE DO CURRÍCULO:
-- Habilidades: ${Array.isArray(analysis.habilidades) ? analysis.habilidades.join(', ') : 'Não especificado'}
-- Experiência: ${analysis.experiencia || 'Não especificado'}
-
-INSTRUÇÕES:
-1. Avalie a qualidade da resposta (0-100)
-2. Forneça feedback construtivo
-3. Identifique pontos fortes e fracos
-4. Retorne APENAS um objeto JSON no formato:
-{
-  "score": 85,
-  "feedback": "Feedback detalhado aqui",
-  "strengths": ["Ponto forte 1", "Ponto forte 2"],
-  "improvements": ["Ponto a melhorar 1", "Ponto a melhorar 2"]
-}`;
-
-        const completion = await openai.chat.completions.create({
-          model: DEFAULT_OPENAI_MODEL,
-          messages: [
-            { role: 'system', content: 'Você é um recrutador técnico. Retorne apenas JSON.' },
-            { role: 'user', content: fallbackPrompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
-        });
-        const evaluation = parseEvaluationFromResponse(completion.choices[0].message.content);
-        if (evaluation) {
-          console.log('✅ Avaliação feita com OpenAI (fallback)');
-          return evaluation;
-        }
-      } catch (openaiError) {
-        console.error('❌ Erro também no OpenAI:', openaiError);
-      }
-    }
+    // OpenAI desativado - não usar como fallback
+    // Se for erro de quota, apenas retorna fallback básico
     
     // Fallback básico se ambos falharem
     return {

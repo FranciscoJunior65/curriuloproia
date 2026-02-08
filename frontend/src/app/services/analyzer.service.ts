@@ -257,6 +257,25 @@ export class AnalyzerService {
       }
     ) as Observable<Blob>;
   }
+
+  // Histórico de análises
+  getUserAnalyses(limit: number = 50, offset: number = 0): Observable<any> {
+    return this.http.get(
+      `${this.apiUrl}/analyze/analyses?limit=${limit}&offset=${offset}`,
+      {
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
+
+  getAnalysisById(analysisId: string): Observable<any> {
+    return this.http.get(
+      `${this.apiUrl}/analyze/analyses/${analysisId}`,
+      {
+        headers: this.getAuthHeaders()
+      }
+    );
+  }
 }
 
 

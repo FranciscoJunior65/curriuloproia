@@ -5,9 +5,11 @@ import { getJobSiteById } from './job-sites.service.js';
 
 dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// OpenAI DESATIVADO temporariamente para não consumir créditos
+// const openai = new OpenAI({
+//   apiKey: process.env.OPENAI_API_KEY
+// });
+const openai = null; // Forçado para null para desativar OpenAI
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 
@@ -99,6 +101,10 @@ Formato da carta:
 Retorne APENAS o texto da carta de apresentação, sem explicações adicionais.`;
 
     console.log('🤖 Gerando carta de apresentação com IA...');
+
+    if (!openai) {
+      throw new Error('OpenAI está desativado temporariamente. Use Gemini ou ative o modo mock.');
+    }
 
     const completion = await openai.chat.completions.create({
       model: DEFAULT_MODEL,
