@@ -1,6 +1,9 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
+const serverUrl = process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 3000}`;
+const serverDescription = process.env.PUBLIC_API_URL ? 'Produção (HTTPS)' : 'Servidor de desenvolvimento';
+
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -15,8 +18,8 @@ const options = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 3000}`,
-        description: 'Servidor de desenvolvimento'
+        url: serverUrl,
+        description: serverDescription
       }
     ],
     components: {
@@ -139,6 +142,6 @@ export const setupSwagger = (app) => {
     res.send(swaggerSpec);
   });
 
-  console.log(`📚 Swagger UI disponível em http://localhost:${process.env.PORT || 3000}/api-docs`);
+  console.log(`📚 Swagger UI disponível em ${serverUrl}/api-docs`);
 };
 

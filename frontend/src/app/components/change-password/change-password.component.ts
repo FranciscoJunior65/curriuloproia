@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-change-password',
@@ -100,7 +101,7 @@ export class ChangePasswordComponent implements OnInit {
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
 
-    this.http.post<any>('http://localhost:3000/api/auth/change-password', {
+    this.http.post<any>(`${environment.apiUrl}/auth/change-password`, {
       currentPassword: this.currentPassword,
       newPassword: this.newPassword
     }, { headers }).subscribe({

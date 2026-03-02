@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface AnalysisResult {
   success: boolean;
@@ -28,9 +29,8 @@ export interface AnalysisResult {
   providedIn: 'root'
 })
 export class AnalyzerService {
-  private apiUrl = 'http://localhost:3000/api';
-  // Chave pública do Stripe (pode ser exposta no frontend)
-  public readonly stripePublishableKey = 'pk_live_51RyHWoBp8nPpyUbivcdINWnufzpZDcj9c6zILwKmXzCLeilDjAaVA7tPvfMdIkX9sRWVCSCGOGZ5WzPxt72UlUL400yPWSCzdk';
+  private apiUrl = environment.apiUrl;
+  public readonly stripePublishableKey = environment.stripePublishableKey;
 
   constructor(private http: HttpClient) {}
 

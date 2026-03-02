@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -294,8 +295,7 @@ export class LoginComponent implements OnInit {
     this.success = '';
     
     // Redireciona para o endpoint de OAuth do Google
-    const apiUrl = 'http://localhost:3000/api';
-    const googleAuthUrl = `${apiUrl}/auth/google`;
+    const googleAuthUrl = `${environment.apiUrl}/auth/google`;
     window.location.href = googleAuthUrl;
   }
 

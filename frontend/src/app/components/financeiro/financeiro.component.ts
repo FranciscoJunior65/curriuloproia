@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 interface Purchase {
   id: string;
@@ -109,7 +110,7 @@ export class FinanceiroComponent implements OnInit {
     console.log('🔑 Token encontrado, enviando requisição...');
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
 
-    this.http.get<any>(`http://localhost:3000/api/purchase/history`, { headers }).subscribe({
+    this.http.get<any>(`${environment.apiUrl}/purchase/history`, { headers }).subscribe({
       next: (response) => {
         console.log('✅ Resposta recebida:', response);
         if (response.success) {
