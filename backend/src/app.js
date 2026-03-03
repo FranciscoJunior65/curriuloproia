@@ -16,10 +16,30 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// CORS: origens permitidas (frontend)
+const allowedOrigins = [
+  'http://localhost:4200',
+  'https://curriculosproia.getpushtecnologia.com.br',
+  'https://www.curriculosproia.getpushtecnologia.com.br'
+];
+if (process.env.FRONTEND_URL) {
+  const url = process.env.FRONTEND_URL.replace(/\/$/, '');
+  if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
+}
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:4200',
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const normalized = origin.replace(/\/$/, '');
+    const allowed = allowedOrigins.some(allowed => normalized === allowed.replace(/\/$/, ''));
+    if (allowed) return callback(null, origin);
+    if (/^https:\/\/([a-z0-9-]+\.)*getpushtecnologia\.com\.br$/i.test(origin)) {
+      return callback(null, origin);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
