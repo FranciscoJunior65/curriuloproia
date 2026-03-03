@@ -199,11 +199,12 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Erro ao fazer login:', error);
+    console.error('Erro ao fazer login:', error?.message || error);
+    console.error('Stack:', error?.stack);
     res.status(500).json({
       success: false,
       error: 'Erro ao fazer login',
-      message: error.message
+      message: process.env.NODE_ENV === 'production' ? 'Tente novamente ou contate o suporte.' : error.message
     });
   }
 };

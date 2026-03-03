@@ -1,6 +1,6 @@
+import './load-env.js';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import session from 'express-session';
 import passport from 'passport';
 import analyzeRoutes from './routes/analyze.routes.js';
@@ -10,8 +10,6 @@ import adminRoutes from './routes/admin.routes.js';
 import purchaseRoutes from './routes/purchase.routes.js';
 import { setupSwagger } from './config/swagger.js';
 import { setupGoogleStrategy } from './config/passport.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
