@@ -180,7 +180,7 @@ router.post('/generate-cover-letter', generateCoverLetterAndPDF);
  *                 description: ID do site de vagas para buscar
  *               location:
  *                 type: string
- *                 description: Localização para busca (opcional, padrão: Brasil)
+ *                 description: "Localização para busca (opcional, padrão: Brasil)"
  *     responses:
  *       200:
  *         description: Vagas encontradas com sucesso
