@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -17,6 +18,7 @@ import { environment } from '../../../environments/environment';
 export class LoginComponent implements OnInit {
   isLogin = true;
   nome = '';
+  cpf = '';
   email = '';
   senha = '';
   verificationCode = '';
@@ -69,7 +71,20 @@ export class LoginComponent implements OnInit {
     this.error = '';
     this.showVerificationStep = false;
     this.registeredEmail = '';
+    this.cpf = '';
     this.acceptPrivacyPolicy = false; // Reseta o checkbox ao alternar entre login e cadastro
+  }
+
+  onCpfInput(): void {
+    this.cpf = formatCpfDisplay(this.cpf);
+  }
+
+  onCpfKeydown(event: KeyboardEvent): void {
+    const key = event.key;
+    if (key === 'Backspace' || key === 'Delete' || key === 'Tab' || key === 'ArrowLeft' || key === 'ArrowRight') return;
+    if (key.length === 1 && !/\d/.test(key)) {
+      event.preventDefault();
+    }
   }
 
   submit() {
@@ -127,6 +142,13 @@ export class LoginComponent implements OnInit {
         this.loading = false;
         return;
       }
+
+      const cpfDigits = getCpfDigits(this.cpf);
+      if (cpfDigits.length !== 11) {
+        this.error = 'CPF é obrigatório e deve conter 11 dígitos';
+        this.loading = false;
+        return;
+      }
       
       if (!this.acceptPrivacyPolicy) {
         this.error = 'Você precisa aceitar a Política de Privacidade e os Termos de Uso para criar uma conta';
@@ -134,7 +156,7 @@ export class LoginComponent implements OnInit {
         return;
       }
       
-      this.authService.register(this.email, this.senha, this.nome).subscribe({
+      this.authService.register(this.email, this.senha, this.nome, cpfDigits).subscribe({
         next: (response) => {
           if (response.success) {
             // Se precisar verificar email, mostra etapa de verificação

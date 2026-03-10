@@ -77,14 +77,31 @@ export class AnalyzerService {
     return this.http.get(`${this.apiUrl}/analyze/plans`);
   }
 
-  createPaymentSession(planId: string, userId: string, email?: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/analyze/payment/create-session`, {
-      planId,
-      userId,
-      email
-    }, {
+  createPaymentSession(planId: string, userId: string, email?: string, couponCode?: string | null, cpf?: string | null): Observable<any> {
+    const body: any = { planId, userId, email: email || '' };
+    if (couponCode && couponCode.trim()) body.couponCode = couponCode.trim();
+    if (cpf != null && String(cpf).trim()) body.cpf = String(cpf).trim();
+    return this.http.post(`${this.apiUrl}/analyze/payment/create-session`, body, {
       headers: this.getAuthHeaders()
     });
+  }
+
+  /**
+   * Admin: adiciona créditos grátis para testes (sem pagamento).
+   */
+  adminFreeCredits(planId: string): Observable<{ success: boolean; credits?: number; error?: string }> {
+    return this.http.post<{ success: boolean; credits?: number; message?: string; error?: string }>(
+      `${this.apiUrl}/analyze/payment/admin-free-credits`,
+      { planId },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  /** Valida cupom por código e CPF (obrigatório para uso único por CPF). */
+  validateCoupon(code: string, cpf?: string | null): Observable<any> {
+    let url = `${this.apiUrl}/analyze/coupon/validate?code=${encodeURIComponent(code)}`;
+    if (cpf != null && String(cpf).trim()) url += `&cpf=${encodeURIComponent(String(cpf).trim())}`;
+    return this.http.get(url);
   }
 
   /**

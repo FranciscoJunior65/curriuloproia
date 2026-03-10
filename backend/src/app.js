@@ -17,6 +17,7 @@ const PORT = process.env.PORT || 3000;
 // CORS: origens permitidas (frontend)
 const allowedOrigins = [
   'http://localhost:4200',
+  'http://localhost:58438',
   'https://curriculosproia.getpushtecnologia.com.br',
   'https://www.curriculosproia.getpushtecnologia.com.br'
 ];

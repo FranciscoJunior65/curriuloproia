@@ -5,7 +5,8 @@ import { generateImprovedResumeAndPDF } from '../controllers/resume-generator.co
 import { generateCoverLetterAndPDF } from '../controllers/cover-letter.controller.js';
 import { searchJobs } from '../controllers/job-search.controller.js';
 import { startInterview, evaluateInterviewAnswer, finishInterview, getInterview, listUserInterviews, downloadInterview } from '../controllers/interview-simulation.controller.js';
-import { getPlans, createPaymentSession, verifyPayment, getCredits } from '../controllers/payment.controller.js';
+import { getPlans, createPaymentSession, verifyPayment, getCredits, validateCoupon, adminFreeCredits } from '../controllers/payment.controller.js';
+import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 import { listJobSites } from '../controllers/job-sites.controller.js';
 import { listUserAnalyses, getAnalysis } from '../controllers/analyses.controller.js';
 import { handleWebhook } from '../services/stripe.service.js';
@@ -341,7 +342,10 @@ router.get('/interview/:simulationId/download', downloadInterview);
 
 // Payment routes
 router.get('/plans', getPlans);
+router.get('/coupon/validate', validateCoupon);
+router.post('/coupon/validate', validateCoupon);
 router.post('/payment/create-session', createPaymentSession);
+router.post('/payment/admin-free-credits', authenticate, requireAdmin, adminFreeCredits);
 router.get('/payment/verify', verifyPayment);
 router.get('/credits', getCredits);
 

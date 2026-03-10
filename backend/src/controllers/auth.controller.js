@@ -17,7 +17,7 @@ console.log('🔐 Auth Controller - JWT_SECRET configurado:', JWT_SECRET ? 'sim 
  */
 export const register = async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, cpf } = req.body;
 
     // Validações básicas
     if (!email || !password) {
@@ -41,6 +41,15 @@ export const register = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Senha deve ter no mínimo 6 caracteres'
+      });
+    }
+
+    // Valida CPF (obrigatório: 11 dígitos)
+    const cpfNorm = cpf != null ? String(cpf).replace(/\D/g, '') : '';
+    if (cpfNorm.length !== 11) {
+      return res.status(400).json({
+        success: false,
+        error: 'CPF é obrigatório e deve conter 11 dígitos'
       });
     }
 
@@ -90,7 +99,7 @@ export const register = async (req, res) => {
     const userId = randomUUID();
 
     // Cria novo usuário (email não verificado)
-    const user = await getOrCreateUserProfile(userId, email, name || '', passwordHash, false, verificationCode);
+    const user = await getOrCreateUserProfile(userId, email, name || '', passwordHash, false, verificationCode, cpfNorm);
 
     // Envia email com código de verificação
     try {
@@ -194,6 +203,10 @@ export const login = async (req, res) => {
         id: profile.id,
         email: profile.email,
         name: profile.name,
+        cpf: profile.cpf ?? null,
+        date_of_birth: profile.date_of_birth ?? null,
+        city: profile.city ?? null,
+        country: profile.country ?? null,
         credits: profile.credits || 0,
         user_type: profile.user_type || 'cliente'
       }
@@ -249,6 +262,10 @@ export const verifyEmail = async (req, res) => {
         id: profile.id,
         email: profile.email,
         name: profile.name,
+        cpf: profile.cpf ?? null,
+        date_of_birth: profile.date_of_birth ?? null,
+        city: profile.city ?? null,
+        country: profile.country ?? null,
         credits: profile.credits || 0,
         user_type: profile.user_type || 'cliente'
       }
@@ -354,6 +371,10 @@ export const verifyToken = async (req, res) => {
         id: profile.id,
         email: profile.email,
         name: profile.name,
+        cpf: profile.cpf ?? null,
+        date_of_birth: profile.date_of_birth ?? null,
+        city: profile.city ?? null,
+        country: profile.country ?? null,
         credits: profile.credits || 0,
         plan: profile.plan,
         user_type: profile.user_type || 'cliente'
@@ -478,6 +499,80 @@ export const changePassword = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Erro ao trocar senha',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Atualiza dados do perfil do usuário (nome, email, cpf, data_nascimento, cidade, pais)
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { name, email, cpf, date_of_birth, city, country } = req.body;
+
+    const profile = await getUserProfile(userId);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    const updates = {};
+    if (name !== undefined) updates.name = String(name).trim() || '';
+    if (email !== undefined) {
+      const emailTrim = String(email).trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailTrim) {
+        return res.status(400).json({ success: false, error: 'Email não pode ser vazio' });
+      }
+      if (!emailRegex.test(emailTrim)) {
+        return res.status(400).json({ success: false, error: 'Email inválido' });
+      }
+      if (emailTrim !== profile.email) {
+        const existing = await getUserProfileByEmail(emailTrim, false);
+        if (existing && existing.id !== userId) {
+          return res.status(409).json({
+            success: false,
+            error: 'Este email já está em uso por outra conta'
+          });
+        }
+      }
+      updates.email = emailTrim;
+    }
+    if (cpf !== undefined) {
+      const cpfNorm = String(cpf).replace(/\D/g, '');
+      if (cpfNorm.length !== 11) {
+        return res.status(400).json({ success: false, error: 'CPF deve conter 11 dígitos (apenas números)' });
+      }
+      updates.cpf = cpfNorm;
+    }
+    if (date_of_birth !== undefined) {
+      updates.date_of_birth = (date_of_birth === '' || date_of_birth === null) ? null : String(date_of_birth).trim().split('T')[0];
+    }
+    if (city !== undefined) updates.city = city === '' || city === null ? null : String(city).trim();
+    if (country !== undefined) updates.country = country === '' || country === null ? null : String(country).trim();
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Envie pelo menos um campo para atualizar (name, email, cpf, date_of_birth, city, country)'
+      });
+    }
+
+    const updated = await updateUserProfile(userId, updates);
+    res.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
+      user: updated
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar perfil:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao atualizar perfil',
       message: error.message
     });
   }
@@ -698,6 +793,10 @@ export const verifyLoginCode = async (req, res) => {
         id: profile.id,
         email: profile.email,
         name: profile.name,
+        cpf: profile.cpf ?? null,
+        date_of_birth: profile.date_of_birth ?? null,
+        city: profile.city ?? null,
+        country: profile.country ?? null,
         credits: profile.credits || 0,
         user_type: profile.user_type || 'cliente'
       }

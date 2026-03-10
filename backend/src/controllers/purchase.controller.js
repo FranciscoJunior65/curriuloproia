@@ -1,5 +1,6 @@
-import { createPurchase, getUserPurchases, recordCreditUsage, getUserCreditUsage } from '../services/supabase.service.js';
+import { createPurchase, getUserPurchases, recordCreditUsage, getUserCreditUsage, validateCoupon, registerCouponUse, normalizeCpf } from '../services/supabase.service.js';
 import { getUserProfile } from '../services/supabase.service.js';
+import { sendPurchaseConfirmationEmail } from '../services/email.service.js';
 
 /**
  * Cria uma compra mockada (para testes)
@@ -11,7 +12,7 @@ export const createMockPurchase = async (req, res) => {
     console.log('👤 UserId do token:', req.userId);
     
     const userId = req.userId || req.body.userId; // Do middleware ou do body (para testes)
-    const { planId, planName, creditsAmount, price, includeEnglish, englishPrice } = req.body;
+    const { planId, planName, creditsAmount, price, includeEnglish, englishPrice, couponCode, cpf } = req.body;
 
     if (!userId) {
       console.error('❌ Usuário não autenticado');
@@ -45,6 +46,41 @@ export const createMockPurchase = async (req, res) => {
 
     console.log('✅ Usuário encontrado:', user.email);
     console.log('💰 Créditos atuais:', user.credits || 0);
+
+    let finalPrice = parseFloat(price);
+    let couponId = null;
+    let couponName = null;
+    let discountPercent = null;
+    let originalPrice = null;
+
+    if (couponCode && String(couponCode).trim()) {
+      const cpfTrim = cpf != null ? String(cpf).trim() : '';
+      if (normalizeCpf(cpfTrim).length !== 11) {
+        return res.status(400).json({
+          success: false,
+          error: 'Para usar cupom, informe o CPF (11 dígitos).',
+          code: 'CPF_REQUIRED'
+        });
+      }
+      const validation = await validateCoupon(String(couponCode).trim(), cpfTrim);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          error: validation.message || 'Cupom inválido ou já utilizado por este CPF.',
+          code: 'COUPON_INVALID'
+        });
+      }
+      if (validation.coupon) {
+        const pct = validation.coupon.porcentagem_desconto;
+        originalPrice = finalPrice;
+        finalPrice = Math.max(0, finalPrice * (1 - pct / 100));
+        couponId = validation.coupon.id;
+        couponName = validation.coupon.nome;
+        discountPercent = pct;
+        console.log('🎟️ Cupom aplicado:', couponName, pct + '%', '- Preço final:', finalPrice);
+      }
+    }
+
     console.log('📦 Criando compra...');
 
     // Cria a compra principal
@@ -55,10 +91,16 @@ export const createMockPurchase = async (req, res) => {
         planId,
         planName,
         parseInt(creditsAmount),
-        parseFloat(price),
+        finalPrice,
         'BRL',
         'mock',
-        `mock_${Date.now()}_${userId}`
+        `mock_${Date.now()}_${userId}`,
+        null,
+        'analysis_plan',
+        couponId,
+        couponName,
+        discountPercent,
+        originalPrice
       );
       console.log('✅ Compra criada:', purchase.id);
       
@@ -93,8 +135,30 @@ export const createMockPurchase = async (req, res) => {
       throw purchaseError;
     }
 
+    if (couponId && cpf != null && String(cpf).trim()) {
+      await registerCouponUse(couponId, cpf);
+    }
+
     // Os créditos já foram criados pelo createPurchase na tabela creditos
     // Não precisa mais chamar addCreditsToUser
+
+    // Envia confirmação ao cliente (BCC para juniorbx@gmail.com / EMAIL_COPY_TO)
+    if (user.email) {
+      try {
+        await sendPurchaseConfirmationEmail(user.email, {
+          planName,
+          creditsAmount: parseInt(creditsAmount),
+          price: finalPrice,
+          customerName: user.name || '',
+          extraInfo: includeEnglish ? 'Incluiu currículo em inglês (venda casada).' : '',
+          couponName: couponName || undefined,
+          discountPercent: discountPercent ?? undefined,
+          originalPrice: originalPrice ?? undefined
+        });
+      } catch (emailErr) {
+        console.error('Erro ao enviar confirmação de compra:', emailErr);
+      }
+    }
     
     // Verifica créditos disponíveis após a compra
     const { getAvailableCredits } = await import('../services/supabase.service.js');

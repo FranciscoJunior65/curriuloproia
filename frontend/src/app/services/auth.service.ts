@@ -8,6 +8,10 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  cpf?: string | null;
+  date_of_birth?: string | null;
+  city?: string | null;
+  country?: string | null;
   credits: number;
   plan?: string;
   user_type?: string;
@@ -61,11 +65,12 @@ export class AuthService {
     }
   }
 
-  register(email: string, password: string, name?: string): Observable<AuthResponse> {
+  register(email: string, password: string, name?: string, cpf?: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, {
       email,
       password,
-      name
+      name,
+      cpf
     });
   }
 
@@ -209,6 +214,30 @@ export class AuthService {
       tap(response => {
         if (response.success && response.token && response.user) {
           this.setToken(response.token);
+          this.setUser(response.user);
+        }
+      })
+    );
+  }
+
+  /**
+   * Atualiza dados do perfil (nome, email, cpf)
+   */
+  updateProfile(data: { name?: string; email?: string; cpf?: string | null; date_of_birth?: string | null; city?: string | null; country?: string | null }): Observable<{ success: boolean; user?: User; error?: string }> {
+    const token = this.getToken();
+    if (!token) {
+      return new Observable(observer => {
+        observer.next({ success: false, error: 'Não autenticado' });
+        observer.complete();
+      });
+    }
+    return this.http.patch<{ success: boolean; user?: User; error?: string; message?: string }>(
+      `${this.apiUrl}/auth/profile`,
+      data,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).pipe(
+      tap(response => {
+        if (response.success && response.user) {
           this.setUser(response.user);
         }
       })

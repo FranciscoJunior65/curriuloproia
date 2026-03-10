@@ -1,0 +1,146 @@
+<header class="bg-white shadow-sm sticky top-0 z-50">
+  <div class="w-full px-4 sm:px-6 lg:px-12 py-4">
+    <div class="flex justify-between items-center w-full">
+      <div class="flex items-center gap-4">
+        <button
+          routerLink="/"
+          class="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          <mat-icon>arrow_back</mat-icon>
+          <span class="hidden md:inline">Voltar</span>
+        </button>
+        <div class="flex items-center gap-2 ml-4">
+          <mat-icon class="text-indigo-600">person</mat-icon>
+          <span class="text-xl font-bold text-gray-800">Meus Dados</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="min-h-screen bg-gray-100 py-12">
+  <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+    <mat-card class="shadow-lg">
+      <mat-card-content class="p-8">
+        <div class="text-center mb-8">
+          <div class="flex justify-center mb-4">
+            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <mat-icon class="text-white text-6xl" style="font-size: 60px; width: 60px; height: 60px; line-height: 60px;">person</mat-icon>
+            </div>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Atualizar meus dados</h1>
+          <p class="text-gray-600">Altere seu nome, email, CPF, data de nascimento, cidade e país</p>
+        </div>
+
+        <div *ngIf="error" class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+          <p class="text-red-700 font-semibold">Erro:</p>
+          <p class="text-red-600">{{ error }}</p>
+        </div>
+
+        <div *ngIf="success" class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+          <p class="text-green-700 font-semibold">Sucesso!</p>
+          <p class="text-green-600">Dados atualizados. Redirecionando...</p>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Nome <span class="text-red-500">*</span></label>
+            <input
+              type="text"
+              [(ngModel)]="name"
+              name="name"
+              required
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Seu nome completo"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Email <span class="text-red-500">*</span></label>
+            <input
+              type="email"
+              [(ngModel)]="email"
+              name="email"
+              required
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="seu@email.com"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">CPF <span class="text-red-500">*</span></label>
+            <input
+              type="text"
+              [(ngModel)]="cpf"
+              name="cpf"
+              required
+              (input)="onCpfInput()"
+              (keydown)="onCpfKeydown($event)"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="000.000.000-00"
+              maxlength="14"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <p class="text-xs text-gray-500 mt-1">Apenas números (11 dígitos)</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Data de nascimento</label>
+            <input
+              type="date"
+              [(ngModel)]="dateOfBirth"
+              name="dateOfBirth"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Cidade</label>
+            <input
+              type="text"
+              [(ngModel)]="city"
+              name="city"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Sua cidade"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">País</label>
+            <input
+              type="text"
+              [(ngModel)]="country"
+              name="country"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Seu país"
+            />
+          </div>
+
+          <div class="flex gap-4 pt-4">
+            <button
+              type="button"
+              routerLink="/"
+              mat-stroked-button
+              class="flex-1"
+              [disabled]="loading"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              mat-raised-button
+              color="primary"
+              class="flex-1 relative flex items-center justify-center gap-2"
+              [disabled]="loading || success"
+            >
+              <mat-spinner *ngIf="loading" diameter="18" class="inline-block"></mat-spinner>
+              <mat-icon *ngIf="!loading" class="text-lg">save</mat-icon>
+              <span>{{ loading ? 'Salvando...' : 'Salvar' }}</span>
+            </button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

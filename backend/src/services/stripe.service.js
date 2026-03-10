@@ -10,10 +10,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 /**
  * Cria uma sessão de checkout do Stripe
+ * @param {string} [couponCode] - Código do cupom (opcional)
+ * @param {string} [cpf] - CPF do cliente (obrigatório quando usar cupom; 1 uso por cupom por CPF)
  */
-export const createCheckoutSession = async (planId, userId, email, frontendUrl = null) => {
+export const createCheckoutSession = async (planId, userId, email, frontendUrl = null, couponCode = null, cpf = null) => {
   try {
-    // Busca informações do plano
     const { PRICING_PLANS } = await import('./pricing.service.js');
     const plan = PRICING_PLANS[planId];
 
@@ -21,23 +22,69 @@ export const createCheckoutSession = async (planId, userId, email, frontendUrl =
       throw new Error('Plano não encontrado');
     }
 
-    // Converte preço para centavos (Stripe usa centavos)
-    const amountInCents = Math.round(plan.priceBRL * 100);
+    let amountBRL = plan.priceBRL;
+    let metadata = {
+      userId,
+      planId,
+      planName: plan.name,
+      analyses: plan.analyses.toString()
+    };
+    let couponInfo = null;
+
+    if (couponCode && couponCode.trim()) {
+      const { validateCoupon, normalizeCpf } = await import('./supabase.service.js');
+      const cpfNorm = cpf ? normalizeCpf(cpf) : '';
+      if (cpfNorm.length !== 11) {
+        throw new Error('Para usar cupom, informe seu CPF (11 dígitos).');
+      }
+      const result = await validateCoupon(couponCode, cpf);
+      if (!result.valid || !result.coupon) {
+        throw new Error(result.message || 'Cupom inválido ou já utilizado por este CPF.');
+      }
+      const pct = result.coupon.porcentagem_desconto;
+      const original = plan.priceBRL;
+      amountBRL = Math.max(0, original * (1 - pct / 100));
+      couponInfo = {
+        couponId: result.coupon.id,
+        couponName: result.coupon.nome,
+        discountPercent: pct,
+        originalPrice: original
+      };
+      metadata.couponId = result.coupon.id;
+      metadata.couponName = result.coupon.nome;
+      metadata.discountPercent = String(pct);
+      metadata.originalPrice = String(original);
+      metadata.cpfNormalized = cpfNorm;
+    }
+
+    const amountInCents = Math.round(amountBRL * 100);
+
+    // Checkout 100% grátis: Stripe não aceita valor zero; concluir no backend
+    if (amountInCents <= 0 && couponInfo) {
+      return {
+        freeCheckout: true,
+        userId,
+        planId,
+        planName: plan.name,
+        analyses: plan.analyses,
+        couponId: couponInfo.couponId,
+        couponName: couponInfo.couponName,
+        discountPercent: couponInfo.discountPercent,
+        originalPrice: couponInfo.originalPrice,
+        cpfNormalized: metadata.cpfNormalized || null
+      };
+    }
 
     // Descrição no extrato bancário (statement descriptor)
-    // Máximo de 22 caracteres, aparecerá no extrato do cliente
     const statementDescriptor = process.env.STRIPE_STATEMENT_DESCRIPTOR || 'CurriculosPro IA';
 
     // Valida email (opcional - só inclui se for válido)
     const isValidEmail = email && email.trim() !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-    // Determina a URL do frontend (prioridade: parâmetro > variável de ambiente > origem da requisição > padrão)
+    // Determina a URL do frontend
     const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:4200';
-    
-    // Remove barra final se houver
     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
 
-    // Configuração base da sessão
     const sessionConfig = {
       payment_method_types: ['card'],
       line_items: [
@@ -46,7 +93,7 @@ export const createCheckoutSession = async (planId, userId, email, frontendUrl =
             currency: 'brl',
             product_data: {
               name: plan.name,
-              description: plan.description,
+              description: plan.description + (couponInfo ? ` (${couponInfo.couponName}: ${couponInfo.discountPercent}% off)` : ''),
             },
             unit_amount: amountInCents,
           },
@@ -57,13 +104,9 @@ export const createCheckoutSession = async (planId, userId, email, frontendUrl =
       success_url: `${cleanBaseUrl}?session_id={CHECKOUT_SESSION_ID}&userId=${userId}`,
       cancel_url: `${cleanBaseUrl}/payment/cancel`,
       payment_intent_data: {
-        statement_descriptor: statementDescriptor.substring(0, 22) // Stripe limita a 22 caracteres
+        statement_descriptor: statementDescriptor.substring(0, 22)
       },
-      metadata: {
-        userId: userId,
-        planId: planId,
-        analyses: plan.analyses.toString()
-      }
+      metadata
     };
 
     // Adiciona email apenas se for válido

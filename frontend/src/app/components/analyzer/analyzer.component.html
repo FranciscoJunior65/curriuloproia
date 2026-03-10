@@ -69,6 +69,14 @@
                 </button>
                 <button
                   mat-menu-item
+                  routerLink="/meus-dados"
+                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
+                >
+                  <mat-icon class="text-lg">person</mat-icon>
+                  <span>Meus Dados</span>
+                </button>
+                <button
+                  mat-menu-item
                   routerLink="/trocar-senha"
                   class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
                 >
@@ -262,6 +270,62 @@
         </div>
       </div>
 
+      <!-- Cupom de desconto (antes de escolher o plano / ir ao Stripe) -->
+      <div class="max-w-2xl mx-auto mb-8">
+        <mat-card class="p-4 border-2 border-amber-100 bg-amber-50/50">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <mat-icon class="text-amber-600">local_offer</mat-icon>
+            Cupom de desconto
+          </h3>
+          <p class="text-sm text-gray-600 mb-3">Tem um cupom? Informe o código e seu CPF (cada cupom pode ser usado apenas uma vez por CPF) e valide antes de comprar.</p>
+          <div class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[140px]">
+              <label class="block text-xs font-medium text-gray-600 mb-1">Código do cupom</label>
+              <input
+                type="text"
+                [(ngModel)]="couponCode"
+                (ngModelChange)="couponError = ''; validatedCoupon = null"
+                placeholder="Ex: TESTE100"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div class="flex-1 min-w-[140px]">
+              <label class="block text-xs font-medium text-gray-600 mb-1">CPF (obrigatório para cupom)</label>
+              <input
+                type="text"
+                [(ngModel)]="cpf"
+                (ngModelChange)="couponError = ''; validatedCoupon = null"
+                placeholder="Somente números"
+                maxlength="14"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <button
+              type="button"
+              (click)="validateCoupon()"
+              [disabled]="validatingCoupon"
+              class="px-4 py-2 rounded-lg font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+            >
+              {{ validatingCoupon ? 'Validando...' : 'Validar cupom' }}
+            </button>
+            <button
+              *ngIf="validatedCoupon || couponCode"
+              type="button"
+              (click)="clearCoupon()"
+              class="px-3 py-2 rounded-lg font-medium text-gray-600 hover:bg-gray-200"
+            >
+              Limpar
+            </button>
+          </div>
+          <div *ngIf="validatedCoupon" class="mt-3 p-2 rounded bg-green-100 text-green-800 text-sm">
+            Cupom <strong>{{ validatedCoupon.nome }}</strong> aplicado: <strong>{{ validatedCoupon.porcentagem_desconto }}% de desconto</strong>. O valor será atualizado no checkout.
+          </div>
+          <div *ngIf="couponError" class="mt-3 p-2 rounded bg-red-100 text-red-800 text-sm">
+            {{ couponError }}
+          </div>
+        </mat-card>
+      </div>
+
       <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
         <mat-card
           *ngFor="let plan of plans; let i = index"
@@ -365,6 +429,21 @@
                 <span>{{
                   processingPayment ? "Processando..." : "Comprar Agora"
                 }}</span>
+              </span>
+            </button>
+
+            <!-- Admin: obter créditos grátis para testes -->
+            <button
+              *ngIf="isAdmin"
+              (click)="requestAdminFreeCredits(plan); $event.stopPropagation()"
+              [disabled]="adminFreeLoading"
+              type="button"
+              class="w-full mt-2 py-2 px-4 text-sm font-medium rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <span class="flex items-center justify-center gap-2">
+                <mat-spinner *ngIf="adminFreePlanId === plan.id" diameter="16" class="inline-block"></mat-spinner>
+                <mat-icon *ngIf="adminFreePlanId !== plan.id" class="text-lg">science</mat-icon>
+                <span>{{ adminFreePlanId === plan.id ? 'Adicionando...' : 'Obter grátis (teste)' }}</span>
               </span>
             </button>
             

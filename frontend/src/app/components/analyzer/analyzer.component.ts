@@ -44,7 +44,14 @@ export class AnalyzerComponent implements OnInit {
   userCredits: number = 0;
   showPlans = true;
   processingPayment = false;
+  adminFreeLoading = false;
+  adminFreePlanId: string | null = null;
   includeEnglishResume: { [planId: string]: boolean } = {}; // Checkbox por plano
+  couponCode = '';
+  cpf = '';
+  validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
+  couponError = '';
+  validatingCoupon = false;
 
   // Auth
   currentUser: User | null = null;
@@ -333,6 +340,32 @@ export class AnalyzerComponent implements OnInit {
     }
   }
 
+  requestAdminFreeCredits(plan: any): void {
+    if (!plan || !this.isAdmin) return;
+    this.adminFreeLoading = true;
+    this.adminFreePlanId = plan.id;
+    this.error = null;
+    this.analyzerService.adminFreeCredits(plan.id).subscribe({
+      next: (response: any) => {
+        this.adminFreeLoading = false;
+        this.adminFreePlanId = null;
+        if (response.success) {
+          this.userCredits = response.credits ?? this.userCredits + (plan.analyses || 0);
+          if (this.currentUser) this.currentUser.credits = this.userCredits;
+          this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
+          this.showPlans = this.userCredits === 0;
+        } else {
+          this.error = response.error || 'Erro ao adicionar créditos';
+        }
+      },
+      error: (err) => {
+        this.adminFreeLoading = false;
+        this.adminFreePlanId = null;
+        this.error = err.error?.error || err.error?.message || 'Erro ao adicionar créditos';
+      }
+    });
+  }
+
   purchasePlan(plan: any): void {
     if (!plan) return;
 
@@ -374,18 +407,33 @@ export class AnalyzerComponent implements OnInit {
       alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
     }
     
-    // Obtém email do usuário para pré-preencher no Stripe
+    // Se informou cupom, exige CPF (uso único por CPF)
+    if (this.couponCode && this.couponCode.trim()) {
+      const cpfDigits = (this.cpf || '').replace(/\D/g, '');
+      if (cpfDigits.length !== 11) {
+        alert('Para usar cupom, informe seu CPF (11 dígitos) no campo acima.');
+        this.processingPayment = false;
+        return;
+      }
+    }
+
     const userEmail = this.currentUser?.email || '';
     
     this.analyzerService.createPaymentSession(
       plan.id,
       this.userId,
-      userEmail
+      userEmail,
+      this.couponCode?.trim() || null,
+      this.cpf?.trim() || null
     ).subscribe({
       next: (response: any) => {
         console.log('📦 Resposta da sessão Stripe:', response);
+        if (response.success && response.freeCheckout && response.redirectUrl) {
+          console.log('✅ Compra grátis concluída, redirecionando...');
+          window.location.href = response.redirectUrl;
+          return;
+        }
         if (response.success && response.checkoutUrl) {
-          // Redireciona para a página de checkout do Stripe
           console.log('✅ Redirecionando para Stripe Checkout...');
           window.location.href = response.checkoutUrl;
         } else {
@@ -414,6 +462,54 @@ export class AnalyzerComponent implements OnInit {
         }
       }
     });
+  }
+
+  validateCoupon(): void {
+    const code = this.couponCode?.trim();
+    if (!code) {
+      this.couponError = 'Informe o código do cupom.';
+      this.validatedCoupon = null;
+      return;
+    }
+    const cpfVal = this.cpf?.trim();
+    if (!cpfVal) {
+      this.couponError = 'Informe seu CPF para validar o cupom (uso único por CPF).';
+      this.validatedCoupon = null;
+      return;
+    }
+    const cpfDigits = cpfVal.replace(/\D/g, '');
+    if (cpfDigits.length !== 11) {
+      this.couponError = 'CPF deve ter 11 dígitos.';
+      this.validatedCoupon = null;
+      return;
+    }
+    this.validatingCoupon = true;
+    this.couponError = '';
+    this.validatedCoupon = null;
+    this.analyzerService.validateCoupon(code, cpfVal).subscribe({
+      next: (res: any) => {
+        this.validatingCoupon = false;
+        if (res.valid && res.coupon) {
+          this.validatedCoupon = res.coupon;
+          this.couponError = '';
+        } else {
+          this.couponError = res.message || 'Cupom inválido ou já utilizado por este CPF.';
+          this.validatedCoupon = null;
+        }
+      },
+      error: () => {
+        this.validatingCoupon = false;
+        this.couponError = 'Erro ao validar cupom. Tente novamente.';
+        this.validatedCoupon = null;
+      }
+    });
+  }
+
+  clearCoupon(): void {
+    this.couponCode = '';
+    this.cpf = '';
+    this.validatedCoupon = null;
+    this.couponError = '';
   }
 
   openLogin(): void {
@@ -449,12 +545,26 @@ export class AnalyzerComponent implements OnInit {
     return site ? site.nome : null;
   }
 
-  // Método para verificar pagamento após retorno do Stripe
+  // Método para verificar pagamento após retorno do Stripe (ou compra grátis)
   checkPaymentStatus(): void {
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     const userId = urlParams.get('userId');
+    const free = urlParams.get('free');
 
+    if (free === '1' && userId) {
+      this.userId = userId;
+      this.analyzerService.getCredits(userId).subscribe({
+        next: (r: any) => {
+          if (r.success && r.credits != null) this.userCredits = r.credits;
+          this.showPlans = false;
+          this.checkCredits();
+        },
+        error: () => { this.userCredits = (this.userCredits || 0) + 1; this.showPlans = false; this.checkCredits(); }
+      });
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
     if (sessionId && userId) {
       this.analyzerService.verifyPayment(sessionId).subscribe({
         next: (response: any) => {

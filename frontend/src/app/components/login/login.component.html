@@ -241,6 +241,24 @@
               />
             </div>
 
+            <div *ngIf="!isLogin" class="login-form__field">
+              <label class="login-form__label">CPF</label>
+              <input
+                type="text"
+                [(ngModel)]="cpf"
+                name="cpf"
+                required
+                (input)="onCpfInput()"
+                (keydown)="onCpfKeydown($event)"
+                class="login-form__input"
+                placeholder="000.000.000-00"
+                maxlength="14"
+                inputmode="numeric"
+                autocomplete="off"
+              />
+              <span class="login-form__hint">Apenas números (11 dígitos)</span>
+            </div>
+
             <div class="login-form__field">
               <label class="login-form__label">Email</label>
               <input

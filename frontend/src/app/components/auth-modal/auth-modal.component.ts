@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
+import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
 
 @Component({
   selector: 'app-auth-modal',
@@ -35,6 +36,7 @@ export class AuthModalComponent {
   registerEmail = '';
   registerPassword = '';
   registerName = '';
+  registerCpf = '';
   verificationCode = '';
   
   loginLoading = false;
@@ -103,10 +105,16 @@ export class AuthModalComponent {
       return;
     }
 
+    const cpfDigits = getCpfDigits(this.registerCpf);
+    if (cpfDigits.length !== 11) {
+      this.registerError = 'CPF é obrigatório e deve conter 11 dígitos';
+      return;
+    }
+
     this.registerLoading = true;
     this.registerError = '';
 
-    this.authService.register(this.registerEmail, this.registerPassword, this.registerName).subscribe({
+    this.authService.register(this.registerEmail, this.registerPassword, this.registerName, cpfDigits).subscribe({
       next: (response) => {
         if (response.success && response.requiresVerification) {
           // Mostra etapa de verificação
@@ -194,6 +202,18 @@ export class AuthModalComponent {
     // Limita a 6 dígitos
     if (this.verificationCode.length > 6) {
       this.verificationCode = this.verificationCode.substring(0, 6);
+    }
+  }
+
+  onRegisterCpfInput(): void {
+    this.registerCpf = formatCpfDisplay(this.registerCpf);
+  }
+
+  onRegisterCpfKeydown(event: KeyboardEvent): void {
+    const key = event.key;
+    if (key === 'Backspace' || key === 'Delete' || key === 'Tab' || key === 'ArrowLeft' || key === 'ArrowRight') return;
+    if (key.length === 1 && !/\d/.test(key)) {
+      event.preventDefault();
     }
   }
 }

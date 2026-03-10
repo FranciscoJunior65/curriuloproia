@@ -177,6 +177,24 @@
               <mat-icon matPrefix class="text-gray-400">person</mat-icon>
             </mat-form-field>
 
+            <!-- CPF Field -->
+            <mat-form-field appearance="outline" class="w-full">
+              <input
+                matInput
+                type="text"
+                [(ngModel)]="registerCpf"
+                (input)="onRegisterCpfInput()"
+                (keydown)="onRegisterCpfKeydown($event)"
+                placeholder="000.000.000-00"
+                required
+                maxlength="14"
+                inputmode="numeric"
+                autocomplete="off"
+              />
+              <mat-icon matPrefix class="text-gray-400">badge</mat-icon>
+              <mat-hint class="text-xs text-gray-500">CPF (11 dígitos)</mat-hint>
+            </mat-form-field>
+
             <!-- Email Field -->
             <mat-form-field appearance="outline" class="w-full">
               <input

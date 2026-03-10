@@ -642,6 +642,102 @@ export const sendPasswordChangeNotificationEmail = async (email, name = '') => {
 };
 
 /**
+ * Envia confirmação de compra para o cliente e cópia oculta (BCC) para o admin.
+ * @param {string} clientEmail - Email do cliente que fez a compra
+ * @param {Object} details - { planName, creditsAmount, price, customerName?, extraInfo?, couponName?, discountPercent?, originalPrice? }
+ */
+export const sendPurchaseConfirmationEmail = async (clientEmail, details) => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+  if (!transporter) {
+    console.warn('⚠️ Email não configurado. Confirmação de compra não enviada.');
+    return;
+  }
+
+  const adminBcc = process.env.EMAIL_COPY_TO || process.env.EMAIL_COPY || 'juniorbx@gmail.com';
+  const appName = 'CurriculosPro IA';
+  const emailSender = process.env.EMAIL_USER || process.env.EMAIL_SENDER;
+
+  const {
+    planName = '-',
+    creditsAmount,
+    price,
+    customerName = '',
+    extraInfo = '',
+    couponName,
+    discountPercent,
+    originalPrice
+  } = details;
+
+  const credits = creditsAmount != null ? creditsAmount : details.analyses;
+  const priceStr = typeof price === 'number' ? price.toFixed(2).replace('.', ',') : String(price);
+  const usedCoupon = couponName && (discountPercent != null || originalPrice != null);
+  const originalPriceStr = originalPrice != null ? (typeof originalPrice === 'number' ? originalPrice.toFixed(2).replace('.', ',') : String(originalPrice)) : '';
+  const discountPctStr = discountPercent != null ? String(discountPercent) : '';
+  const now = new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const mailOptions = {
+    from: `"${appName}" <${emailSender}>`,
+    to: clientEmail,
+    bcc: adminBcc,
+    subject: `✅ Confirmação de compra - ${appName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .container { background: #f9f9f9; border-radius: 8px; padding: 30px; margin: 20px 0; }
+          .highlight { background: #e8f5e9; padding: 16px; border-radius: 8px; margin: 16px 0; }
+          .row { margin: 10px 0; }
+          .label { font-weight: bold; color: #555; }
+          .value { color: #111; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 style="color: #4CAF50;">✅ Compra confirmada!</h2>
+          <p>Olá${customerName ? `, ${customerName}` : ''}!</p>
+          <p>Sua compra no <strong>${appName}</strong> foi confirmada com sucesso.</p>
+          <div class="highlight">
+            <div class="row"><span class="label">Plano:</span> <span class="value">${planName}</span></div>
+            ${credits != null ? `<div class="row"><span class="label">Créditos de análise:</span> <span class="value">${credits}</span></div>` : ''}
+            ${usedCoupon ? `<div class="row" style="margin-top: 12px; padding: 10px; background: #fff8e1; border-radius: 6px;"><span class="label">🎟️ Cupom:</span> <span class="value">${couponName}</span> — <strong>${discountPctStr}% de desconto</strong>${originalPriceStr ? ` (preço original: R$ ${originalPriceStr})` : ''}</div>` : ''}
+            <div class="row"><span class="label">Valor pago:</span> <span class="value">R$ ${priceStr}</span></div>
+            <div class="row"><span class="label">Data:</span> <span class="value">${now}</span></div>
+            ${extraInfo ? `<p style="margin-top: 12px;">${extraInfo}</p>` : ''}
+          </div>
+          <p>Você já pode acessar a plataforma e utilizar seus créditos para análise e otimização de currículo.</p>
+          <p>Qualquer dúvida, estamos à disposição.</p>
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+            Este é um email automático. Por favor não responda diretamente.
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `Olá${customerName ? `, ${customerName}` : ''}! Sua compra no ${appName} foi confirmada. Plano: ${planName}${credits != null ? `, Créditos: ${credits}` : ''}. ${usedCoupon ? `Cupom ${couponName} (${discountPctStr}% de desconto) aplicado. ` : ''}Valor pago: R$ ${priceStr}, Data: ${now}. ${extraInfo ? extraInfo + ' ' : ''}Você já pode acessar a plataforma e utilizar seus créditos.`
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email de confirmação de compra enviado ao cliente (BCC admin):', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Erro ao enviar confirmação de compra:', error);
+  }
+};
+
+/**
  * Envia email com link de recuperação de senha
  */
 export const sendPasswordResetEmail = async (email, token, name = '') => {

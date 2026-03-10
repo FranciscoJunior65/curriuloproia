@@ -65,10 +65,15 @@ export const mapProfileToEnglish = async (profile) => {
 
   const credits = await getAvailableCredits(profile.id);
 
+  const dataNasc = profile.data_nascimento || profile.date_of_birth;
   return {
     id: profile.id,
     email: profile.email,
     name: profile.nome || profile.name || '',
+    cpf: profile.cpf || null,
+    date_of_birth: dataNasc ? (typeof dataNasc === 'string' ? dataNasc : dataNasc.split('T')[0]) : null,
+    city: profile.cidade || profile.city || null,
+    country: profile.pais || profile.country || null,
     credits: credits,
     plan: profile.plano || profile.plan || null,
     created_at: profile.criado_em || profile.created_at,
@@ -102,7 +107,106 @@ export const mapPurchaseToEnglish = (purchase) => {
     created_at: purchase.criado_em || purchase.created_at,
     updated_at: purchase.atualizado_em || purchase.updated_at,
     parentPurchaseId: purchase.id_compra_pai || purchase.parentPurchaseId || null,
-    serviceType: purchase.tipo_servico || purchase.serviceType || 'analysis_plan'
+    serviceType: purchase.tipo_servico || purchase.serviceType || 'analysis_plan',
+    coupon_id: purchase.id_cupom || purchase.coupon_id || null,
+    coupon_name: purchase.nome_cupom || purchase.coupon_name || null,
+    discount_percent: purchase.porcentagem_desconto_aplicado ?? purchase.discount_percent ?? null,
+    original_price: purchase.preco_original ?? purchase.original_price ?? null
+  };
+};
+
+/** Normaliza CPF para apenas 11 dígitos (remove pontos, traços, espaços). */
+export const normalizeCpf = (cpf) => {
+  if (cpf == null || typeof cpf !== 'string') return '';
+  return cpf.replace(/\D/g, '').slice(0, 11);
+};
+
+/** Verifica se um CPF já utilizou este cupom. */
+export const couponAlreadyUsedByCpf = async (couponId, cpf) => {
+  if (!supabaseAdmin || !couponId || !cpf) return false;
+  const cpfNorm = normalizeCpf(cpf);
+  if (cpfNorm.length !== 11) return false;
+
+  const { data, error } = await supabaseAdmin
+    .from('cupom_uso')
+    .select('id')
+    .eq('id_cupom', couponId)
+    .eq('cpf_normalizado', cpfNorm)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao verificar uso de cupom:', error);
+    return false;
+  }
+  return !!data;
+};
+
+/** Registra uso do cupom por CPF (chamar após compra confirmada). */
+export const registerCouponUse = async (couponId, cpf) => {
+  if (!supabaseAdmin || !couponId || !cpf) return;
+  const cpfNorm = normalizeCpf(cpf);
+  if (cpfNorm.length !== 11) return;
+
+  const { error } = await supabaseAdmin
+    .from('cupom_uso')
+    .insert({ id_cupom: couponId, cpf_normalizado: cpfNorm });
+
+  if (error) {
+    console.error('Erro ao registrar uso de cupom:', error);
+  }
+};
+
+/**
+ * Busca cupom por código (nome). Só retorna se ativo.
+ * @returns {Promise<{ id, nome, porcentagem_desconto, ativo }|null>}
+ */
+export const getCouponByCode = async (code) => {
+  if (!supabaseAdmin || !code || typeof code !== 'string') return null;
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('cupons')
+    .select('id, nome, porcentagem_desconto, ativo')
+    .ilike('nome', trimmed)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao buscar cupom:', error);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Valida cupom por código e CPF. Um cupom só pode ser usado uma vez por CPF.
+ * @param {string} code - Código do cupom
+ * @param {string} [cpf] - CPF do cliente (obrigatório quando usar cupom)
+ * @returns {Promise<{ valid: boolean, coupon?: { id, nome, porcentagem_desconto }, message?: string }>}
+ */
+export const validateCoupon = async (code, cpf = null) => {
+  const coupon = await getCouponByCode(code);
+  if (!coupon) {
+    return { valid: false, message: 'Cupom inválido ou inativo.' };
+  }
+  if (cpf != null && String(cpf).trim()) {
+    const cpfNorm = normalizeCpf(cpf);
+    if (cpfNorm.length !== 11) {
+      return { valid: false, message: 'CPF inválido. Informe os 11 dígitos.' };
+    }
+    const alreadyUsed = await couponAlreadyUsedByCpf(coupon.id, cpfNorm);
+    if (alreadyUsed) {
+      return { valid: false, message: 'Este cupom já foi utilizado por este CPF.' };
+    }
+  }
+  return {
+    valid: true,
+    coupon: {
+      id: coupon.id,
+      nome: coupon.nome,
+      porcentagem_desconto: parseFloat(coupon.porcentagem_desconto)
+    }
   };
 };
 
@@ -128,7 +232,7 @@ export const mapCreditToEnglish = (credit) => {
 /**
  * Obtém ou cria perfil do usuário
  */
-export const getOrCreateUserProfile = async (userId, email, name = '', passwordHash = null, emailVerified = false, verificationCode = null) => {
+export const getOrCreateUserProfile = async (userId, email, name = '', passwordHash = null, emailVerified = false, verificationCode = null, cpf = null) => {
   if (!supabaseAdmin) {
     throw new Error('Supabase não configurado');
   }
@@ -164,6 +268,10 @@ export const getOrCreateUserProfile = async (userId, email, name = '', passwordH
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 15);
       insertData.codigo_verificacao_expira_em = expiresAt.toISOString();
+    }
+
+    if (cpf != null && String(cpf).trim() !== '') {
+      insertData.cpf = String(cpf).replace(/\D/g, '').slice(0, 11);
     }
 
     const { data: newProfile, error: createError } = await supabaseAdmin
@@ -216,7 +324,7 @@ export const getUserProfileByEmail = async (email, includePassword = false) => {
 
   let selectFields = '*';
   if (!includePassword) {
-    selectFields = 'id, email, nome, plano, criado_em, ultima_analise, atualizado_em, email_verificado, codigo_verificacao, codigo_verificacao_expira_em, tipo_usuario';
+    selectFields = 'id, email, nome, cpf, data_nascimento, cidade, pais, plano, criado_em, ultima_analise, atualizado_em, email_verificado, codigo_verificacao, codigo_verificacao_expira_em, tipo_usuario';
   }
 
   const { data, error } = await supabaseAdmin
@@ -264,6 +372,11 @@ export const updateUserProfile = async (userId, updates) => {
   for (const [key, value] of Object.entries(updates)) {
     const keyMap = {
       'name': 'nome',
+      'email': 'email',
+      'cpf': 'cpf',
+      'date_of_birth': 'data_nascimento',
+      'city': 'cidade',
+      'country': 'pais',
       'plan': 'plano',
       'last_analysis': 'ultima_analise',
       'updated_at': 'atualizado_em',
@@ -511,8 +624,12 @@ export const getCreditsByPurchase = async (purchaseId) => {
 
 /**
  * Cria uma compra/transação e os créditos correspondentes
+ * @param {string|null} couponId - ID do cupom (opcional)
+ * @param {string|null} couponName - Nome/código do cupom no momento da compra (opcional)
+ * @param {number|null} discountPercent - Porcentagem de desconto aplicada (opcional)
+ * @param {number|null} originalPrice - Preço antes do desconto (opcional)
  */
-export const createPurchase = async (userId, planId, planName, creditsAmount, price, currency = 'BRL', paymentMethod = 'mock', paymentId = null, parentPurchaseId = null, serviceType = 'analysis_plan') => {
+export const createPurchase = async (userId, planId, planName, creditsAmount, price, currency = 'BRL', paymentMethod = 'mock', paymentId = null, parentPurchaseId = null, serviceType = 'analysis_plan', couponId = null, couponName = null, discountPercent = null, originalPrice = null) => {
   if (!supabaseAdmin) {
     throw new Error('Supabase não configurado');
   }
@@ -521,25 +638,32 @@ export const createPurchase = async (userId, planId, planName, creditsAmount, pr
   const purchaseId = randomUUID();
   const now = new Date().toISOString();
 
+  const insertData = {
+    id: purchaseId,
+    id_usuario: userId,
+    id_plano: planId,
+    nome_plano: planName,
+    quantidade_creditos: creditsAmount,
+    preco: price,
+    moeda: currency,
+    status: 'concluida',
+    metodo_pagamento: paymentMethod,
+    id_pagamento: paymentId || `mock_${Date.now()}`,
+    criado_em: now,
+    atualizado_em: now,
+    id_compra_pai: parentPurchaseId,
+    tipo_servico: serviceType
+  };
+
+  if (couponId != null) insertData.id_cupom = couponId;
+  if (couponName != null && couponName !== '') insertData.nome_cupom = couponName;
+  if (discountPercent != null) insertData.porcentagem_desconto_aplicado = discountPercent;
+  if (originalPrice != null) insertData.preco_original = originalPrice;
+
   // 1. Cria a compra
   const { data: purchase, error: purchaseError } = await supabaseAdmin
     .from('compras')
-    .insert({
-      id: purchaseId,
-      id_usuario: userId,
-      id_plano: planId,
-      nome_plano: planName,
-      quantidade_creditos: creditsAmount,
-      preco: price,
-      moeda: currency,
-      status: 'concluida',
-      metodo_pagamento: paymentMethod,
-      id_pagamento: paymentId || `mock_${Date.now()}`,
-      criado_em: now,
-      atualizado_em: now,
-      id_compra_pai: parentPurchaseId,
-      tipo_servico: serviceType
-    })
+    .insert(insertData)
     .select()
     .single();
 

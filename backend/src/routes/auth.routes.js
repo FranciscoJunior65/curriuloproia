@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken, changePassword, forgotPassword, resetPassword, requestLoginCode, verifyLoginCode, googleCallback } from '../controllers/auth.controller.js';
+import { register, login, verifyToken, verifyEmail, resendVerificationCode, verifyEmailByToken, changePassword, updateProfile, forgotPassword, resetPassword, requestLoginCode, verifyLoginCode, googleCallback } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import passport from 'passport';
 
@@ -188,6 +188,32 @@ router.get('/verify-email-link', verifyEmailByToken);
  *         description: Dados inválidos
  */
 router.post('/change-password', authenticate, changePassword);
+
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   patch:
+ *     summary: Atualiza dados do perfil (nome, email, cpf)
+ *     tags: [Autenticação]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string }
+ *               cpf: { type: string }
+ *     responses:
+ *       200:
+ *         description: Perfil atualizado
+ *       400:
+ *         description: Dados inválidos
+ *       409:
+ *         description: Email já em uso
+ */
+router.patch('/profile', authenticate, updateProfile);
 
 /**
  * @swagger
