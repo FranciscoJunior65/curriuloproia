@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import PDFDocument from 'pdfkit';
 import { getJobSiteById } from './job-sites.service.js';
@@ -11,7 +12,14 @@ dotenv.config();
 // });
 const openai = null; // Forçado para null para desativar OpenAI
 
+// Gemini (usado quando OpenAI está desativado)
+let genAI = null;
+if (process.env.GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+}
+
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
 /**
  * Gera um currículo melhorado baseado na análise e no currículo original
@@ -100,27 +108,37 @@ Retorne APENAS o texto do currículo melhorado, sem explicações adicionais.`;
 
     console.log('🤖 Gerando currículo melhorado com IA...');
 
-    if (!openai) {
-      throw new Error('OpenAI está desativado temporariamente. Use Gemini ou ative o modo mock.');
-    }
+    let improvedResume = '';
 
-    const completion = await openai.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: userPrompt
+    if (openai) {
+      const completion = await openai.chat.completions.create({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 3000
+      });
+      improvedResume = completion.choices[0].message.content.trim();
+    } else if (genAI) {
+      const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+      const result = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 3000
         }
-      ],
-      temperature: 0.7,
-      max_tokens: 3000
-    });
-
-    const improvedResume = completion.choices[0].message.content.trim();
+      });
+      const response = result.response;
+      const text = response.text();
+      if (!text) throw new Error('Resposta vazia da API Gemini');
+      improvedResume = text.trim();
+    } else {
+      throw new Error('OpenAI está desativado temporariamente. Use Gemini ou ative o modo mock. Configure GEMINI_API_KEY no .env');
+    }
     
     // Remove markdown se existir
     let cleanedResume = improvedResume;
