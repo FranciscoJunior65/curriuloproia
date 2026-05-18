@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AdminService, DashboardStats, UsageData } from '../../services/admin.service';
+import { AdminService, DashboardStats, UsageData, PaymentProvider } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -38,6 +38,20 @@ export class AdminDashboardComponent implements OnInit {
   selectedMonths = 12; // meses
   isAdmin = false;
   accessDenied = false;
+
+  paymentProvider: PaymentProvider = 'stripe';
+  paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago'];
+  paymentProviderLabels: Record<PaymentProvider, string> = {
+    stripe: 'Stripe',
+    mercadopago: 'Mercado Pago'
+  };
+  loadingPaymentSettings = false;
+  savingPaymentProvider = false;
+  testingPaymentConnection = false;
+  paymentSettingsMessage = '';
+  paymentSettingsError = '';
+  paymentConnectionMessage = '';
+  paymentConnectionSuccess = false;
 
   constructor(
     private adminService: AdminService,
@@ -77,6 +91,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadDashboard();
           this.loadDailyUsage();
           this.loadMonthlyUsage();
+          this.loadPaymentProviderSettings();
         } else {
           console.error('❌ Token inválido, redirecionando...');
           alert('Sua sessão expirou. Por favor, faça login novamente.');
@@ -95,6 +110,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadDashboard();
           this.loadDailyUsage();
           this.loadMonthlyUsage();
+          this.loadPaymentProviderSettings();
         }
       }
     });
@@ -224,6 +240,64 @@ export class AdminDashboardComponent implements OnInit {
 
   goHome(): void {
     this.router.navigate(['/']);
+  }
+
+  loadPaymentProviderSettings(): void {
+    this.loadingPaymentSettings = true;
+    this.paymentSettingsError = '';
+    this.adminService.getPaymentProvider().subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.paymentProvider = response.provider;
+          this.paymentProviders = response.providers || ['stripe', 'mercadopago'];
+          if (response.labels) {
+            this.paymentProviderLabels = { ...this.paymentProviderLabels, ...response.labels };
+          }
+        }
+        this.loadingPaymentSettings = false;
+      },
+      error: (error) => {
+        this.loadingPaymentSettings = false;
+        this.paymentSettingsError = error.error?.message || 'Erro ao carregar meio de pagamento';
+      }
+    });
+  }
+
+  savePaymentProvider(): void {
+    this.savingPaymentProvider = true;
+    this.paymentSettingsMessage = '';
+    this.paymentSettingsError = '';
+    this.adminService.updatePaymentProvider(this.paymentProvider).subscribe({
+      next: (response) => {
+        this.savingPaymentProvider = false;
+        if (response.success) {
+          this.paymentProvider = response.provider;
+          this.paymentSettingsMessage = response.message || 'Meio de pagamento atualizado.';
+        }
+      },
+      error: (error) => {
+        this.savingPaymentProvider = false;
+        this.paymentSettingsError = error.error?.message || error.error?.error || 'Erro ao salvar';
+      }
+    });
+  }
+
+  testPaymentConnection(): void {
+    this.testingPaymentConnection = true;
+    this.paymentConnectionMessage = '';
+    this.paymentConnectionSuccess = false;
+    this.adminService.testPaymentProviderConnection(this.paymentProvider).subscribe({
+      next: (response) => {
+        this.testingPaymentConnection = false;
+        this.paymentConnectionSuccess = response.connected;
+        this.paymentConnectionMessage = response.message;
+      },
+      error: (error) => {
+        this.testingPaymentConnection = false;
+        this.paymentConnectionSuccess = false;
+        this.paymentConnectionMessage = error.error?.message || error.error?.error || 'Erro ao testar conexão';
+      }
+    });
   }
 }
 

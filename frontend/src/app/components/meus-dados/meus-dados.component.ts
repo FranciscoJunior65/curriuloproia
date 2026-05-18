@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
 import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
 
@@ -23,7 +24,8 @@ import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
     MatIconModule,
     MatInputModule,
     MatFormFieldModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatMenuModule
   ],
   templateUrl: './meus-dados.component.html',
   styleUrl: './meus-dados.component.scss'
@@ -38,9 +40,11 @@ export class MeusDadosComponent implements OnInit {
   loading: boolean = false;
   error: string | null = null;
   success: boolean = false;
+  currentUser: { name?: string; email?: string; credits?: number } | null = null;
+  userCredits = 0;
 
   constructor(
-    private authService: AuthService,
+    public authService: AuthService,
     private router: Router
   ) {}
 
@@ -49,15 +53,31 @@ export class MeusDadosComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
-    const user = this.authService.getCurrentUser();
-    if (user) {
-      this.name = user.name || '';
-      this.email = user.email || '';
-      this.cpf = formatCpfDisplay(user.cpf ?? '');
-      this.dateOfBirth = user.date_of_birth ?? '';
-      this.city = user.city ?? '';
-      this.country = user.country ?? '';
-    }
+    this.authService.currentUser$.subscribe(user => {
+      this.currentUser = user;
+      this.userCredits = user?.credits ?? 0;
+      if (user) {
+        this.name = user.name || '';
+        this.email = user.email || '';
+        this.cpf = formatCpfDisplay(user.cpf ?? '');
+        this.dateOfBirth = user.date_of_birth ?? '';
+        this.city = user.city ?? '';
+        this.country = user.country ?? '';
+      }
+    });
+  }
+
+  getUserDisplayName(): string {
+    return this.currentUser?.name || this.currentUser?.email || 'Usuário';
+  }
+
+  navigateTo(path: string): void {
+    this.router.navigate([path]);
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   onCpfInput(): void {

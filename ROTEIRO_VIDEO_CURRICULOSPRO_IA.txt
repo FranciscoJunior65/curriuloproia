@@ -1,0 +1,123 @@
+================================================================================
+ROTEIRO + PROMPT FLOW — Vídeo 1 minuto | CurriculosPro IA
+================================================================================
+
+--------------------------------------------------------------------------------
+ROTEIRO — VÍDEO DE 1 MINUTO
+--------------------------------------------------------------------------------
+
+| Tempo      | Cena              | Visual (tela do sistema)                                                                                                                                 | Narração (voz)                                                                                                                                 |
+|------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0:00–0:08  | Abertura          | Hero escuro: título "Transforme Seu Currículo com Inteligência Artificial", badges (Análise em segundos, IA GPT-4, PDF ou WORD). Logo CurriculosPro IA. | "Quer mais entrevistas? O CurriculosPro IA analisa seu currículo com inteligência artificial e te ajuda a conquistar a vaga dos sonhos."       |
+| 0:08–0:15  | Cadastro / login  | Tela de login dividida: lado esquerdo com headline "Seu currículo profissional, impulsionado por IA"; lado direito com "Bem-vindo de volta" e Entrar.   | "Crie sua conta em menos de um minuto — login com senha ou código por e-mail."                                                                 |
+| 0:15–0:22  | Planos            | Seção "Escolha Seu Plano": 3 cards — Análise Única R$ 7,90, Pacote 3 R$ 27,90 (Mais Popular), Pacote 5 R$ 37,90.                                       | "Escolha o plano ideal: pague só pelo que usar, sem mensalidade. Cada crédito vale uma análise completa."                                      |
+| 0:22–0:32  | Upload            | Card "Comece Agora" com área tracejada roxa, upload, depois grid Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed.                                    | "Envie seu currículo em PDF ou Word, escolha o site de vagas — Gupy, LinkedIn, Catho — e a IA personaliza tudo para aquela plataforma."         |
+| 0:32–0:42  | Análise           | Loading "Analisando com IA...", card Score 78/100, chips Pontos Fortes e Oportunidades de Melhoria.                                                        | "Em segundos você recebe um score, pontos fortes, o que melhorar e recomendações profissionais."                                               |
+| 0:42–0:52  | Resultados        | Card "Currículo Profissional Otimizado" com Baixar PDF e Baixar Word; Carta de Apresentação e Simular Entrevista.                                          | "Baixe o currículo otimizado, gere carta de apresentação e treine no simulador de entrevista com feedback em tempo real."                      |
+| 0:52–1:00  | CTA final         | Hero ou planos com URL curriculosproia.getpushtecnologia.com.br e "Começar Agora".                                                                        | "CurriculosPro IA — seu currículo pronto para o mercado. Acesse agora e comece hoje."                                                          |
+
+Tom: profissional, confiante, ritmo acelerado (~150 palavras no total).
+Música: corporativa leve, tech, crescente no final.
+
+
+--------------------------------------------------------------------------------
+PROMPT PARA O GOOGLE FLOW (copiar e colar)
+--------------------------------------------------------------------------------
+
+Vídeo promocional de 60 segundos, 16:9, 1080p, estilo SaaS tech brasileiro, narração em português do Brasil (voz feminina ou masculina, tom profissional e acolhedor). O vídeo mostra um apresentador(a) em canto inferior direito (picture-in-picture pequeno) explicando o sistema enquanto a tela principal exibe mockups de interface web IDÊNTICOS ao produto real "CurriculosPro IA". Transições suaves tipo slide/zoom entre telas. Sem texto ilegível — todo texto da UI deve estar em português e nítido.
+
+=== IDENTIDADE VISUAL OBRIGATÓRIA (replicar em TODAS as telas) ===
+- Marca: "CurriculosPro IA" (com ícone de documento/currículo em roxo índigo)
+- Paleta principal: índigo #6366F1, roxo #8B5CF6, gradientes indigo→purple nos botões e títulos
+- Hero escuro: fundo #020617 com gradientes radiais roxos sutis; texto branco #F9FAFB; subtítulos lilás #C7D2FE
+- Área de conteúdo: fundo cinza claro #F9FAFB (gray-50)
+- Cards: brancos, bordas arredondadas 12–16px, sombra suave, estilo Material Design / Tailwind
+- Tipografia: sans-serif moderna (Inter ou similar), títulos bold, corpo regular
+- Botões primários: gradiente indigo-600 → purple-600, texto branco, cantos arredondados
+- Chips/tags: fundo verde claro para pontos fortes, laranja claro para melhorias
+- Layout desktop widescreen, barra superior branca fixa com logo à esquerda
+
+=== CENA 1 (0:00–0:08) — HERO / APRESENTAÇÃO ===
+Recriar tela idêntica ao hero do app:
+- Header branco sticky: ícone documento roxo + "CurriculosPro IA" à esquerda; à direita botão "Painel do usuário" com gradiente indigo-50→purple-50
+- Hero fundo escuro com título grande: "Transforme Seu Currículo com" + linha "Inteligência Artificial" em gradiente lilás
+- Subtítulo: "Análise profissional completa e geração de currículo otimizado..."
+- 6 pills/badges horizontais com ícones dourados: "Análise em segundos", "IA Avançada GPT-4", "PDF ou WORD", "Carta de Apresentação", "Palavras-chave", "Simulador de Entrevista"
+- Abaixo: chips de plataformas Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed em caixas semi-transparentes roxas
+
+=== CENA 2 (0:08–0:15) — LOGIN ===
+Recriar tela de login em card central largo, dividido em 2 colunas:
+- Coluna esquerda (~45%): imagem/gradiente escuro com overlay, badge "CurriculoPro IA", headline "Seu currículo profissional, impulsionado por IA." em branco, subtítulo sobre análise com IA
+- Coluna direita (~55%): fundo branco, título "Bem-vindo de volta", descrição "Entre para analisar e otimizar seus currículos com IA.", campos Email e Senha, botão roxo "Entrar", link "Criar conta grátis"
+- Abaixo do card (opcional): faixa "Planos Flexíveis" com 3 mini-cards de preço
+
+=== CENA 3 (0:15–0:22) — PLANOS ===
+Recriar seção "Escolha Seu Plano" sobre fundo gray-50:
+- Título com gradiente indigo→purple: "Escolha Seu Plano"
+- Subtítulo: "Planos acessíveis para transformar seu currículo..."
+- Box informativo roxo claro listando benefícios com checkmarks verdes (análise GPT-4, PDF, Word, carta, simulador, etc.)
+- 3 cards de plano em grid:
+  1) "Análise Única" — círculo roxo com "1", preço "R$ 7,90", botão "Comprar Agora"
+  2) "Pacote 3 Análises" — badge amarelo "Mais Popular", círculo "3", "R$ 27,90", destaque com borda indigo
+  3) "Pacote 5 Análises" — círculo "5", "R$ 37,90"
+- Rodapé: "Pagamento seguro via Stripe"
+
+=== CENA 4 (0:22–0:32) — UPLOAD E SELEÇÃO DE SITE ===
+Recriar card "Comece Agora":
+- Card branco com borda superior indigo, título "Comece Agora", subtítulo "Anexe o seu currículo aqui..."
+- Área tracejada indigo claro com ícone cloud_upload grande roxo, texto "Clique para selecionar ou arraste seu arquivo", "Formatos: PDF, DOC, DOCX, TXT"
+- Animação: arquivo "curriculo.pdf" aparece com ícone check verde
+- Segundo card: "Selecione o site de vagas" com ícone globo, grid 2x3 de botões: Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed — LinkedIn destacado em verde "Site selecionado"
+- Botão grande roxo "Analisar Currículo Agora"
+
+=== CENA 5 (0:32–0:42) — RESULTADO DA ANÁLISE ===
+Recriar tela de resultados pós-análise:
+- Card gradiente indigo→purple grande: "Score de Qualidade" com número "78" gigante branco + "/100", mensagem motivacional abaixo
+- Dois cards lado a lado:
+  - Esquerda borda verde: "Pontos Fortes" com chips "Experiência sólida", "Habilidades técnicas", "Formação relevante"
+  - Direita borda laranja: "Oportunidades de Melhoria" com chips "Adicionar palavras-chave", "Resumir experiências"
+- Card abaixo: "Recomendações Profissionais" com lista e setas
+
+=== CENA 6 (0:42–0:52) — AÇÕES PÓS-ANÁLISE ===
+Recriar seção de downloads e extras:
+- Card wide gradiente indigo→purple→pink: ícone estrela amarela, título "Currículo Profissional Otimizado", dois botões brancos lado a lado: "Baixar PDF" e "Baixar Word"
+- Abaixo, 2 cards menores em grid:
+  - "Carta de Apresentação" — ícone envelope azul, botão "Criar Carta"
+  - "Simular Entrevista" — ícone microfone roxo, botão "Iniciar Simulação"
+- Flash rápido do chat de entrevista: barra de progresso "Pergunta 2 de 5", bolha da IA com pergunta, score verde "85/100"
+
+=== CENA 7 (0:52–1:00) — CTA FINAL ===
+Voltar ao hero escuro ou overlay com:
+- Logo CurriculosPro IA centralizado
+- Texto grande: "Comece Agora"
+- URL legível: curriculosproia.getpushtecnologia.com.br
+- Confetes sutis ou brilho tech; fade to black
+
+=== INSTRUÇÕES TÉCNICAS PARA O FLOW ===
+- Manter consistência visual entre cenas (mesma paleta, mesma marca, mesmo estilo de cards)
+- Textos da interface em português brasileiro, sem erros ortográficos
+- Cursor do mouse visível clicando nos botões nas cenas de upload e análise (efeito realista de uso do produto)
+- Não inventar telas genéricas de "dashboard" — seguir exatamente os layouts descritos
+- Evitar rostos em close nas telas; foco na UI
+- Duração total: exatamente 60 segundos
+- Áudio: narração sincronizada com cada cena; música de fundo tech corporativa baixa (-20dB)
+
+=== ROTEIRO DE NARRAÇÃO (sincronizar com as cenas) ===
+[0:00] "Quer mais entrevistas? O CurriculosPro IA analisa seu currículo com inteligência artificial."
+[0:08] "Crie sua conta em segundos — com senha ou código por e-mail."
+[0:15] "Escolha seu plano: sem mensalidade, pague só pelo que usar."
+[0:22] "Envie seu currículo, escolha Gupy, LinkedIn ou Catho, e a IA personaliza para aquela plataforma."
+[0:32] "Em segundos: score, pontos fortes e o que melhorar."
+[0:42] "Baixe PDF ou Word, crie carta de apresentação e treine entrevistas com feedback da IA."
+[0:52] "CurriculosPro IA. Acesse agora e transforme sua carreira."
+
+
+--------------------------------------------------------------------------------
+DICAS PRÁTICAS NO FLOW
+--------------------------------------------------------------------------------
+
+1. Gerar cena a cena — Se o Flow limitar duração, gere 7 clipes de ~8s e una no editor.
+2. Screenshots reais — Grave a tela do app em produção ou localhost e use como referência de imagem no Flow.
+3. Textos fixos — Cole os textos exatos das telas no prompt de cada cena para evitar typos da IA.
+
+URL do sistema: https://curriculosproia.getpushtecnologia.com.br/

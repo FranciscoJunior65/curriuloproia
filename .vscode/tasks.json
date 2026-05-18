@@ -32,10 +32,42 @@
       }
     },
     {
-      "label": "npm: start:backend",
+      "label": "dotnet: run:backend",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/backend/src/CurriculosProIA.Api/CurriculosProIA.Api.csproj"],
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "dotnet",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error)\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": ".*Now listening on:.*"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      }
+    },
+    {
+      "label": "npm: start:backend-node",
       "type": "npm",
       "script": "start",
-      "path": "backend",
+      "path": "backend-node",
       "isBackground": true,
       "problemMatcher": {
         "owner": "javascript",
@@ -50,7 +82,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
-          "endsPattern": ".*Server running on port.*"
+          "endsPattern": ".*Servidor rodando na porta.*"
         }
       },
       "presentation": {
@@ -63,7 +95,7 @@
     {
       "label": "start:all",
       "dependsOn": [
-        "npm: start:backend",
+        "dotnet: run:backend",
         "npm: start"
       ],
       "dependsOrder": "parallel",
@@ -71,4 +103,3 @@
     }
   ]
 }
-

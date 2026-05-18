@@ -52,6 +52,7 @@ export class AnalyzerComponent implements OnInit {
   validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
   couponError = '';
   validatingCoupon = false;
+  paymentProvider: 'stripe' | 'mercadopago' = 'stripe';
 
   // Auth
   currentUser: User | null = null;
@@ -200,10 +201,28 @@ export class AnalyzerComponent implements OnInit {
 
     this.loadPlans();
     this.loadJobSites();
+    this.loadPaymentProvider();
     // Verifica se retornou do pagamento
     this.checkPaymentStatus();
     // Verifica se veio do histórico para continuar serviços
     this.checkAnalysisFromHistory();
+  }
+
+  loadPaymentProvider(): void {
+    this.analyzerService.getPaymentProvider().subscribe({
+      next: (res) => {
+        if (res.success && res.provider) {
+          this.paymentProvider = res.provider === 'mercadopago' ? 'mercadopago' : 'stripe';
+        }
+      },
+      error: () => {
+        this.paymentProvider = 'stripe';
+      }
+    });
+  }
+
+  get paymentProviderLabel(): string {
+    return this.paymentProvider === 'mercadopago' ? 'Mercado Pago' : 'Stripe';
   }
 
   checkAnalysisFromHistory(): void {
@@ -308,6 +327,13 @@ export class AnalyzerComponent implements OnInit {
     });
   }
 
+  private syncUserCredits(): void {
+    if (this.currentUser) {
+      this.currentUser.credits = this.userCredits;
+      this.authService.setUser({ ...this.currentUser, credits: this.userCredits });
+    }
+  }
+
   checkCredits(): void {
     if (!this.isAuthenticated || !this.userId) {
       this.userCredits = 0;
@@ -319,10 +345,7 @@ export class AnalyzerComponent implements OnInit {
       next: (response: any) => {
         this.userCredits = response.credits || 0;
         this.showPlans = this.userCredits === 0;
-        // Atualiza créditos no usuário atual
-        if (this.currentUser) {
-          this.currentUser.credits = this.userCredits;
-        }
+        this.syncUserCredits();
       },
       error: () => {
         // Se não encontrar usuário, mostra planos
@@ -378,8 +401,7 @@ export class AnalyzerComponent implements OnInit {
     this.processingPayment = true;
     this.error = null;
 
-    // Usa Stripe para pagamento real
-    console.log('💳 Iniciando pagamento via Stripe...', {
+    console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
       planId: plan.id,
       planName: plan.name,
       creditsAmount: plan.analyses,
@@ -427,14 +449,14 @@ export class AnalyzerComponent implements OnInit {
       this.cpf?.trim() || null
     ).subscribe({
       next: (response: any) => {
-        console.log('📦 Resposta da sessão Stripe:', response);
+        console.log('📦 Resposta da sessão de pagamento:', response);
         if (response.success && response.freeCheckout && response.redirectUrl) {
           console.log('✅ Compra grátis concluída, redirecionando...');
           window.location.href = response.redirectUrl;
           return;
         }
         if (response.success && response.checkoutUrl) {
-          console.log('✅ Redirecionando para Stripe Checkout...');
+          console.log(`✅ Redirecionando para ${this.paymentProviderLabel}...`);
           window.location.href = response.checkoutUrl;
         } else {
           this.error = response.error || 'Erro ao criar sessão de pagamento';
@@ -545,12 +567,15 @@ export class AnalyzerComponent implements OnInit {
     return site ? site.nome : null;
   }
 
-  // Método para verificar pagamento após retorno do Stripe (ou compra grátis)
+  // Verifica pagamento após retorno do Stripe, Mercado Pago ou compra grátis
   checkPaymentStatus(): void {
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
+    const paymentId = urlParams.get('payment_id') || urlParams.get('collection_id');
     const userId = urlParams.get('userId');
     const free = urlParams.get('free');
+    const provider = urlParams.get('provider') || (paymentId && !sessionId ? 'mercadopago' : 'stripe');
+    const mpStatus = urlParams.get('status') || urlParams.get('collection_status');
 
     if (free === '1' && userId) {
       this.userId = userId;
@@ -565,14 +590,32 @@ export class AnalyzerComponent implements OnInit {
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
-    if (sessionId && userId) {
-      this.analyzerService.verifyPayment(sessionId).subscribe({
+
+    const paymentRef = provider === 'mercadopago' ? paymentId : sessionId;
+
+    if (provider === 'mercadopago' && mpStatus && mpStatus !== 'approved' && !paymentRef) {
+      if (mpStatus === 'pending') {
+        this.error = 'Pagamento pendente. Assim que for aprovado, seus créditos serão liberados.';
+      } else if (mpStatus === 'failure') {
+        this.error = 'Pagamento não concluído. Tente novamente.';
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    if (paymentRef && (userId || provider === 'mercadopago')) {
+      if (userId) this.userId = userId;
+      this.analyzerService.verifyPayment(paymentRef, provider).subscribe({
         next: (response: any) => {
           if (response.success && response.paid) {
             this.userCredits = response.user.credits;
             this.showPlans = false;
             this.checkCredits();
-            // Remove parâmetros da URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else if (response.success && !response.paid && provider === 'mercadopago') {
+            this.error = mpStatus === 'pending'
+              ? 'Pagamento pendente. Você receberá os créditos quando for aprovado.'
+              : 'Pagamento ainda não confirmado.';
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         },
@@ -629,10 +672,7 @@ export class AnalyzerComponent implements OnInit {
         } else {
           this.userCredits = Math.max(0, this.userCredits - 1);
         }
-        // Atualiza créditos no usuário atual
-        if (this.currentUser) {
-          this.currentUser.credits = this.userCredits;
-        }
+        this.syncUserCredits();
         this.checkCredits();
       },
       error: (err) => {

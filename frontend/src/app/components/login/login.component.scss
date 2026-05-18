@@ -1,9 +1,20 @@
 .login-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2.5rem 1.5rem;
+  gap: 3rem;
+  padding: 2rem 1.25rem 4rem;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    padding: 2.5rem 2rem 4rem;
+  }
+
+  @media (min-width: 1200px) {
+    padding: 2.5rem 2.5rem 4rem;
+  }
   background:
     radial-gradient(circle at top left, rgba(129, 140, 248, 0.25), transparent 55%),
     radial-gradient(circle at bottom right, rgba(248, 250, 252, 0.08), transparent 55%),
@@ -14,7 +25,7 @@
 
 .login-card {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1680px;
   display: flex;
   flex-direction: column;
   background: rgba(15, 23, 42, 0.96);
@@ -24,35 +35,80 @@
   box-shadow:
     0 24px 80px rgba(15, 23, 42, 0.9),
     0 0 0 1px rgba(15, 23, 42, 0.9);
-}
 
-@media (min-width: 768px) {
-  .login-card {
+  @media (min-width: 768px) {
     flex-direction: row;
+    min-height: 620px;
+  }
+
+  @media (min-width: 1200px) {
+    min-height: 680px;
   }
 }
 
 .login-card__image {
   position: relative;
-  flex: 1.1;
+  flex: 1.6;
   display: none;
+  min-height: 280px;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+
+  @media (min-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    flex: 1.75;
+    min-width: 58%;
+    min-height: 620px;
+  }
+
+  @media (min-width: 1200px) {
+    flex: 1.85;
+    min-width: 62%;
+    min-height: 680px;
+  }
 }
 
-@media (min-width: 768px) {
-  .login-card__image {
+.login-card__media {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.12), transparent 45%),
+    linear-gradient(160deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.2) 100%);
+
+  @media (min-width: 768px) {
+    min-height: 360px;
+  }
+
+  :is(video, iframe) {
     display: block;
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+    object-fit: cover;
+    border: 0;
   }
 }
 
 .login-card__image-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.1));
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.97) 0%, rgba(15, 23, 42, 0.55) 55%, transparent 100%);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 2.5rem;
+  padding: 2rem 2.25rem 2.5rem;
+
+  @media (min-width: 768px) {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 2.5rem 3rem 3rem;
+  }
+
+  @media (min-width: 1200px) {
+    padding: 3rem 3.5rem 3.5rem;
+  }
 }
 
 .login-card__badge {
@@ -68,23 +124,35 @@
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.35;
-}
 
-.login-card__headline span {
-  color: #a5b4fc;
+  @media (min-width: 1200px) {
+    font-size: 1.75rem;
+  }
+
+  span {
+    color: #a5b4fc;
+  }
 }
 
 .login-card__subtitle {
   margin-top: 0.5rem;
-  max-width: 18rem;
-  font-size: 0.85rem;
+  max-width: 28rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: #e5e7eb;
   opacity: 0.9;
 }
 
 .login-card__content {
   flex: 1;
-  padding: 2rem 1.75rem 2.5rem;
+  flex-shrink: 0;
+  padding: 2rem 2.25rem 2.5rem;
+
+  @media (min-width: 768px) {
+    flex: 1;
+    max-width: 42%;
+    min-width: 380px;
+  }
   background: radial-gradient(circle at top right, rgba(88, 28, 135, 0.15), transparent 55%),
     #020617;
   display: flex;
@@ -94,7 +162,7 @@
 
 @media (min-width: 768px) {
   .login-card__content {
-    padding: 2.75rem 2.75rem 3rem;
+    padding: 2.75rem 3.5rem 3rem;
   }
 }
 
@@ -461,4 +529,257 @@
     outline-offset: 2px;
     border-radius: 2px;
   }
+}
+
+// Planos Flexíveis (abaixo do login)
+.login-pricing {
+  width: 100%;
+  max-width: 1680px;
+}
+
+.login-pricing__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-pricing__title {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 700;
+  color: #f9fafb;
+  margin-bottom: 0.75rem;
+
+  span {
+    background: linear-gradient(to right, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+.login-pricing__subtitle {
+  font-size: 1rem;
+  color: #9ca3af;
+  max-width: 36rem;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.login-pricing__grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.login-pricing__card {
+  position: relative;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 1.25rem;
+  padding: 1.75rem 2rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    border-color: rgba(129, 140, 248, 0.5);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.6);
+  }
+
+  &--popular {
+    background: linear-gradient(145deg, rgba(99, 102, 241, 0.35), rgba(139, 92, 246, 0.25));
+    border-color: rgba(250, 204, 21, 0.65);
+    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.25);
+  }
+}
+
+.login-pricing__badge {
+  position: absolute;
+  top: -0.65rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #facc15;
+  color: #111827;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+}
+
+.login-pricing__card-head {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.login-pricing__card-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f9fafb;
+  margin-bottom: 0.75rem;
+}
+
+.login-pricing__card-tagline {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin-top: 0.35rem;
+}
+
+.login-pricing__card--popular .login-pricing__card-tagline {
+  color: #e0e7ff;
+}
+
+.login-pricing__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.1rem;
+  color: #f9fafb;
+
+  &--compact .login-pricing__price-value {
+    font-size: 2rem;
+  }
+}
+
+.login-pricing__price-currency {
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.login-pricing__price-value {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.login-pricing__price-cents {
+  font-size: 1.35rem;
+  color: #9ca3af;
+}
+
+.login-pricing__features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #d1d5db;
+    line-height: 1.4;
+
+    mat-icon {
+      font-size: 1.1rem;
+      width: 1.1rem;
+      height: 1.1rem;
+      color: #4ade80;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+
+    strong {
+      color: #f9fafb;
+    }
+  }
+}
+
+.login-pricing__card--popular .login-pricing__features li {
+  color: #e5e7eb;
+}
+
+.login-pricing__english {
+  border-radius: 1.25rem;
+  padding: 1px;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+  margin-bottom: 1.5rem;
+}
+
+.login-pricing__english-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.96);
+  border-radius: calc(1.25rem - 1px);
+  padding: 1.5rem;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+  }
+}
+
+.login-pricing__english-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.2);
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+
+.login-pricing__english-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f9fafb;
+  margin-bottom: 0.35rem;
+}
+
+.login-pricing__english-desc {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  line-height: 1.45;
+  max-width: 28rem;
+}
+
+.login-pricing__english-price {
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.login-pricing__english-unit {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.login-pricing__guarantee {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 999px;
+  background: rgba(20, 83, 45, 0.35);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  max-width: 28rem;
+  margin: 0 auto;
+
+  mat-icon {
+    color: #4ade80;
+    font-size: 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+}
+
+.login-pricing__guarantee-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.login-pricing__guarantee-text {
+  font-size: 0.8rem;
+  color: #9ca3af;
 }

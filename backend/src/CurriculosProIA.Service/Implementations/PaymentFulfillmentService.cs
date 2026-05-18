@@ -1,0 +1,117 @@
+using Microsoft.Extensions.Logging;
+using CurriculosProIA.Domain.Dtos;
+using CurriculosProIA.Repository.Interfaces;
+using CurriculosProIA.Service.Interfaces;
+
+namespace CurriculosProIA.Service.Implementations;
+
+public class PaymentFulfillmentService : IPaymentFulfillmentService
+{
+    private readonly IPurchaseRepository _purchases;
+    private readonly IUserProfileRepository _users;
+    private readonly ICouponRepository _coupons;
+    private readonly ICreditRepository _credits;
+    private readonly ILogger<PaymentFulfillmentService> _logger;
+
+    public PaymentFulfillmentService(
+        IPurchaseRepository purchases,
+        IUserProfileRepository users,
+        ICouponRepository coupons,
+        ICreditRepository credits,
+        ILogger<PaymentFulfillmentService> logger)
+    {
+        _purchases = purchases;
+        _users = users;
+        _coupons = coupons;
+        _credits = credits;
+        _logger = logger;
+    }
+
+    public Task<FulfillOrderResult> FulfillFreeCheckoutAsync(
+        FulfillOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        request.Price = 0;
+        request.PaymentMethod = "coupon";
+        request.PaymentId = $"free_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{request.UserId}";
+        request.ExtraInfo = "Compra 100% grátis com cupom.";
+        return FulfillPaidOrderAsync(request, cancellationToken);
+    }
+
+    public async Task<FulfillOrderResult> FulfillPaidOrderAsync(
+        FulfillOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await _purchases.GetPurchaseByPaymentIdAsync(request.PaymentId, cancellationToken);
+        if (existing != null)
+        {
+            var credits = await _credits.GetAvailableCreditsAsync(request.UserId, cancellationToken);
+            var profile = await _users.GetUserProfileAsync(request.UserId, cancellationToken);
+            return new FulfillOrderResult
+            {
+                AlreadyFulfilled = true,
+                User = new PaymentUserSummary
+                {
+                    Id = request.UserId,
+                    Credits = credits,
+                    Plan = profile?.Plan
+                }
+            };
+        }
+
+        await _purchases.CreatePurchaseAsync(
+            request.UserId,
+            request.PlanId,
+            request.PlanName,
+            request.Analyses,
+            request.Price,
+            "BRL",
+            request.PaymentMethod,
+            request.PaymentId,
+            serviceType: "analysis_plan",
+            couponId: request.CouponId,
+            couponName: request.CouponName,
+            discountPercent: request.DiscountPercent,
+            originalPrice: request.OriginalPrice,
+            cancellationToken: cancellationToken);
+
+        if (!string.IsNullOrEmpty(request.CouponId) && !string.IsNullOrEmpty(request.CpfNormalized))
+        {
+            await _coupons.RegisterCouponUseAsync(request.CouponId, request.CpfNormalized, cancellationToken);
+        }
+
+        if (!string.IsNullOrEmpty(request.CustomerEmail))
+        {
+            try
+            {
+                await _users.GetOrCreateUserProfileAsync(
+                    request.UserId,
+                    request.CustomerEmail,
+                    cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Erro ao garantir perfil do usuário após pagamento");
+            }
+        }
+
+        await _users.UpdateUserProfileAsync(
+            request.UserId,
+            new Dictionary<string, object?> { ["plan"] = request.PlanId },
+            cancellationToken);
+
+        var creditsAvailable = await _credits.GetAvailableCreditsAsync(request.UserId, cancellationToken);
+        var userProfile = await _users.GetUserProfileAsync(request.UserId, cancellationToken);
+
+        return new FulfillOrderResult
+        {
+            AlreadyFulfilled = false,
+            User = new PaymentUserSummary
+            {
+                Id = request.UserId,
+                Credits = creditsAvailable,
+                Plan = userProfile?.Plan ?? request.PlanId
+            }
+        };
+    }
+}

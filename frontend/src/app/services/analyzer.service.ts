@@ -77,6 +77,12 @@ export class AnalyzerService {
     return this.http.get(`${this.apiUrl}/analyze/plans`);
   }
 
+  getPaymentProvider(): Observable<{ success: boolean; provider: string; providers: string[] }> {
+    return this.http.get<{ success: boolean; provider: string; providers: string[] }>(
+      `${this.apiUrl}/analyze/payment/provider`
+    );
+  }
+
   createPaymentSession(planId: string, userId: string, email?: string, couponCode?: string | null, cpf?: string | null): Observable<any> {
     const body: any = { planId, userId, email: email || '' };
     if (couponCode && couponCode.trim()) body.couponCode = couponCode.trim();
@@ -135,8 +141,12 @@ export class AnalyzerService {
     return this.http.post(`${this.apiUrl}/purchase/mock`, body);
   }
 
-  verifyPayment(sessionId: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/analyze/payment/verify?sessionId=${sessionId}`, {
+  verifyPayment(sessionId: string, provider?: string): Observable<any> {
+    let url = `${this.apiUrl}/analyze/payment/verify?sessionId=${encodeURIComponent(sessionId)}`;
+    if (provider) {
+      url += `&provider=${encodeURIComponent(provider)}`;
+    }
+    return this.http.get(url, {
       headers: this.getAuthHeaders()
     });
   }

@@ -11,6 +11,15 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 
+/** Garante número finito para cálculos e exibição (evita NaN). */
+function toSafeNumber(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+  const n = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+
 interface Purchase {
   id: string;
   planName: string;
@@ -114,9 +123,10 @@ export class FinanceiroComponent implements OnInit {
       next: (response) => {
         console.log('✅ Resposta recebida:', response);
         if (response.success) {
-          this.purchases = response.purchases || [];
+          this.purchases = (response.purchases || []).map((p: Record<string, unknown>) =>
+            this.normalizePurchase(p)
+          );
           console.log('✅ Compras carregadas:', this.purchases.length);
-          // Calcula totais de créditos utilizados e ativos
           this.calculateCreditTotals();
         } else {
           this.error = response.message || 'Erro ao carregar histórico de compras.';
@@ -147,26 +157,65 @@ export class FinanceiroComponent implements OnInit {
     });
   }
 
+  private normalizePurchase(raw: Record<string, unknown>): Purchase {
+    const creditsInfo = raw['creditsInfo'] as Purchase['creditsInfo'] | undefined;
+    return {
+      id: String(raw['id'] ?? ''),
+      planName: String(raw['planName'] ?? raw['plan_name'] ?? 'Plano'),
+      planId: String(raw['planId'] ?? raw['plan_id'] ?? ''),
+      creditsAmount: toSafeNumber(raw['creditsAmount'] ?? raw['credits_amount']),
+      price: toSafeNumber(raw['price'] ?? raw['preco']),
+      status: String(raw['status'] ?? 'completed'),
+      createdAt: String(raw['createdAt'] ?? raw['created_at'] ?? ''),
+      paymentMethod: raw['paymentMethod'] as string | undefined,
+      serviceType: (raw['serviceType'] ?? raw['service_type']) as string | undefined,
+      parentPurchaseId: (raw['parentPurchaseId'] ?? raw['parent_purchase_id']) as string | null | undefined,
+      creditsInfo: creditsInfo
+        ? {
+            total: toSafeNumber(creditsInfo.total),
+            used: toSafeNumber(creditsInfo.used),
+            available: toSafeNumber(creditsInfo.available),
+            credits: creditsInfo.credits ?? []
+          }
+        : null
+    };
+  }
+
   getTotalPurchases(): number {
     return this.purchases.length;
   }
 
   getTotalSpent(): number {
-    return this.purchases.reduce((sum, p) => sum + p.price, 0);
+    return this.purchases.reduce((sum, p) => sum + toSafeNumber(p.price), 0);
   }
 
   getTotalCreditsAcquired(): number {
-    return this.purchases.reduce((sum, p) => sum + (p.creditsAmount || 0), 0);
+    return this.purchases.reduce((sum, p) => sum + toSafeNumber(p.creditsAmount), 0);
+  }
+
+  formatCurrency(value: unknown): string {
+    return toSafeNumber(value).toFixed(2).replace('.', ',');
   }
 
   calculateCreditTotals(): void {
-    this.totalCreditsUsed = this.purchases.reduce((sum, p) => {
-      return sum + (p.creditsInfo?.used || 0);
-    }, 0);
-    
-    this.totalCreditsActive = this.purchases.reduce((sum, p) => {
-      return sum + (p.creditsInfo?.available || 0);
-    }, 0);
+    this.totalCreditsUsed = this.purchases.reduce(
+      (sum, p) => sum + toSafeNumber(p.creditsInfo?.used),
+      0
+    );
+
+    this.totalCreditsActive = this.purchases.reduce(
+      (sum, p) => sum + toSafeNumber(p.creditsInfo?.available),
+      0
+    );
+  }
+
+  navigateTo(path: string): void {
+    this.router.navigate([path]);
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   togglePurchase(purchaseId: string): void {

@@ -1,6 +1,7 @@
 <div class="login-page">
   <div class="login-card">
     <div class="login-card__image">
+      <div class="login-card__media" aria-hidden="true"></div>
       <div class="login-card__image-overlay">
         <p class="login-card__badge">CurriculoPro IA</p>
         <h2 class="login-card__headline">
@@ -519,5 +520,102 @@
       </div>
     </div>
   </div>
+
+  <!-- Planos Flexíveis -->
+  <section class="login-pricing" aria-labelledby="login-pricing-title">
+    <div class="login-pricing__header">
+      <h2 id="login-pricing-title" class="login-pricing__title">
+        Planos <span>Flexíveis</span>
+      </h2>
+      <p class="login-pricing__subtitle">
+        Escolha o plano ideal para suas necessidades. Sem mensalidade, pague apenas pelo que usar.
+      </p>
+    </div>
+
+    <div class="login-pricing__grid">
+      <article class="login-pricing__card">
+        <div class="login-pricing__card-head">
+          <h3 class="login-pricing__card-name">Análise Única</h3>
+          <div class="login-pricing__price">
+            <span class="login-pricing__price-currency">R$</span>
+            <span class="login-pricing__price-value">7</span>
+            <span class="login-pricing__price-cents">,90</span>
+          </div>
+          <p class="login-pricing__card-tagline">Perfeito para começar</p>
+        </div>
+        <ul class="login-pricing__features">
+          <li><mat-icon>check_circle</mat-icon><span><strong>1</strong> análise completa com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
+        </ul>
+      </article>
+
+      <article class="login-pricing__card login-pricing__card--popular">
+        <span class="login-pricing__badge">Popular</span>
+        <div class="login-pricing__card-head">
+          <h3 class="login-pricing__card-name">Pacote 3 Análises</h3>
+          <div class="login-pricing__price">
+            <span class="login-pricing__price-currency">R$</span>
+            <span class="login-pricing__price-value">27</span>
+            <span class="login-pricing__price-cents">,90</span>
+          </div>
+          <p class="login-pricing__card-tagline">Melhor custo-benefício</p>
+        </div>
+        <ul class="login-pricing__features">
+          <li><mat-icon>check_circle</mat-icon><span><strong>3</strong> análises completas com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
+        </ul>
+      </article>
+
+      <article class="login-pricing__card">
+        <div class="login-pricing__card-head">
+          <h3 class="login-pricing__card-name">Pacote 5 Análises</h3>
+          <div class="login-pricing__price">
+            <span class="login-pricing__price-currency">R$</span>
+            <span class="login-pricing__price-value">37</span>
+            <span class="login-pricing__price-cents">,90</span>
+          </div>
+          <p class="login-pricing__card-tagline">Economize R$ 1,60</p>
+        </div>
+        <ul class="login-pricing__features">
+          <li><mat-icon>check_circle</mat-icon><span><strong>5</strong> análises completas com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
+        </ul>
+      </article>
+    </div>
+
+    <article class="login-pricing__english">
+      <div class="login-pricing__english-inner">
+        <div class="login-pricing__english-info">
+          <span class="login-pricing__english-label">Serviço Especial</span>
+          <h3 class="login-pricing__english-title">Currículo em Inglês</h3>
+          <p class="login-pricing__english-desc">
+            Tradução profissional do seu currículo com adaptação cultural para o mercado internacional
+          </p>
+        </div>
+        <div class="login-pricing__english-price">
+          <div class="login-pricing__price login-pricing__price--compact">
+            <span class="login-pricing__price-currency">R$</span>
+            <span class="login-pricing__price-value">17</span>
+            <span class="login-pricing__price-cents">,90</span>
+          </div>
+          <p class="login-pricing__english-unit">por tradução</p>
+        </div>
+      </div>
+    </article>
+
+    <div class="login-pricing__guarantee">
+      <mat-icon>verified_user</mat-icon>
+      <div>
+        <p class="login-pricing__guarantee-title">Garantia de Satisfação</p>
+        <p class="login-pricing__guarantee-text">Pagamento 100% seguro via Stripe</p>
+      </div>
+    </div>
+  </section>
 </div>
 

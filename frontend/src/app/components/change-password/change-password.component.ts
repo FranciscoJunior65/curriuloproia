@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 
@@ -24,7 +25,8 @@ import { environment } from '../../../environments/environment';
     MatIconModule,
     MatInputModule,
     MatFormFieldModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatMenuModule
   ],
   templateUrl: './change-password.component.html',
   styleUrl: './change-password.component.scss'
@@ -39,14 +41,21 @@ export class ChangePasswordComponent implements OnInit {
   loading: boolean = false;
   error: string | null = null;
   success: boolean = false;
+  currentUser: { name?: string; email?: string; credits?: number } | null = null;
+  userCredits = 0;
 
   constructor(
     private http: HttpClient,
-    private authService: AuthService,
+    public authService: AuthService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
+    this.authService.currentUser$.subscribe(user => {
+      this.currentUser = user;
+      this.userCredits = user?.credits ?? 0;
+    });
+
     // Verifica se o usuário está autenticado
     if (!this.authService.isAuthenticated()) {
       this.router.navigate(['/login']);
@@ -134,5 +143,18 @@ export class ChangePasswordComponent implements OnInit {
         this.loading = false;
       }
     });
+  }
+
+  getUserDisplayName(): string {
+    return this.currentUser?.name || this.currentUser?.email || 'Usuário';
+  }
+
+  navigateTo(path: string): void {
+    this.router.navigate([path]);
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 }

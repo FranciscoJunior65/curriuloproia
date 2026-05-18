@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CurriculosProIA.Api/CurriculosProIA.Api.csproj" />
+    <Project Path="src/CurriculosProIA.App/CurriculosProIA.App.csproj" />
+    <Project Path="src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj" />
+    <Project Path="src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj" />
+    <Project Path="src/CurriculosProIA.Service/CurriculosProIA.Service.csproj" />
+  </Folder>
+</Solution>

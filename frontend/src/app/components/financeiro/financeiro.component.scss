@@ -1,30 +1,83 @@
-/* Adicione estilos específicos para o componente financeiro aqui, se necessário */
-/* Por exemplo, para a tabela ou cards */
-
 .mat-mdc-card {
   border-radius: 12px;
 }
 
-.mat-mdc-table {
-  border-collapse: collapse;
-  width: 100%;
+// Cards de resumo — ícones sem corte
+.fin-stat-card {
+  overflow: visible;
+
+  .fin-stat-card__icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    line-height: 2.5rem !important;
+    margin: 0 auto 0.75rem;
+    overflow: visible;
+  }
 }
 
-.mat-mdc-header-cell {
-  font-weight: bold;
-  color: #333;
-  background-color: #f8f8f8;
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #e0e0e0;
+// Botão Comprar Novamente
+.fin-buy-again {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.35rem;
+
+  mat-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem !important;
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+    line-height: 1.125rem !important;
+    margin: 0;
+    overflow: visible;
+  }
 }
 
-.mat-mdc-cell {
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+// Menu do usuário — itens clicáveis (sem wrapper que quebra o mat-menu)
+.fin-user-menu {
+  min-width: 220px;
 }
 
-.mat-mdc-row:hover {
-  background-color: #f5f5f5;
+.fin-user-menu__header {
+  opacity: 1 !important;
+  cursor: default !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  padding: 0.75rem 1rem !important;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0.25rem;
+
+  &:hover {
+    background: transparent !important;
+  }
 }
 
+::ng-deep .fin-user-menu {
+  .mat-mdc-menu-item {
+    min-height: 44px;
+
+    mat-icon {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem !important;
+      width: 1.25rem !important;
+      height: 1.25rem !important;
+      margin-right: 0.75rem;
+      overflow: visible;
+    }
+  }
+
+  .fin-user-menu__logout {
+    color: #dc2626;
+
+    mat-icon {
+      color: #dc2626;
+    }
+  }
+}

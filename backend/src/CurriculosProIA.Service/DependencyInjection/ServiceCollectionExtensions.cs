@@ -1,0 +1,33 @@
+using CurriculosProIA.Service.Implementations;
+using CurriculosProIA.Service.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CurriculosProIA.Service.DependencyInjection;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
+    {
+        services.AddHttpClient("Gemini");
+        services.AddHttpClient("MercadoPago");
+
+        services.AddSingleton<IPricingService, PricingService>();
+        services.AddScoped<ISettingsService, SettingsService>();
+        services.AddSingleton<IJwtService, JwtService>();
+        services.AddSingleton<IEmailService, EmailService>();
+        services.AddScoped<IFileService, FileService>();
+        services.AddScoped<IAiService, AiService>();
+        services.AddScoped<IPaymentCheckoutService, PaymentCheckoutService>();
+        services.AddScoped<IPaymentFulfillmentService, PaymentFulfillmentService>();
+        services.AddScoped<IStripePaymentService, StripePaymentService>();
+        services.AddScoped<IMercadoPagoService, MercadoPagoService>();
+        services.AddScoped<IPaymentProviderService, PaymentProviderService>();
+        services.AddScoped<IJobSitesService, JobSitesService>();
+        services.AddScoped<IResumeGeneratorService, ResumeGeneratorService>();
+        services.AddScoped<ICoverLetterService, CoverLetterService>();
+        services.AddScoped<IJobSearchService, JobSearchService>();
+        services.AddScoped<IInterviewSimulationService, InterviewSimulationService>();
+
+        return services;
+    }
+}

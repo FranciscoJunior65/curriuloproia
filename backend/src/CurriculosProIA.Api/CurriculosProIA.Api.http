@@ -1,0 +1,6 @@
+@CurriculosProIA.Api_HostAddress = http://localhost:5096
+
+GET {{CurriculosProIA.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

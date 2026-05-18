@@ -33,53 +33,39 @@
               <mat-icon class="text-indigo-600">account_circle</mat-icon>
               <span
                 class="text-sm font-medium text-gray-700 hidden md:inline"
-                >{{ getUserDisplayName() }}</span
+                >Painel do usuário</span
               >
               <mat-icon class="text-gray-500 text-sm">arrow_drop_down</mat-icon>
             </button>
-            <mat-menu #userMenu="matMenu" class="mt-2">
-              <div class="p-2">
-                <div class="px-3 py-2 border-b border-gray-200 mb-2">
-                  <p class="text-sm font-semibold text-gray-800">
-                    {{ getUserDisplayName() }}
-                  </p>
-                  <p class="text-xs text-gray-500">
-                    {{ userCredits }} crédito(s) disponível(is)
-                  </p>
-                </div>
-                <button
-                  mat-menu-item
-                  routerLink="/financeiro"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">account_balance</mat-icon>
-                  <span>Menu Financeiro</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/meus-dados"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">person</mat-icon>
-                  <span>Meus Dados</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/trocar-senha"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">lock</mat-icon>
-                  <span>Trocar Senha</span>
-                </button>
-                <button
-                  mat-menu-item
-                  (click)="authService.logout(); router.navigate(['/login'])"
-                  class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">logout</mat-icon>
-                  <span>Sair</span>
-                </button>
+            <mat-menu #userMenu="matMenu" class="fin-user-menu">
+              <div class="fin-user-menu__header" mat-menu-item disabled>
+                <p class="text-sm font-semibold text-gray-800">{{ getUserDisplayName() }}</p>
+                <p class="text-xs text-gray-500">{{ userCredits }} crédito(s) disponível(is)</p>
               </div>
+              <button mat-menu-item type="button" (click)="navigateTo('/')">
+                <mat-icon>home</mat-icon>
+                <span>Início</span>
+              </button>
+              <button mat-menu-item type="button" (click)="navigateTo('/historico-analises')">
+                <mat-icon>history</mat-icon>
+                <span>Histórico de Análises</span>
+              </button>
+              <button mat-menu-item type="button" (click)="navigateTo('/financeiro')">
+                <mat-icon>account_balance</mat-icon>
+                <span>Menu Financeiro</span>
+              </button>
+              <button mat-menu-item type="button" (click)="navigateTo('/meus-dados')">
+                <mat-icon>person</mat-icon>
+                <span>Meus Dados</span>
+              </button>
+              <button mat-menu-item type="button" (click)="navigateTo('/trocar-senha')">
+                <mat-icon>lock</mat-icon>
+                <span>Trocar Senha</span>
+              </button>
+              <button mat-menu-item type="button" class="fin-user-menu__logout" (click)="logout()">
+                <mat-icon>logout</mat-icon>
+                <span>Sair</span>
+              </button>
             </mat-menu>
           </div>
         </div>
@@ -114,28 +100,28 @@
 
     <div *ngIf="!loading && !error && purchases.length > 0">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-        <mat-card class="shadow-md p-6 text-center">
-          <mat-icon class="text-indigo-600 text-4xl mb-3">shopping_bag</mat-icon>
+        <mat-card class="fin-stat-card shadow-md p-6 text-center">
+          <mat-icon class="fin-stat-card__icon text-indigo-600">shopping_bag</mat-icon>
           <h3 class="text-lg font-semibold text-gray-800">Total de Compras</h3>
           <p class="text-3xl font-bold text-indigo-700">{{ getTotalPurchases() }}</p>
         </mat-card>
-        <mat-card class="shadow-md p-6 text-center">
-          <mat-icon class="text-green-600 text-4xl mb-3">attach_money</mat-icon>
+        <mat-card class="fin-stat-card shadow-md p-6 text-center">
+          <mat-icon class="fin-stat-card__icon text-green-600">attach_money</mat-icon>
           <h3 class="text-lg font-semibold text-gray-800">Valor Total Gasto</h3>
-          <p class="text-3xl font-bold text-green-700">R$ {{ getTotalSpent().toFixed(2) }}</p>
+          <p class="text-3xl font-bold text-green-700">R$ {{ formatCurrency(getTotalSpent()) }}</p>
         </mat-card>
-        <mat-card class="shadow-md p-6 text-center">
-          <mat-icon class="text-purple-600 text-4xl mb-3">stars</mat-icon>
+        <mat-card class="fin-stat-card shadow-md p-6 text-center">
+          <mat-icon class="fin-stat-card__icon text-purple-600">stars</mat-icon>
           <h3 class="text-lg font-semibold text-gray-800">Créditos Adquiridos</h3>
           <p class="text-3xl font-bold text-purple-700">{{ getTotalCreditsAcquired() }}</p>
         </mat-card>
-        <mat-card class="shadow-md p-6 text-center">
-          <mat-icon class="text-orange-600 text-4xl mb-3">check_circle</mat-icon>
+        <mat-card class="fin-stat-card shadow-md p-6 text-center">
+          <mat-icon class="fin-stat-card__icon text-orange-600">check_circle</mat-icon>
           <h3 class="text-lg font-semibold text-gray-800">Créditos Utilizados</h3>
           <p class="text-3xl font-bold text-orange-700">{{ totalCreditsUsed }}</p>
         </mat-card>
-        <mat-card class="shadow-md p-6 text-center">
-          <mat-icon class="text-blue-600 text-4xl mb-3">radio_button_checked</mat-icon>
+        <mat-card class="fin-stat-card shadow-md p-6 text-center">
+          <mat-icon class="fin-stat-card__icon text-blue-600">radio_button_checked</mat-icon>
           <h3 class="text-lg font-semibold text-gray-800">Créditos Ativos</h3>
           <p class="text-3xl font-bold text-blue-700">{{ totalCreditsActive }}</p>
         </mat-card>
@@ -169,7 +155,7 @@
                 </div>
                 <div>
                   <p class="text-xs text-gray-500 mb-1">Preço</p>
-                  <p class="font-medium text-gray-800">R$ {{ purchase.price.toFixed(2) }}</p>
+                  <p class="font-medium text-gray-800">R$ {{ formatCurrency(purchase.price) }}</p>
                 </div>
                 <div>
                   <p class="text-xs text-gray-500 mb-1">Status</p>
@@ -190,9 +176,9 @@
                   mat-raised-button 
                   color="primary" 
                   (click)="buyAgain(purchase)"
-                  class="text-xs">
-                  <mat-icon class="text-sm">shopping_cart</mat-icon>
-                  Comprar Novamente
+                  class="fin-buy-again text-xs">
+                  <mat-icon>shopping_cart</mat-icon>
+                  <span>Comprar Novamente</span>
                 </button>
               </div>
             </div>

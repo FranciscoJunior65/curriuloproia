@@ -20,6 +20,22 @@ export interface UsageData {
   revenue: number;
 }
 
+export type PaymentProvider = 'stripe' | 'mercadopago';
+
+export interface PaymentProviderSetting {
+  provider: PaymentProvider;
+  providers: PaymentProvider[];
+  labels?: Record<PaymentProvider, string>;
+}
+
+export interface PaymentConnectionTestResult {
+  success: boolean;
+  connected: boolean;
+  provider: PaymentProvider;
+  message: string;
+  details?: Record<string, unknown> | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -82,6 +98,29 @@ export class AdminService {
         }
         return throwError(() => error);
       })
+    );
+  }
+
+  getPaymentProvider(): Observable<{ success: boolean } & PaymentProviderSetting> {
+    return this.http.get<{ success: boolean } & PaymentProviderSetting>(
+      `${this.apiUrl}/admin/settings/payment-provider`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  updatePaymentProvider(provider: PaymentProvider): Observable<{ success: boolean; message?: string; provider: PaymentProvider }> {
+    return this.http.put<{ success: boolean; message?: string; provider: PaymentProvider }>(
+      `${this.apiUrl}/admin/settings/payment-provider`,
+      { provider },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  testPaymentProviderConnection(provider?: PaymentProvider): Observable<PaymentConnectionTestResult> {
+    return this.http.post<PaymentConnectionTestResult>(
+      `${this.apiUrl}/admin/settings/payment-provider/test`,
+      provider ? { provider } : {},
+      { headers: this.getAuthHeaders() }
     );
   }
 }

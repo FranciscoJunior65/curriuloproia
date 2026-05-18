@@ -37,7 +37,7 @@
               <mat-icon class="text-indigo-600">account_circle</mat-icon>
               <span
                 class="text-sm font-medium text-gray-700 hidden md:inline"
-                >{{ getUserDisplayName() }}</span
+                >Painel do usuário</span
               >
               <mat-icon class="text-gray-500 text-sm">arrow_drop_down</mat-icon>
             </button>
@@ -45,7 +45,7 @@
               <div class="p-2">
                 <div class="px-3 py-2 border-b border-gray-200 mb-2">
                   <p class="text-sm font-semibold text-gray-800">
-                    {{ currentUser?.name || currentUser?.email }}
+                    {{ getUserDisplayName() }}
                   </p>
                   <p class="text-xs text-gray-500">
                     {{ userCredits }} crédito(s) disponível(is)
@@ -186,6 +186,42 @@
           </div>
         </div>
       </div>
+
+
+      <!-- Aviso: Simulador de Entrevista -->
+      <aside
+        class="hero-disclaimer max-w-3xl mx-auto mt-10 text-left"
+        role="note"
+        aria-label="Como funciona o Simulador de Entrevista"
+      >
+        <div class="hero-disclaimer__header">
+          <mat-icon class="hero-disclaimer__icon" aria-hidden="true">info</mat-icon>
+          <h2 class="hero-disclaimer__title">Como usar o Simulador de Entrevista</h2>
+        </div>
+        <p class="hero-disclaimer__lead">
+          O <strong>Simulador de Entrevista</strong> só fica disponível <strong>depois</strong> que você enviar seu currículo aqui no site.
+          Não se preocupe — é simples. Siga os passos abaixo:
+        </p>
+        <ol class="hero-disclaimer__steps">
+          <li>
+            <span class="hero-disclaimer__step-num" aria-hidden="true">1</span>
+            <span><strong>Anexe seu currículo</strong> na seção de envio mais abaixo nesta página (arquivo PDF ou Word do seu computador).</span>
+          </li>
+          <li>
+            <span class="hero-disclaimer__step-num" aria-hidden="true">2</span>
+            <span>Aguarde a <strong>análise completa</strong> — leva poucos segundos.</span>
+          </li>
+          <li>
+            <span class="hero-disclaimer__step-num" aria-hidden="true">3</span>
+            <span>Pronto! O <strong>Simulador de Entrevista</strong> será liberado para você treinar suas respostas com calma.</span>
+          </li>
+        </ol>
+        <p class="hero-disclaimer__tip">
+          <mat-icon aria-hidden="true">lightbulb</mat-icon>
+          Dica: se você ainda não anexou o currículo, o simulador não aparecerá. Isso é normal — primeiro precisamos ler seu currículo para fazer perguntas personalizadas.
+        </p>
+      </aside>
+
     </div>
   </div>
 </div>
@@ -194,7 +230,7 @@
 <div class="min-h-screen bg-gray-50">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <!-- Plans Section -->
-    <div *ngIf="showPlans" class="mb-16">
+    <div *ngIf="showPlans" id="plans-section" class="mb-16">
       <div class="text-center mb-12">
         <h2
           class="text-4xl md:text-5xl font-bold text-gray-800 mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
@@ -216,12 +252,6 @@
                   <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
                 </div>
                 <span class="text-gray-700 text-sm">Análise completa com IA GPT-4</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Score detalhado do currículo</span>
               </div>
               <div class="flex items-start gap-3">
                 <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
@@ -257,12 +287,6 @@
                 <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
                   <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
                 </div>
-                <span class="text-gray-700 text-sm">Simulador de entrevista em texto</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
                 <span class="text-gray-700 text-sm">Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)</span>
               </div>
             </div>
@@ -270,7 +294,11 @@
         </div>
       </div>
 
-      <!-- Cupom de desconto (antes de escolher o plano / ir ao Stripe) -->
+      <p class="text-xs text-gray-500 mb-2 text-center">
+        Pagamento seguro via <strong>{{ paymentProviderLabel }}</strong>
+      </p>
+
+      <!-- Cupom de desconto (antes de escolher o plano / ir ao checkout) -->
       <div class="max-w-2xl mx-auto mb-8">
         <mat-card class="p-4 border-2 border-amber-100 bg-amber-50/50">
           <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
@@ -400,7 +428,7 @@
                 />
                 <div class="flex-1">
                   <span class="text-sm font-medium text-gray-700">Adicionar Currículo em Inglês</span>
-                  <p class="text-xs text-gray-500">+ R$ 5,90 (economia de R$ 4,00)</p>
+                  <p class="text-xs text-gray-500">+ R$ 5,90 (economia de R$ 12,00)</p>
                 </div>
               </label>
             </div>
@@ -483,13 +511,13 @@
     </div>
 
     <!-- Upload Section (só mostra se tiver créditos) -->
-    <div *ngIf="!showPlans && userCredits > 0" class="mb-12">
+    <div *ngIf="!showPlans && userCredits > 0" id="upload-section" class="mb-12">
       <mat-card class="shadow-2xl border-t-4 border-indigo-500">
         <mat-card-content class="p-8">
           <div class="text-center mb-6">
             <h2 class="text-3xl font-bold text-gray-800 mb-2">Comece Agora</h2>
             <p class="text-gray-600">
-              Envie seu currículo e receba uma análise completa em instantes
+              Anexe o seu currículo aqui e receba a análise completa e instantânea
             </p>
           </div>
 

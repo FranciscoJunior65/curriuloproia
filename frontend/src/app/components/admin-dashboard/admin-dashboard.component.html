@@ -108,6 +108,57 @@
     </mat-card>
   </div>
 
+  <!-- Configurações de pagamento -->
+  <mat-card *ngIf="!loading && stats" class="settings-card">
+    <mat-card-content>
+      <h2 class="settings-title">
+        <mat-icon>payments</mat-icon>
+        Meio de pagamento
+      </h2>
+      <p class="settings-description">
+        Escolha qual gateway será usado nas compras de créditos: Stripe (cartão) ou Mercado Pago (PIX, cartão e boleto no Brasil).
+      </p>
+
+      <div *ngIf="loadingPaymentSettings" class="loading-inline">
+        <mat-spinner diameter="28"></mat-spinner>
+      </div>
+
+      <div *ngIf="!loadingPaymentSettings" class="payment-provider-form">
+        <label for="payment-provider">Provedor ativo</label>
+        <select
+          id="payment-provider"
+          [(ngModel)]="paymentProvider"
+          class="period-select payment-provider-select"
+          [disabled]="savingPaymentProvider">
+          <option *ngFor="let p of paymentProviders" [value]="p">{{ paymentProviderLabels[p] }}</option>
+        </select>
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="savePaymentProvider()"
+          [disabled]="savingPaymentProvider || testingPaymentConnection">
+          {{ savingPaymentProvider ? 'Salvando...' : 'Salvar' }}
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="testPaymentConnection()"
+          [disabled]="savingPaymentProvider || testingPaymentConnection">
+          <mat-icon>{{ testingPaymentConnection ? 'hourglass_empty' : 'wifi_tethering' }}</mat-icon>
+          {{ testingPaymentConnection ? 'Validando...' : 'Validar conexão' }}
+        </button>
+      </div>
+
+      <p *ngIf="paymentConnectionMessage" [class]="paymentConnectionSuccess ? 'settings-success' : 'settings-error'">
+        <mat-icon class="connection-icon">{{ paymentConnectionSuccess ? 'check_circle' : 'error' }}</mat-icon>
+        {{ paymentConnectionMessage }}
+      </p>
+
+      <p *ngIf="paymentSettingsMessage" class="settings-success">{{ paymentSettingsMessage }}</p>
+      <p *ngIf="paymentSettingsError" class="settings-error">{{ paymentSettingsError }}</p>
+    </mat-card-content>
+  </mat-card>
+
   <!-- Usage Tabs -->
   <div *ngIf="!loading && stats" class="usage-section">
     <mat-tab-group>
