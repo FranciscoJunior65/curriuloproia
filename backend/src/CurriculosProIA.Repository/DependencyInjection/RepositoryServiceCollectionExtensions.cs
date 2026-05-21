@@ -9,6 +9,7 @@ public static class RepositoryServiceCollectionExtensions
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
         services.AddScoped<SupabaseService>();
+        services.AddScoped<ISupabaseConnectionTester>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IUserProfileRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IPurchaseRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<ICreditRepository>(sp => sp.GetRequiredService<SupabaseService>());

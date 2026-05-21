@@ -24,6 +24,17 @@ build/
 *.swo
 *~
 
+# Visual Studio / Rider (não versionar cache local)
+.vs/
+**/.vs/
+*.vsidx
+*.suo
+*.user
+*.userosscache
+*.rsuser
+*.sln.docstates
+*.DotSettings.user
+
 # OS
 .DS_Store
 Thumbs.db

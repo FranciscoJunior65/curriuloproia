@@ -11,7 +11,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient("Gemini");
         services.AddHttpClient("MercadoPago");
 
-        services.AddSingleton<IPricingService, PricingService>();
+        services.AddScoped<IPricingService, PricingService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddSingleton<IJwtService, JwtService>();
         services.AddSingleton<IEmailService, EmailService>();

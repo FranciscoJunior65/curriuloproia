@@ -1,27 +1,93 @@
+using System.Text.Json;
+using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Domain.Entities;
-using CurriculosProIA.Domain.Dtos;
-using CurriculosProIA.Repository.Persistence;
-using CurriculosProIA.Domain.Dtos;
-
-using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Repository.Interfaces;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using CurriculosProIA.Service.Interfaces;
 
 namespace CurriculosProIA.Service.Implementations;
 
 public class PricingService : IPricingService
 {
-    private static readonly IReadOnlyDictionary<string, PricingPlan> Plans = BuildPlans();
+    public const string PricingConfigKey = "pricing_config";
 
-    public IReadOnlyDictionary<string, PricingPlan> PricingPlans => Plans;
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
 
-    public PricingPlan? GetPlan(string planId) =>
-        Plans.TryGetValue(planId, out var plan) ? plan : null;
+    private readonly IAppSettingsRepository _settings;
+    private PricingConfigDto? _cachedConfig;
+
+    public PricingService(IAppSettingsRepository settings)
+    {
+        _settings = settings;
+    }
+
+    public async Task<PricingConfigDto> GetPricingConfigAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cachedConfig != null)
+        {
+            return _cachedConfig;
+        }
+
+        var json = await _settings.GetAppConfigValueAsync(PricingConfigKey, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                _cachedConfig = JsonSerializer.Deserialize<PricingConfigDto>(json, JsonOptions) ?? CreateDefaultConfig();
+                return _cachedConfig;
+            }
+            catch
+            {
+                // fallback
+            }
+        }
+
+        _cachedConfig = CreateDefaultConfig();
+        return _cachedConfig;
+    }
+
+    public async Task<PricingConfigDto> SavePricingConfigAsync(
+        PricingConfigDto config,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateConfig(config);
+        var normalized = NormalizeConfig(config);
+        var json = JsonSerializer.Serialize(normalized, JsonOptions);
+        await _settings.SetAppConfigValueAsync(PricingConfigKey, json, cancellationToken);
+        _cachedConfig = normalized;
+        return normalized;
+    }
+
+    public void ClearCache() => _cachedConfig = null;
+
+    public async Task<IReadOnlyDictionary<string, PricingPlan>> GetPricingPlansAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var config = await GetPricingConfigAsync(cancellationToken);
+        return BuildPlans(config);
+    }
+
+    public async Task<PricingPlan?> GetPlanAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        var plans = await GetPricingPlansAsync(cancellationToken);
+        return plans.TryGetValue(planId, out var plan) ? plan : null;
+    }
+
+    public PricingPlan? GetPlan(string planId)
+    {
+        var plans = BuildPlans(_cachedConfig ?? CreateDefaultConfig());
+        return plans.TryGetValue(planId, out var plan) ? plan : null;
+    }
+
+    public IReadOnlyDictionary<string, PricingPlan> PricingPlans =>
+        BuildPlans(_cachedConfig ?? CreateDefaultConfig());
 
     public ProfitMarginResult CalculateProfitMargin(string planId)
     {
-        if (!Plans.TryGetValue(planId, out var plan))
+        if (!PricingPlans.TryGetValue(planId, out var plan))
         {
             throw new ArgumentException("Plano não encontrado", nameof(planId));
         }
@@ -39,8 +105,75 @@ public class PricingService : IPricingService
         };
     }
 
-    private static IReadOnlyDictionary<string, PricingPlan> BuildPlans() =>
-        new Dictionary<string, PricingPlan>
+    private static PricingConfigDto CreateDefaultConfig() => new()
+    {
+        CreditUnitPriceBRL = 7.90m,
+        SingleDiscountPercent = 0,
+        Pack3DiscountPercent = 0,
+        Pack5DiscountPercent = 4.05m,
+        Pack3PriceOverride = 27.90m,
+        EnglishPriceBRL = 17.90m,
+        EnglishBundlePriceBRL = 5.90m
+    };
+
+    private static PricingConfigDto NormalizeConfig(PricingConfigDto config)
+    {
+        var normalized = new PricingConfigDto
+        {
+            CreditUnitPriceBRL = Math.Round(config.CreditUnitPriceBRL, 2),
+            SingleDiscountPercent = ClampPercent(config.SingleDiscountPercent),
+            Pack3DiscountPercent = ClampPercent(config.Pack3DiscountPercent),
+            Pack5DiscountPercent = ClampPercent(config.Pack5DiscountPercent),
+            EnglishPriceBRL = Math.Round(config.EnglishPriceBRL, 2),
+            EnglishBundlePriceBRL = Math.Round(config.EnglishBundlePriceBRL, 2),
+            SinglePriceOverride = Math.Round(config.SinglePriceBRL, 2),
+            Pack3PriceOverride = Math.Round(config.Pack3PriceBRL, 2),
+            Pack5PriceOverride = Math.Round(config.Pack5PriceBRL, 2)
+        };
+
+        return normalized;
+    }
+
+    private static void ValidateConfig(PricingConfigDto config)
+    {
+        if (config.CreditUnitPriceBRL <= 0)
+        {
+            throw new ArgumentException("Valor do crédito deve ser maior que zero.");
+        }
+
+        if (config.EnglishPriceBRL <= 0 || config.EnglishBundlePriceBRL <= 0)
+        {
+            throw new ArgumentException("Preços do pacote inglês devem ser maiores que zero.");
+        }
+    }
+
+    private static decimal ClampPercent(decimal value) =>
+        Math.Max(0, Math.Min(100, value));
+
+    private static string? BuildSavingsLabel(int analyses, decimal unitPrice, decimal finalPrice)
+    {
+        if (analyses <= 1)
+        {
+            return null;
+        }
+
+        var full = unitPrice * analyses;
+        var savings = full - finalPrice;
+        if (savings <= 0.01m)
+        {
+            return analyses == 3 ? "Melhor custo-benefício" : null;
+        }
+
+        return $"Economize R$ {savings:N2}".Replace('.', ',');
+    }
+
+    private static IReadOnlyDictionary<string, PricingPlan> BuildPlans(PricingConfigDto config)
+    {
+        var singlePrice = config.SinglePriceBRL;
+        var pack3Price = config.Pack3PriceBRL;
+        var pack5Price = config.Pack5PriceBRL;
+
+        return new Dictionary<string, PricingPlan>
         {
             ["single"] = new PricingPlan
             {
@@ -48,8 +181,8 @@ public class PricingService : IPricingService
                 Name = "Análise Única",
                 Description = "1 análise completa otimizada para sites de vagas",
                 Analyses = 1,
-                PriceBRL = 7.90m,
-                PriceUSD = 1.98m,
+                PriceBRL = singlePrice,
+                PriceUSD = Math.Round(singlePrice / 4m, 2),
                 Features =
                 [
                     "1 análise completa com IA",
@@ -66,9 +199,9 @@ public class PricingService : IPricingService
                 Name = "Pacote 3 Análises",
                 Description = "3 análises completas otimizadas para diferentes sites",
                 Analyses = 3,
-                PriceBRL = 27.90m,
-                PriceUSD = 5.58m,
-                Savings = "Melhor custo-benefício",
+                PriceBRL = pack3Price,
+                PriceUSD = Math.Round(pack3Price / 4m, 2),
+                Savings = BuildSavingsLabel(3, config.CreditUnitPriceBRL, pack3Price) ?? "Melhor custo-benefício",
                 Features =
                 [
                     "3 análises completas com IA",
@@ -84,9 +217,9 @@ public class PricingService : IPricingService
                 Name = "Pacote 5 Análises",
                 Description = "5 análises completas otimizadas para diferentes sites",
                 Analyses = 5,
-                PriceBRL = 37.90m,
-                PriceUSD = 7.58m,
-                Savings = "Economize R$ 1,60",
+                PriceBRL = pack5Price,
+                PriceUSD = Math.Round(pack5Price / 4m, 2),
+                Savings = BuildSavingsLabel(5, config.CreditUnitPriceBRL, pack5Price),
                 Features =
                 [
                     "5 análises completas com IA",
@@ -102,9 +235,9 @@ public class PricingService : IPricingService
                 Name = "Currículo em Inglês",
                 Description = "Geração de currículo profissional em inglês (apenas PDF e WORD, sem análise)",
                 Analyses = 0,
-                PriceBRL = 17.90m,
-                PriceBRLBundle = 5.90m,
-                PriceUSD = 1.98m,
+                PriceBRL = config.EnglishPriceBRL,
+                PriceBRLBundle = config.EnglishBundlePriceBRL,
+                PriceUSD = Math.Round(config.EnglishPriceBRL / 4m, 2),
                 Features =
                 [
                     "Currículo traduzido e adaptado para padrões internacionais",
@@ -115,4 +248,5 @@ public class PricingService : IPricingService
                 ]
             }
         };
+    }
 }

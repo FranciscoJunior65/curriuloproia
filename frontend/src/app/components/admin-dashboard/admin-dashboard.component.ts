@@ -2,13 +2,15 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AdminService, DashboardStats, UsageData, PaymentProvider } from '../../services/admin.service';
+import { AdminService, DashboardStats, UsageData, PaymentProvider, PricingConfig } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
+import { PricingPlansService } from '../../services/pricing-plans.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { SiteHeaderComponent } from '../site-header/site-header.component';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -16,6 +18,7 @@ import { MatTabsModule } from '@angular/material/tabs';
   imports: [
     CommonModule,
     FormsModule,
+    SiteHeaderComponent,
     MatCardModule,
     MatIconModule,
     MatButtonModule,
@@ -53,10 +56,24 @@ export class AdminDashboardComponent implements OnInit {
   paymentConnectionMessage = '';
   paymentConnectionSuccess = false;
 
+  pricingConfig: PricingConfig = {
+    creditUnitPriceBRL: 7.9,
+    singleDiscountPercent: 0,
+    pack3DiscountPercent: 0,
+    pack5DiscountPercent: 4.05,
+    englishPriceBRL: 17.9,
+    englishBundlePriceBRL: 5.9
+  };
+  loadingPricingSettings = false;
+  savingPricingSettings = false;
+  pricingSettingsMessage = '';
+  pricingSettingsError = '';
+
   constructor(
     private adminService: AdminService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private pricingPlansService: PricingPlansService
   ) {}
 
   ngOnInit(): void {
@@ -92,6 +109,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadDailyUsage();
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
+          this.loadPricingSettings();
         } else {
           console.error('❌ Token inválido, redirecionando...');
           alert('Sua sessão expirou. Por favor, faça login novamente.');
@@ -111,6 +129,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadDailyUsage();
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
+          this.loadPricingSettings();
         }
       }
     });
@@ -280,6 +299,49 @@ export class AdminDashboardComponent implements OnInit {
         this.paymentSettingsError = error.error?.message || error.error?.error || 'Erro ao salvar';
       }
     });
+  }
+
+  loadPricingSettings(): void {
+    this.loadingPricingSettings = true;
+    this.pricingSettingsError = '';
+    this.adminService.getPricingSettings().subscribe({
+      next: (response) => {
+        if (response.success && response.config) {
+          this.pricingConfig = { ...response.config };
+        }
+        this.loadingPricingSettings = false;
+      },
+      error: (error) => {
+        this.loadingPricingSettings = false;
+        this.pricingSettingsError = error.error?.message || 'Erro ao carregar preços';
+      }
+    });
+  }
+
+  savePricingSettings(): void {
+    this.savingPricingSettings = true;
+    this.pricingSettingsMessage = '';
+    this.pricingSettingsError = '';
+    this.adminService.updatePricingSettings(this.pricingConfig).subscribe({
+      next: (response) => {
+        this.savingPricingSettings = false;
+        if (response.success) {
+          this.pricingConfig = { ...response.config };
+          this.pricingSettingsMessage = response.message || 'Preços atualizados.';
+          this.pricingPlansService.clearCache();
+        }
+      },
+      error: (error) => {
+        this.savingPricingSettings = false;
+        this.pricingSettingsError = error.error?.message || error.error?.error || 'Erro ao salvar preços';
+      }
+    });
+  }
+
+  previewPlanPrice(analyses: number, discountPercent: number): number {
+    const base = (this.pricingConfig.creditUnitPriceBRL || 0) * analyses;
+    const factor = 1 - (discountPercent || 0) / 100;
+    return Math.round(Math.max(0, base * factor) * 100) / 100;
   }
 
   testPaymentConnection(): void {

@@ -1,4 +1,7 @@
-<div class="admin-dashboard-container">
+<div class="admin-page">
+  <app-site-header></app-site-header>
+
+  <div class="admin-dashboard-container">
   <!-- Acesso Negado -->
   <div *ngIf="accessDenied" class="access-denied-container">
     <mat-card class="access-denied-card">
@@ -16,17 +19,12 @@
 
   <!-- Dashboard (apenas para admins) -->
   <div *ngIf="!accessDenied">
-    <!-- Header -->
     <div class="dashboard-header">
       <h1 class="dashboard-title">
         <mat-icon class="dashboard-icon">dashboard</mat-icon>
         Painel Administrativo
       </h1>
       <div class="header-actions">
-        <button mat-raised-button color="accent" (click)="goHome()" class="back-button">
-          <mat-icon>home</mat-icon>
-          Voltar ao Site
-        </button>
         <button mat-raised-button color="primary" (click)="loadDashboard()">
           <mat-icon>refresh</mat-icon>
           Atualizar
@@ -108,14 +106,18 @@
     </mat-card>
   </div>
 
-  <!-- Configurações de pagamento -->
-  <mat-card *ngIf="!loading && stats" class="settings-card">
-    <mat-card-content>
-      <h2 class="settings-title">
-        <mat-icon>payments</mat-icon>
-        Meio de pagamento
-      </h2>
-      <p class="settings-description">
+  <!-- Configurações -->
+  <div *ngIf="!loading && stats" class="settings-section">
+    <mat-tab-group>
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">payments</mat-icon>
+          Meio de pagamento
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
         Escolha qual gateway será usado nas compras de créditos: Stripe (cartão) ou Mercado Pago (PIX, cartão e boleto no Brasil).
       </p>
 
@@ -156,8 +158,66 @@
 
       <p *ngIf="paymentSettingsMessage" class="settings-success">{{ paymentSettingsMessage }}</p>
       <p *ngIf="paymentSettingsError" class="settings-error">{{ paymentSettingsError }}</p>
-    </mat-card-content>
-  </mat-card>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">sell</mat-icon>
+          Planos e preços
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">Valor por crédito, desconto de cada pacote e preços do inglês.</p>
+      <div *ngIf="loadingPricingSettings" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
+      <div *ngIf="!loadingPricingSettings" class="pricing-config-form">
+        <div class="pricing-field pricing-field--full">
+          <label for="credit-unit">Valor por crédito (R$)</label>
+          <input id="credit-unit" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.creditUnitPriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+        </div>
+        <div class="pricing-plans-grid">
+          <div class="pricing-plan-box">
+            <h3>Análise única</h3>
+            <label>Desconto (%)</label>
+            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.singleDiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
+            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(1, pricingConfig.singleDiscountPercent)) }}</strong></p>
+          </div>
+          <div class="pricing-plan-box">
+            <h3>Pacote 3</h3>
+            <label>Desconto (%)</label>
+            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.pack3DiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
+            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong></p>
+          </div>
+          <div class="pricing-plan-box">
+            <h3>Pacote 5</h3>
+            <label>Desconto (%)</label>
+            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.pack5DiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
+            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong></p>
+          </div>
+        </div>
+        <div class="pricing-english-row">
+          <div class="pricing-field">
+            <label for="english-price">Inglês avulso (R$)</label>
+            <input id="english-price" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.englishPriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+          </div>
+          <div class="pricing-field">
+            <label for="english-bundle">Inglês no bundle (R$)</label>
+            <input id="english-bundle" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.englishBundlePriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+          </div>
+        </div>
+        <button mat-raised-button color="primary" (click)="savePricingSettings()" [disabled]="savingPricingSettings">{{ savingPricingSettings ? 'Salvando...' : 'Salvar preços' }}</button>
+      </div>
+      <p *ngIf="pricingSettingsMessage" class="settings-success">{{ pricingSettingsMessage }}</p>
+      <p *ngIf="pricingSettingsError" class="settings-error">{{ pricingSettingsError }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
 
   <!-- Usage Tabs -->
   <div *ngIf="!loading && stats" class="usage-section">

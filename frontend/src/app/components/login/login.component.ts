@@ -1,10 +1,15 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import {
+  PriceParts,
+  PricingPlansService,
+  PublicPlan
+} from '../../services/pricing-plans.service';
 import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
 import { environment } from '../../../environments/environment';
 
@@ -61,10 +66,66 @@ export class LoginComponent implements OnInit {
   // Proteção de dados
   acceptPrivacyPolicy = false;
 
+  @ViewChild('loginVideo') loginVideoRef?: ElementRef<HTMLVideoElement>;
+  videoPlaying = false;
+
+  analysisPlans: PublicPlan[] = [];
+  englishPlan: PublicPlan | null = null;
+  loadingPricing = true;
+
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private pricingPlansService: PricingPlansService
   ) {}
+
+  priceParts(priceBRL: number): PriceParts {
+    return this.pricingPlansService.formatPriceParts(priceBRL);
+  }
+
+  planTagline(plan: PublicPlan): string {
+    if (plan.savings) return plan.savings;
+    if (plan.id === 'single') return 'Perfeito para começar';
+    if (plan.id === 'pack3') return 'Melhor custo-benefício';
+    return '';
+  }
+
+  isPopularPlan(plan: PublicPlan): boolean {
+    return plan.id === 'pack3';
+  }
+
+  private loadPricingPlans(): void {
+    this.loadingPricing = true;
+    this.pricingPlansService.getPlans().subscribe({
+      next: (response) => {
+        const fromApi =
+          response.analysisPlans?.length
+            ? response.analysisPlans
+            : (response.plans || []).filter((p) => p.id !== 'english');
+        this.analysisPlans = fromApi;
+        this.englishPlan =
+          response.englishPlan ||
+          (response.plans || []).find((p) => p.id === 'english') ||
+          null;
+        this.loadingPricing = false;
+      },
+      error: () => {
+        this.loadingPricing = false;
+      }
+    });
+  }
+
+  toggleLoginVideo(): void {
+    const video = this.loginVideoRef?.nativeElement;
+    if (!video) return;
+
+    if (video.paused) {
+      video.muted = false;
+      void video.play();
+    } else {
+      video.pause();
+    }
+  }
 
   toggleMode() {
     this.isLogin = !this.isLogin;
@@ -672,6 +733,8 @@ export class LoginComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.loadPricingPlans();
+
     // Verifica se há token de reset ou OAuth na URL
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');

@@ -677,9 +677,11 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
     }
 
-        public IActionResult GetPlans()
+        public async Task<IActionResult> GetPlans(CancellationToken cancellationToken = default)
     {
-        var plans = _pricing.PricingPlans.Values.Select(plan =>
+        var config = await _pricing.GetPricingConfigAsync(cancellationToken);
+        var pricingPlans = await _pricing.GetPricingPlansAsync(cancellationToken);
+        var plans = pricingPlans.Values.Select(plan =>
         {
             var margin = _pricing.CalculateProfitMargin(plan.Id);
             return new
@@ -695,9 +697,21 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 plan.Features,
                 profitMargin = margin
             };
-        });
+        }).ToList();
 
-        return Ok(new { success = true, plans });
+        var analysisPlans = plans.Where(p => p.Id != "english").ToList();
+        var englishPlan = plans.FirstOrDefault(p => p.Id == "english");
+
+        return Ok(new
+        {
+            success = true,
+            plans,
+            analysisPlans,
+            englishPlan,
+            englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+            englishStandalonePriceBRL = config.EnglishPriceBRL,
+            creditUnitPriceBRL = config.CreditUnitPriceBRL
+        });
     }
 
         public async Task<IActionResult> GetActivePaymentProvider(CancellationToken cancellationToken)
@@ -776,7 +790,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     {
         try
         {
-            if (string.IsNullOrEmpty(body.PlanId) || _pricing.GetPlan(body.PlanId) == null)
+            if (string.IsNullOrEmpty(body.PlanId) || await _pricing.GetPlanAsync(body.PlanId, cancellationToken) == null)
             {
                 return BadRequest(new { success = false, error = "Plano inválido" });
             }
@@ -856,7 +870,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             return StatusCode(403, new { success = false, error = "Acesso negado" });
         }
 
-        var plan = _pricing.GetPlan(body.PlanId ?? string.Empty);
+        var plan = await _pricing.GetPlanAsync(body.PlanId ?? string.Empty, cancellationToken);
         if (plan == null)
         {
             return BadRequest(new { success = false, error = "planId inválido. Use: single, pack3 ou pack5." });

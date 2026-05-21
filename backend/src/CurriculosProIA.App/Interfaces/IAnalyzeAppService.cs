@@ -16,7 +16,7 @@ public interface IAnalyzeAppService
     Task<IActionResult> ListUserInterviews(CancellationToken cancellationToken = default);
     Task<IActionResult> GetInterview(string simulationId, CancellationToken cancellationToken = default);
     Task<IActionResult> DownloadInterview(string simulationId, CancellationToken cancellationToken = default);
-    IActionResult GetPlans();
+    Task<IActionResult> GetPlans(CancellationToken cancellationToken = default);
     Task<IActionResult> GetActivePaymentProvider(CancellationToken cancellationToken = default);
     Task<IActionResult> ValidateCoupon(string? code, string? cpf, CouponValidateSignature? body, CancellationToken cancellationToken = default);
     Task<IActionResult> CreatePaymentSession(CreatePaymentSessionSignature body, CancellationToken cancellationToken = default);

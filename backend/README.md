@@ -19,9 +19,16 @@ backend/
 
 ```bash
 cd backend
-cp ENV_EXAMPLE.env .env   # se necessário
+# Criar .env (ou copie as variáveis do backend-node/.env que já funciona)
+./scripts/setup-env.ps1
+# Edite .env: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (Supabase → Settings → API)
+
 dotnet run --project src/CurriculosProIA.Api/CurriculosProIA.Api.csproj
 ```
+
+A API carrega `.env` de `backend/.env` ou, em fallback, `backend-node/.env` (mesmo padrão da API Node).
+
+Teste Supabase: `GET http://localhost:3000/api/test/supabase`
 
 Porta padrão: **http://localhost:3000**
 

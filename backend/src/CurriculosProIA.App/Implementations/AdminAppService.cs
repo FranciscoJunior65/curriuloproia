@@ -28,11 +28,13 @@ public class AdminAppService : AppControllerBase, IAdminAppService
     private readonly ISettingsService _settings;
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly IPricingService _pricing;
     private readonly IConfiguration _configuration;
 
     public AdminAppService(
         IAppDataStore data,
         ISettingsService settings,
+        IPricingService pricing,
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
         IConfiguration configuration,
@@ -41,6 +43,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         _http = http;
         _data = data;
         _settings = settings;
+        _pricing = pricing;
         _stripe = stripe;
         _mercadoPago = mercadoPago;
         _configuration = configuration;
@@ -112,6 +115,75 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         catch (Exception ex)
         {
             return StatusCode(500, new { success = false, error = "Erro ao salvar configuração", message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> GetPricingSettings(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var config = await _pricing.GetPricingConfigAsync(cancellationToken);
+        return Ok(new
+        {
+            success = true,
+            config = new
+            {
+                creditUnitPriceBRL = config.CreditUnitPriceBRL,
+                singleDiscountPercent = config.SingleDiscountPercent,
+                pack3DiscountPercent = config.Pack3DiscountPercent,
+                pack5DiscountPercent = config.Pack5DiscountPercent,
+                englishPriceBRL = config.EnglishPriceBRL,
+                englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+                singlePriceBRL = config.SinglePriceBRL,
+                pack3PriceBRL = config.Pack3PriceBRL,
+                pack5PriceBRL = config.Pack5PriceBRL
+            }
+        });
+    }
+
+    public async Task<IActionResult> UpdatePricingSettings(
+        PricingConfigUpdateSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        try
+        {
+            var current = await _pricing.GetPricingConfigAsync(cancellationToken);
+            var updated = new PricingConfigDto
+            {
+                CreditUnitPriceBRL = body.CreditUnitPriceBRL ?? current.CreditUnitPriceBRL,
+                SingleDiscountPercent = body.SingleDiscountPercent ?? current.SingleDiscountPercent,
+                Pack3DiscountPercent = body.Pack3DiscountPercent ?? current.Pack3DiscountPercent,
+                Pack5DiscountPercent = body.Pack5DiscountPercent ?? current.Pack5DiscountPercent,
+                EnglishPriceBRL = body.EnglishPriceBRL ?? current.EnglishPriceBRL,
+                EnglishBundlePriceBRL = body.EnglishBundlePriceBRL ?? current.EnglishBundlePriceBRL
+            };
+
+            var saved = await _pricing.SavePricingConfigAsync(updated, cancellationToken);
+            _pricing.ClearCache();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Preços atualizados com sucesso.",
+                config = new
+                {
+                    creditUnitPriceBRL = saved.CreditUnitPriceBRL,
+                    singleDiscountPercent = saved.SingleDiscountPercent,
+                    pack3DiscountPercent = saved.Pack3DiscountPercent,
+                    pack5DiscountPercent = saved.Pack5DiscountPercent,
+                    englishPriceBRL = saved.EnglishPriceBRL,
+                    englishBundlePriceBRL = saved.EnglishBundlePriceBRL,
+                    singlePriceBRL = saved.SinglePriceBRL,
+                    pack3PriceBRL = saved.Pack3PriceBRL,
+                    pack5PriceBRL = saved.Pack5PriceBRL
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao salvar preços", message = ex.Message });
         }
     }
 

@@ -28,7 +28,7 @@ public class PaymentCheckoutService : IPaymentCheckoutService
         string? cpf = null,
         CancellationToken cancellationToken = default)
     {
-        var plan = _pricing.GetPlan(planId)
+        var plan = await _pricing.GetPlanAsync(planId, cancellationToken)
             ?? throw new InvalidOperationException("Plano não encontrado");
 
         var amountBrl = plan.PriceBRL;

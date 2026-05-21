@@ -11,6 +11,8 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { AuthService, User } from '../../services/auth.service';
+import { PricingPlansService } from '../../services/pricing-plans.service';
+import { SiteHeaderComponent } from '../site-header/site-header.component';
 
 @Component({
   selector: 'app-analyzer',
@@ -19,6 +21,7 @@ import { AuthService, User } from '../../services/auth.service';
     CommonModule,
     FormsModule,
     RouterModule,
+    SiteHeaderComponent,
     MatCardModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -47,6 +50,8 @@ export class AnalyzerComponent implements OnInit {
   adminFreeLoading = false;
   adminFreePlanId: string | null = null;
   includeEnglishResume: { [planId: string]: boolean } = {}; // Checkbox por plano
+  englishBundlePriceBRL = 5.9;
+  englishStandalonePriceBRL = 17.9;
   couponCode = '';
   cpf = '';
   validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
@@ -111,8 +116,16 @@ export class AnalyzerComponent implements OnInit {
     private analyzerService: AnalyzerService,
     private authService: AuthService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private pricingPlansService: PricingPlansService
   ) {}
+
+  englishBundleSavingsText(): string {
+    return this.pricingPlansService.englishBundleSavings(
+      this.englishStandalonePriceBRL,
+      this.englishBundlePriceBRL
+    );
+  }
 
   ngOnInit(): void {
     // Verifica o token primeiro antes de carregar o componente
@@ -316,8 +329,21 @@ export class AnalyzerComponent implements OnInit {
     this.loadingPlans = true;
     this.analyzerService.getPlans().subscribe({
       next: (response: any) => {
-        // Filtra o plano de inglês (será adicionado depois)
-        this.plans = (response.plans || []).filter((plan: any) => plan.id !== 'english');
+        const analysis =
+          response.analysisPlans?.length
+            ? response.analysisPlans
+            : (response.plans || []).filter((plan: any) => plan.id !== 'english');
+        this.plans = analysis;
+        if (response.englishBundlePriceBRL != null) {
+          this.englishBundlePriceBRL = Number(response.englishBundlePriceBRL);
+        }
+        if (response.englishStandalonePriceBRL != null) {
+          this.englishStandalonePriceBRL = Number(response.englishStandalonePriceBRL);
+        }
+        const english = response.englishPlan || (response.plans || []).find((p: any) => p.id === 'english');
+        if (english?.priceBRL != null) {
+          this.englishStandalonePriceBRL = Number(english.priceBRL);
+        }
         this.loadingPlans = false;
       },
       error: (err) => {
@@ -425,7 +451,7 @@ export class AnalyzerComponent implements OnInit {
     let totalPrice = plan.priceBRL;
     
     if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
-      totalPrice += 5.90; // Preço promocional quando comprado junto
+      totalPrice += this.englishBundlePriceBRL;
       alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
     }
     

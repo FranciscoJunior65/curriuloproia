@@ -13,12 +13,17 @@ using static Postgrest.Constants;
 
 namespace CurriculosProIA.Repository.Implementations;
 
-public class SupabaseService : IAppDataStore
+public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
 {
     private readonly Client? _client;
     private readonly ILogger<SupabaseService> _logger;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly string? _supabaseUrl;
+    private readonly string? _supabaseServiceKey;
+    private readonly bool _isPlaceholder;
     private bool _initialized;
+
+    public bool IsConfigured => _client != null;
 
     private static readonly Dictionary<string, string> ProfileUpdateKeyMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -42,19 +47,21 @@ public class SupabaseService : IAppDataStore
     {
         _logger = logger;
 
-        var supabaseUrl = configuration["SUPABASE_URL"]?.Trim();
-        var supabaseServiceKey = configuration["SUPABASE_SERVICE_ROLE_KEY"]?.Trim();
+        _supabaseUrl = configuration["SUPABASE_URL"]?.Trim();
+        _supabaseServiceKey = configuration["SUPABASE_SERVICE_ROLE_KEY"]?.Trim();
 
-        var hasUrl = !string.IsNullOrEmpty(supabaseUrl);
-        var hasKey = !string.IsNullOrEmpty(supabaseServiceKey);
+        var hasUrl = !string.IsNullOrEmpty(_supabaseUrl);
+        var hasKey = !string.IsNullOrEmpty(_supabaseServiceKey);
 
         var isPlaceholderUrl = hasUrl &&
-            (supabaseUrl!.Contains("seu-projeto.supabase.co", StringComparison.OrdinalIgnoreCase) ||
-             supabaseUrl.Contains("your-project.supabase.co", StringComparison.OrdinalIgnoreCase));
+            (_supabaseUrl!.Contains("seu-projeto.supabase.co", StringComparison.OrdinalIgnoreCase) ||
+             _supabaseUrl.Contains("your-project.supabase.co", StringComparison.OrdinalIgnoreCase));
         var isPlaceholderKey = hasKey &&
-            (supabaseServiceKey == "sua_service_role_key_aqui" ||
-             supabaseServiceKey!.StartsWith("sua_", StringComparison.Ordinal) ||
-             supabaseServiceKey.Length < 40);
+            (_supabaseServiceKey == "sua_service_role_key_aqui" ||
+             _supabaseServiceKey!.StartsWith("sua_", StringComparison.Ordinal) ||
+             _supabaseServiceKey.Length < 40);
+
+        _isPlaceholder = isPlaceholderUrl || isPlaceholderKey;
 
         if (!hasUrl || !hasKey)
         {
@@ -63,7 +70,7 @@ public class SupabaseService : IAppDataStore
                 hasUrl,
                 hasKey);
         }
-        else if (isPlaceholderUrl || isPlaceholderKey)
+        else if (_isPlaceholder)
         {
             _logger.LogWarning(
                 "Supabase com credenciais de exemplo — substitua no backend/.env pelos valores reais do painel Supabase.");
@@ -71,10 +78,91 @@ public class SupabaseService : IAppDataStore
         else
         {
             _logger.LogInformation("Supabase configurado corretamente");
-            _client = new Client(supabaseUrl!, supabaseServiceKey!, new SupabaseOptions
+            _client = new Client(_supabaseUrl!, _supabaseServiceKey!, new SupabaseOptions
             {
-                AutoConnectRealtime = false
+                AutoConnectRealtime = false,
+                AutoRefreshToken = false
             });
+        }
+    }
+
+    public SupabaseConnectionTestResult GetConfigurationStatus()
+    {
+        var hasUrl = !string.IsNullOrEmpty(_supabaseUrl);
+        var hasKey = !string.IsNullOrEmpty(_supabaseServiceKey);
+
+        if (!hasUrl || !hasKey)
+        {
+            return new SupabaseConnectionTestResult(
+                Configured: false,
+                Success: false,
+                Message: "Supabase não configurado. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env (backend/.env ou backend-node/.env).");
+        }
+
+        if (_isPlaceholder)
+        {
+            return new SupabaseConnectionTestResult(
+                Configured: false,
+                Success: false,
+                Message: "Credenciais de exemplo no .env — substitua pelos valores reais do painel Supabase (Settings → API).");
+        }
+
+        if (_client == null)
+        {
+            return new SupabaseConnectionTestResult(
+                Configured: false,
+                Success: false,
+                Message: "Cliente Supabase não inicializado.");
+        }
+
+        return new SupabaseConnectionTestResult(
+            Configured: true,
+            Success: true,
+            Message: "Supabase configurado.");
+    }
+
+    public async Task<SupabaseConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        var status = GetConfigurationStatus();
+        if (!status.Configured)
+        {
+            return status;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var response = await _client!
+                .From<PerfilUsuarioRow>()
+                .Select("id")
+                .Limit(5)
+                .Get(cancellationToken);
+
+            var count = response.Models?.Count ?? 0;
+            return new SupabaseConnectionTestResult(
+                Configured: true,
+                Success: true,
+                Message: "Conexão com Supabase OK.",
+                ProfileCount: count);
+        }
+        catch (PostgrestException ex) when (ex.Message.Contains("PGRST", StringComparison.Ordinal) ||
+                                             ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SupabaseConnectionTestResult(
+                Configured: true,
+                Success: true,
+                Message: "Conexão com Supabase OK.",
+                Warning: "Tabela perfis_usuarios não encontrada ou sem permissão. Execute os scripts SQL de migração.",
+                Error: ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao testar conexão Supabase");
+            return new SupabaseConnectionTestResult(
+                Configured: true,
+                Success: false,
+                Message: "Erro ao consultar Supabase.",
+                Error: ex.Message);
         }
     }
 
@@ -112,6 +200,9 @@ public class SupabaseService : IAppDataStore
         ex is PostgrestException pg && (pg.Message.Contains("PGRST116", StringComparison.Ordinal) ||
                                         pg.StatusCode == (int)System.Net.HttpStatusCode.NotFound);
 
+    /// <summary>Postgrest C# não aceita bool em Filter — usa string compatível com PostgREST.</summary>
+    private static string BoolCriterion(bool value) => value ? "true" : "false";
+
     public async Task<int> GetAvailableCreditsAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (_client == null || string.IsNullOrEmpty(userId))
@@ -125,7 +216,7 @@ public class SupabaseService : IAppDataStore
             var count = await _client
                 .From<CreditoRow>()
                 .Filter("id_usuario", Operator.Equals, userId)
-                .Filter("usado", Operator.Equals, false)
+                .Filter("usado", Operator.Equals, BoolCriterion(false))
                 .Count(CountType.Exact);
 
             return count;
@@ -300,7 +391,7 @@ public class SupabaseService : IAppDataStore
                 .From<CupomRow>()
                 .Select("id, nome, porcentagem_desconto, ativo")
                 .Filter("nome", Operator.ILike, trimmed)
-                .Filter("ativo", Operator.Equals, true)
+                .Filter("ativo", Operator.Equals, BoolCriterion(true))
                 .Get();
 
             return response.Models.FirstOrDefault();
@@ -696,7 +787,7 @@ public class SupabaseService : IAppDataStore
             .From<CreditoRow>()
             .Select("*")
             .Filter("id_usuario", Operator.Equals, userId)
-            .Filter("usado", Operator.Equals, false)
+            .Filter("usado", Operator.Equals, BoolCriterion(false))
             .Limit(amount)
             .Get();
 
@@ -947,7 +1038,7 @@ public class SupabaseService : IAppDataStore
             .From<CreditoRow>()
             .Select("*")
             .Filter("id_usuario", Operator.Equals, userId)
-            .Filter("usado", Operator.Equals, false)
+            .Filter("usado", Operator.Equals, BoolCriterion(false))
             .Limit(creditsUsed)
             .Get();
 
@@ -1005,7 +1096,7 @@ public class SupabaseService : IAppDataStore
             .From<CreditoRow>()
             .Select("*")
             .Filter("id_usuario", Operator.Equals, userId)
-            .Filter("usado", Operator.Equals, true)
+            .Filter("usado", Operator.Equals, BoolCriterion(true))
             .Order("usado_em", Ordering.Descending)
             .Limit(limit)
             .Get();
@@ -1320,7 +1411,7 @@ public class SupabaseService : IAppDataStore
         var response = await _client!
             .From<SiteVagasRow>()
             .Select("*")
-            .Filter("ativo", Operator.Equals, true)
+            .Filter("ativo", Operator.Equals, BoolCriterion(true))
             .Order("nome", Ordering.Ascending)
             .Get();
 
@@ -1364,11 +1455,11 @@ public class SupabaseService : IAppDataStore
         var totalCredits = await _client.From<CreditoRow>().Count(CountType.Exact);
         var creditsUsed = await _client
             .From<CreditoRow>()
-            .Filter("usado", Operator.Equals, true)
+            .Filter("usado", Operator.Equals, BoolCriterion(true))
             .Count(CountType.Exact);
         var creditsAvailable = await _client
             .From<CreditoRow>()
-            .Filter("usado", Operator.Equals, false)
+            .Filter("usado", Operator.Equals, BoolCriterion(false))
             .Count(CountType.Exact);
 
         var usersResponse = await _client

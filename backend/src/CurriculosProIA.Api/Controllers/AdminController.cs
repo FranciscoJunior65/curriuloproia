@@ -26,6 +26,13 @@ public class AdminController : ControllerBase
     public Task<IActionResult> TestPaymentProviderConnection([FromBody] PaymentProviderTestSignature? body, CancellationToken ct) =>
         _admin.TestPaymentProviderConnection(body, ct);
 
+    [HttpGet("settings/pricing")]
+    public Task<IActionResult> GetPricingSettings(CancellationToken ct) => _admin.GetPricingSettings(ct);
+
+    [HttpPut("settings/pricing")]
+    public Task<IActionResult> UpdatePricingSettings([FromBody] PricingConfigUpdateSignature body, CancellationToken ct) =>
+        _admin.UpdatePricingSettings(body, ct);
+
     [HttpGet("usage/daily")]
     public Task<IActionResult> GetDailyUsage([FromQuery] int days = 30, CancellationToken ct = default) =>
         _admin.GetDailyUsage(days, ct);

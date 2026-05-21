@@ -1,7 +1,26 @@
 <div class="login-page">
   <div class="login-card">
     <div class="login-card__image">
-      <div class="login-card__media" aria-hidden="true"></div>
+      <div class="login-card__media">
+        <video
+          #loginVideo
+          src="assets/videos/video.mp4"
+          loop
+          playsinline
+          preload="metadata"
+          (play)="videoPlaying = true"
+          (pause)="videoPlaying = false"
+        ></video>
+        <button
+          type="button"
+          class="login-card__video-control"
+          [class.login-card__video-control--playing]="videoPlaying"
+          (click)="toggleLoginVideo()"
+          [attr.aria-label]="videoPlaying ? 'Pausar vídeo' : 'Reproduzir vídeo'"
+        >
+          <mat-icon>{{ videoPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+        </button>
+      </div>
       <div class="login-card__image-overlay">
         <p class="login-card__badge">CurriculoPro IA</p>
         <h2 class="login-card__headline">
@@ -532,79 +551,49 @@
       </p>
     </div>
 
-    <div class="login-pricing__grid">
-      <article class="login-pricing__card">
-        <div class="login-pricing__card-head">
-          <h3 class="login-pricing__card-name">Análise Única</h3>
-          <div class="login-pricing__price">
-            <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">7</span>
-            <span class="login-pricing__price-cents">,90</span>
-          </div>
-          <p class="login-pricing__card-tagline">Perfeito para começar</p>
-        </div>
-        <ul class="login-pricing__features">
-          <li><mat-icon>check_circle</mat-icon><span><strong>1</strong> análise completa com IA</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
-        </ul>
-      </article>
+    <p *ngIf="loadingPricing" class="login-pricing__subtitle">Carregando planos...</p>
 
-      <article class="login-pricing__card login-pricing__card--popular">
-        <span class="login-pricing__badge">Popular</span>
+    <div *ngIf="!loadingPricing && analysisPlans.length" class="login-pricing__grid">
+      <article
+        *ngFor="let plan of analysisPlans"
+        class="login-pricing__card"
+        [class.login-pricing__card--popular]="isPopularPlan(plan)"
+      >
+        <span *ngIf="isPopularPlan(plan)" class="login-pricing__badge">Popular</span>
         <div class="login-pricing__card-head">
-          <h3 class="login-pricing__card-name">Pacote 3 Análises</h3>
+          <h3 class="login-pricing__card-name">{{ plan.name }}</h3>
           <div class="login-pricing__price">
             <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">27</span>
-            <span class="login-pricing__price-cents">,90</span>
+            <span class="login-pricing__price-value">{{ priceParts(plan.priceBRL).reais }}</span>
+            <span class="login-pricing__price-cents">,{{ priceParts(plan.priceBRL).cents }}</span>
           </div>
-          <p class="login-pricing__card-tagline">Melhor custo-benefício</p>
+          <p *ngIf="planTagline(plan)" class="login-pricing__card-tagline">{{ planTagline(plan) }}</p>
         </div>
         <ul class="login-pricing__features">
-          <li><mat-icon>check_circle</mat-icon><span><strong>3</strong> análises completas com IA</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
-        </ul>
-      </article>
-
-      <article class="login-pricing__card">
-        <div class="login-pricing__card-head">
-          <h3 class="login-pricing__card-name">Pacote 5 Análises</h3>
-          <div class="login-pricing__price">
-            <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">37</span>
-            <span class="login-pricing__price-cents">,90</span>
-          </div>
-          <p class="login-pricing__card-tagline">Economize R$ 1,60</p>
-        </div>
-        <ul class="login-pricing__features">
-          <li><mat-icon>check_circle</mat-icon><span><strong>5</strong> análises completas com IA</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
+          <li><mat-icon>check_circle</mat-icon><span><strong>{{ plan.analyses }}</strong> anÃ¡lise{{ plan.analyses > 1 ? 's' : '' }} completa{{ plan.analyses > 1 ? 's' : '' }} com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>OtimizaÃ§Ã£o para sites de vagas</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>CurrÃ­culo PDF ou WORD</span></li>
           <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
         </ul>
       </article>
     </div>
 
-    <article class="login-pricing__english">
+    <article *ngIf="!loadingPricing && englishPlan" class="login-pricing__english">
       <div class="login-pricing__english-inner">
         <div class="login-pricing__english-info">
-          <span class="login-pricing__english-label">Serviço Especial</span>
-          <h3 class="login-pricing__english-title">Currículo em Inglês</h3>
+          <span class="login-pricing__english-label">ServiÃ§o Especial</span>
+          <h3 class="login-pricing__english-title">{{ englishPlan.name }}</h3>
           <p class="login-pricing__english-desc">
-            Tradução profissional do seu currículo com adaptação cultural para o mercado internacional
+            TraduÃ§Ã£o profissional do seu currÃ­culo com adaptaÃ§Ã£o cultural para o mercado internacional
           </p>
         </div>
         <div class="login-pricing__english-price">
           <div class="login-pricing__price login-pricing__price--compact">
             <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">17</span>
-            <span class="login-pricing__price-cents">,90</span>
+            <span class="login-pricing__price-value">{{ priceParts(englishPlan.priceBRL).reais }}</span>
+            <span class="login-pricing__price-cents">,{{ priceParts(englishPlan.priceBRL).cents }}</span>
           </div>
-          <p class="login-pricing__english-unit">por tradução</p>
+          <p class="login-pricing__english-unit">por traduÃ§Ã£o</p>
         </div>
       </div>
     </article>

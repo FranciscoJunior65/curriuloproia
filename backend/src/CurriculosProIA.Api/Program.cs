@@ -3,25 +3,17 @@ using CurriculosProIA.Api.Authorization;
 using CurriculosProIA.App.DependencyInjection;
 using CurriculosProIA.Repository.DependencyInjection;
 using CurriculosProIA.Service.DependencyInjection;
-using DotNetEnv;
+using CurriculosProIA.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
-foreach (var candidate in new[]
-{
-    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
-    Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"),
-    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env")
-})
-{
-    if (!File.Exists(candidate)) continue;
-    Env.Load(candidate);
-    break;
-}
+EnvFileLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// DotNetEnv já definiu process env; reforça no IConfiguration
 builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddControllers();

@@ -53,7 +53,7 @@ public class AnalyzeController : ControllerBase
         _analyze.DownloadInterview(simulationId, ct);
 
     [HttpGet("plans")]
-    public IActionResult GetPlans() => _analyze.GetPlans();
+    public Task<IActionResult> GetPlans(CancellationToken ct) => _analyze.GetPlans(ct);
 
     [HttpGet("payment/provider")]
     public Task<IActionResult> GetActivePaymentProvider(CancellationToken ct) =>

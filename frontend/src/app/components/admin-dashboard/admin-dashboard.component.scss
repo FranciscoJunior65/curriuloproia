@@ -1,6 +1,10 @@
-.admin-dashboard-container {
+.admin-page {
   min-height: 100vh;
-  background: linear-gradient(to bottom, #f8fafc, #e2e8f0);
+  background: #e2e8f0;
+}
+
+.admin-dashboard-container {
+  min-height: calc(100vh - 4.5rem);
   padding: 2rem;
 }
 
@@ -55,6 +59,22 @@
   color: #64748b;
 }
 
+.settings-section {
+  margin-bottom: 2rem;
+  background: white;
+  border-radius: 1rem;
+  padding: 0 1.5rem 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.settings-tab-icon {
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  font-size: 1.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .settings-card {
   margin-bottom: 2rem;
   border-radius: 1rem;
@@ -62,6 +82,12 @@
 
   mat-card-content {
     padding: 1.5rem;
+  }
+
+  &--tab {
+    margin-bottom: 0;
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
   }
 }
 
@@ -73,6 +99,68 @@
   font-weight: 600;
   color: #1e293b;
   margin: 0 0 0.5rem;
+}
+
+.pricing-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pricing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  &--full {
+    max-width: 280px;
+  }
+}
+
+.pricing-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.pricing-plan-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+
+  h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    color: #1e293b;
+  }
+
+  label {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+}
+
+.pricing-preview {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: #475569;
+
+  strong {
+    color: #4f46e5;
+  }
+}
+
+.pricing-english-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
 }
 
 .settings-description {

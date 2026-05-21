@@ -36,6 +36,18 @@ export interface PaymentConnectionTestResult {
   details?: Record<string, unknown> | null;
 }
 
+export interface PricingConfig {
+  creditUnitPriceBRL: number;
+  singleDiscountPercent: number;
+  pack3DiscountPercent: number;
+  pack5DiscountPercent: number;
+  englishPriceBRL: number;
+  englishBundlePriceBRL: number;
+  singlePriceBRL?: number;
+  pack3PriceBRL?: number;
+  pack5PriceBRL?: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -120,6 +132,28 @@ export class AdminService {
     return this.http.post<PaymentConnectionTestResult>(
       `${this.apiUrl}/admin/settings/payment-provider/test`,
       provider ? { provider } : {},
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getPricingSettings(): Observable<{ success: boolean; config: PricingConfig }> {
+    return this.http.get<{ success: boolean; config: PricingConfig }>(
+      `${this.apiUrl}/admin/settings/pricing`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  updatePricingSettings(config: PricingConfig): Observable<{ success: boolean; message?: string; config: PricingConfig }> {
+    return this.http.put<{ success: boolean; message?: string; config: PricingConfig }>(
+      `${this.apiUrl}/admin/settings/pricing`,
+      {
+        creditUnitPriceBRL: config.creditUnitPriceBRL,
+        singleDiscountPercent: config.singleDiscountPercent,
+        pack3DiscountPercent: config.pack3DiscountPercent,
+        pack5DiscountPercent: config.pack5DiscountPercent,
+        englishPriceBRL: config.englishPriceBRL,
+        englishBundlePriceBRL: config.englishBundlePriceBRL
+      },
       { headers: this.getAuthHeaders() }
     );
   }
