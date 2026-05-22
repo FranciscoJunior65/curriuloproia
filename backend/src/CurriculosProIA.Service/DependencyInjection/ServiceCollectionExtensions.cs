@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICoverLetterService, CoverLetterService>();
         services.AddScoped<IJobSearchService, JobSearchService>();
         services.AddScoped<IInterviewSimulationService, InterviewSimulationService>();
+        services.AddScoped<IVoiceInterviewService, VoiceInterviewService>();
 
         return services;
     }

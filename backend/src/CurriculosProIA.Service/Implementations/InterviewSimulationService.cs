@@ -102,19 +102,16 @@ public class InterviewSimulationService : IInterviewSimulationService
             {
                 return evaluation;
             }
+
+            throw new InvalidOperationException("A IA retornou uma avaliação inválida ou vazia.");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Erro ao avaliar resposta com IA");
+            _logger.LogError(ex, "Erro ao avaliar resposta com IA");
+            throw new InvalidOperationException(
+                "Não foi possível avaliar a resposta com IA. Verifique GEMINI_API_KEY e USE_MOCK_AI=false.",
+                ex);
         }
-
-        return new InterviewEvaluation
-        {
-            Score = 70,
-            Feedback = "Resposta recebida. Continue com a próxima pergunta.",
-            Strengths = ["Respondeu à pergunta"],
-            Improvements = ["Pode ser mais específico"]
-        };
     }
 
     public Task<bool> SaveInterviewMessageAsync(
@@ -314,10 +311,13 @@ public class InterviewSimulationService : IInterviewSimulationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Erro ao gerar perguntas com IA");
+            _logger.LogError(ex, "Erro ao gerar perguntas com IA");
+            throw new InvalidOperationException(
+                "Não foi possível gerar perguntas da entrevista com IA. Verifique GEMINI_API_KEY e USE_MOCK_AI=false.",
+                ex);
         }
 
-        return GenerateDefaultQuestions(ExtractTechnologies(resumeText, analysis));
+        throw new InvalidOperationException("A IA não retornou perguntas válidas para a entrevista.");
     }
 
     private static List<string> ExtractTechnologies(string resumeText, AnalysisInput analysis)

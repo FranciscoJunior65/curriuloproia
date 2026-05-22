@@ -11,6 +11,19 @@ import { AnalyzerService } from '../../services/analyzer.service';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
+interface AnalysisServiceItem {
+  key: string;
+  label: string;
+  usado: boolean;
+  pendente: boolean;
+}
+
+interface AnalysisServices {
+  itens: AnalysisServiceItem[];
+  servicos_pendentes: number;
+  pacote_concluido: boolean;
+}
+
 interface Analysis {
   id: string;
   id_curriculo: string;
@@ -31,6 +44,7 @@ interface Analysis {
     recomendacoes: string[];
   } | null;
   criado_em: string;
+  servicos?: AnalysisServices;
   curriculos_importados?: {
     id: string;
     nome_arquivo_original: string;
@@ -43,6 +57,8 @@ interface Analysis {
     url_base: string;
   };
 }
+
+type HistoryFilter = 'all' | 'pending';
 
 @Component({
   selector: 'app-analyses-history',
@@ -67,6 +83,9 @@ export class AnalysesHistoryComponent implements OnInit {
   selectedAnalysis: Analysis | null = null;
   currentUser: any = null;
   userCredits = 0;
+  filterMode: HistoryFilter = 'all';
+  totalServicosPendentes = 0;
+  analisesComPendencias = 0;
 
   constructor(
     private analyzerService: AnalyzerService,
@@ -80,6 +99,14 @@ export class AnalysesHistoryComponent implements OnInit {
       this.userCredits = user?.credits || 0;
     });
     this.loadAnalyses();
+    this.loadPendingSummary();
+  }
+
+  get filteredAnalyses(): Analysis[] {
+    if (this.filterMode === 'pending') {
+      return this.analyses.filter(a => this.getPendingCount(a) > 0);
+    }
+    return this.analyses;
   }
 
   loadAnalyses(): void {
@@ -91,6 +118,7 @@ export class AnalysesHistoryComponent implements OnInit {
         this.loading = false;
         if (response.success && response.analyses) {
           this.analyses = response.analyses;
+          this.analisesComPendencias = this.analyses.filter(a => this.getPendingCount(a) > 0).length;
         } else {
           this.error = 'Nenhuma análise encontrada';
         }
@@ -98,9 +126,24 @@ export class AnalysesHistoryComponent implements OnInit {
       error: (err: any) => {
         this.loading = false;
         this.error = err.error?.message || 'Erro ao carregar análises';
-        console.error('Erro ao carregar análises:', err);
       }
     });
+  }
+
+  loadPendingSummary(): void {
+    this.analyzerService.getPendingServices().subscribe({
+      next: (res: any) => {
+        if (res?.success) {
+          this.totalServicosPendentes = res.totalServicosPendentes ?? 0;
+          this.analisesComPendencias = res.analisesComPendencias ?? 0;
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  setFilter(mode: HistoryFilter): void {
+    this.filterMode = mode;
   }
 
   viewAnalysis(analysis: Analysis): void {
@@ -111,24 +154,26 @@ export class AnalysesHistoryComponent implements OnInit {
     this.selectedAnalysis = null;
   }
 
-  generateCoverLetter(analysis: Analysis): void {
-    // Navega para a página de análise com os dados carregados
-    this.router.navigate(['/'], {
-      queryParams: {
-        analysisId: analysis.id,
-        action: 'cover-letter'
-      }
-    });
+  getPendingCount(analysis: Analysis): number {
+    return analysis.servicos?.servicos_pendentes ?? 0;
   }
 
-  startInterview(analysis: Analysis): void {
-    // Navega para a página de análise com os dados carregados
-    this.router.navigate(['/'], {
-      queryParams: {
-        analysisId: analysis.id,
-        action: 'interview'
-      }
-    });
+  isPackageComplete(analysis: Analysis): boolean {
+    return analysis.servicos?.pacote_concluido ?? false;
+  }
+
+  openService(analysis: Analysis, serviceKey: string): void {
+    const actionMap: Record<string, string> = {
+      carta_apresentacao: 'cover-letter',
+      entrevista: 'interview',
+      curriculo_melhorado: 'improved',
+      busca_vagas: 'jobs'
+    };
+    const params: Record<string, string> = { analysisId: analysis.id };
+    if (serviceKey !== 'view' && actionMap[serviceKey]) {
+      params['action'] = actionMap[serviceKey];
+    }
+    this.router.navigate(['/'], { queryParams: params });
   }
 
   formatDate(dateString: string): string {
@@ -154,11 +199,10 @@ export class AnalysesHistoryComponent implements OnInit {
 
   getScoreGradient(score: number): string {
     if (score >= 80) {
-      return 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; // verde
+      return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
     } else if (score >= 60) {
-      return 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)'; // amarelo/laranja
-    } else {
-      return 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)'; // vermelho/rosa
+      return 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)';
     }
+    return 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)';
   }
 }

@@ -6,6 +6,7 @@ using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Domain.Entities;
 using CurriculosProIA.Domain.Dtos;
+using CurriculosProIA.Domain.Helpers;
 using CurriculosProIA.Domain.Signatures.Auth;
 using CurriculosProIA.Domain.Signatures.Analyze;
 using CurriculosProIA.Domain.Signatures.Admin;
@@ -41,6 +42,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     private readonly ICoverLetterService _coverLetter;
     private readonly IJobSearchService _jobSearch;
     private readonly IInterviewSimulationService _interviewSimulation;
+    private readonly IVoiceInterviewService _voiceInterview;
     private readonly IAnalysisRepository _analysis;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AnalyzeAppService> _logger;
@@ -57,6 +59,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         ICoverLetterService coverLetter,
         IJobSearchService jobSearch,
         IInterviewSimulationService interviewSimulation,
+        IVoiceInterviewService voiceInterview,
         IAnalysisRepository analysis,
         IConfiguration configuration,
         ILogger<AnalyzeAppService> logger,
@@ -73,6 +76,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         _coverLetter = coverLetter;
         _jobSearch = jobSearch;
         _interviewSimulation = interviewSimulation;
+        _voiceInterview = voiceInterview;
         _analysis = analysis;
         _configuration = configuration;
         _logger = logger;
@@ -180,7 +184,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             });
         }
 
-        await _data.RecordCreditUsageAsync(
+        var creditUsage = await _data.RecordCreditUsageAsync(
             resolvedUserId,
             "analysis",
             1,
@@ -188,15 +192,55 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             siteId,
             cancellationToken);
 
+        string? resumeId = null;
+        string? analysisId = null;
+        if (!string.IsNullOrEmpty(siteId))
+        {
+            try
+            {
+                resumeId = await _data.SaveImportedResumeAsync(
+                    resolvedUserId,
+                    siteId,
+                    file.FileName,
+                    file.ContentType ?? "application/pdf",
+                    text,
+                    creditUsage.Id,
+                    analysis,
+                    cancellationToken);
+
+                if (!string.IsNullOrEmpty(resumeId))
+                {
+                    analysisId = await _analysis.SaveAnalysisAsync(
+                        resumeId,
+                        resolvedUserId,
+                        siteId,
+                        analysis,
+                        cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Análise concluída, mas falhou ao persistir histórico (currículo/análise)");
+            }
+        }
+
         var creditsRemaining = await _data.GetAvailableCreditsAsync(resolvedUserId, cancellationToken);
         var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
+
+        AnalysisServicesStatusDto? servicos = null;
+        if (!string.IsNullOrEmpty(analysisId))
+        {
+            servicos = await _analysis.GetServicesStatusAsync(analysisId, cancellationToken);
+        }
 
         return Ok(new
         {
             success = true,
             originalText = text,
             analysis,
-            resumeId = (string?)null,
+            resumeId,
+            analysisId,
+            servicos,
             metadata = new
             {
                 fileName = file.FileName,
@@ -216,6 +260,12 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         try
         {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
             if (string.IsNullOrWhiteSpace(body.OriginalText) || body.Analysis == null)
             {
                 return BadRequest(new
@@ -243,6 +293,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 cancellationToken);
 
             var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume);
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
+
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
             _logger.LogInformation("Currículo melhorado gerado em {Seconds:F2}s", processingTime);
 
@@ -269,6 +321,12 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         try
         {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
             if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
             {
                 return BadRequest(new
@@ -298,6 +356,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var pdfBuffer = _coverLetter.GenerateCoverLetterPdf(coverLetterText);
             var fileName = await BuildCoverLetterFileNameAsync(cancellationToken);
 
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CartaApresentacao, cancellationToken);
+
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
             _logger.LogInformation("Carta de apresentação gerada em {Seconds:F2}s", processingTime);
 
@@ -325,6 +385,11 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         try
         {
             var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
 
             if (body.Analysis == null || string.IsNullOrWhiteSpace(body.SiteId))
             {
@@ -355,6 +420,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 userId,
                 body.ResumeId,
                 cancellationToken);
+
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.BuscaVagas, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds.ToString("F2", CultureInfo.InvariantCulture) + "s";
 
@@ -515,6 +582,9 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 body.SimulationId,
                 body.AllAnswers ?? new List<InterviewAnswerItem>(),
                 cancellationToken);
+
+            var analysisIdForInterview = await ResolveAnalysisIdForInterviewAsync(body.AnalysisId, body.SimulationId, cancellationToken);
+            await TryMarkServiceUsedAsync(analysisIdForInterview, AnalysisBundledServiceKeys.Entrevista, cancellationToken);
 
             return Ok(new
             {
@@ -677,7 +747,174 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
     }
 
-        public async Task<IActionResult> GetPlans(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> StartVoiceInterview(
+        VoiceInterviewStartSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Dados incompletos",
+                    message = "É necessário fornecer resumeText e analysis"
+                });
+            }
+
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            var result = await _voiceInterview.StartAsync(
+                body.ResumeText,
+                body.Analysis,
+                body.SiteId,
+                userId,
+                body.ResumeId,
+                cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                simulationId = result.SimulationId,
+                persona = result.Persona,
+                openingMessage = result.OpeningMessage,
+                mode = "voice_conversational"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao iniciar entrevista por voz");
+            var statusCode = ex.Message.Contains("503", StringComparison.Ordinal) ? 503 : 500;
+            return StatusCode(statusCode, new
+            {
+                success = false,
+                error = "Erro ao iniciar entrevista por voz",
+                message = MapAiErrorMessage(ex)
+            });
+        }
+    }
+
+    public async Task<IActionResult> VoiceInterviewTurn(
+        VoiceInterviewTurnSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(body.ResumeText) ||
+                body.Analysis == null ||
+                string.IsNullOrWhiteSpace(body.CandidateMessage))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Dados incompletos",
+                    message = "É necessário resumeText, analysis e candidateMessage"
+                });
+            }
+
+            var history = body.History ?? [];
+            var turn = await _voiceInterview.ProcessTurnAsync(
+                body.ResumeText,
+                body.Analysis,
+                body.SiteId,
+                body.CandidateMessage.Trim(),
+                history,
+                body.TurnNumber > 0 ? body.TurnNumber : history.Count(m => m.Role == "candidate") + 1,
+                cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                interviewerMessage = turn.InterviewerMessage,
+                shouldEnd = turn.ShouldEnd,
+                phase = turn.Phase,
+                turnNumber = turn.TurnNumber
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro no turno da entrevista por voz");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro no turno da entrevista",
+                message = ex.Message
+            });
+        }
+    }
+
+    public async Task<IActionResult> FinishVoiceInterview(
+        VoiceInterviewFinishSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Dados incompletos",
+                    message = "É necessário resumeText e analysis"
+                });
+            }
+
+            var history = body.History ?? [];
+            var summary = await _voiceInterview.FinishAsync(
+                body.SimulationId,
+                body.ResumeText,
+                body.Analysis,
+                history,
+                cancellationToken);
+
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.Entrevista, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                score = summary.Score,
+                summary,
+                simulationId = body.SimulationId,
+                message = "Entrevista por voz finalizada"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao finalizar entrevista por voz");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao finalizar entrevista",
+                message = ex.Message
+            });
+        }
+    }
+
+    public Task<IActionResult> GetPricingConfig(CancellationToken cancellationToken = default) =>
+        BuildPublicPricingResponseAsync(cancellationToken);
+
+    public Task<IActionResult> GetPlans(CancellationToken cancellationToken = default) =>
+        BuildPublicPricingResponseAsync(cancellationToken);
+
+    private async Task<IActionResult> BuildPublicPricingResponseAsync(CancellationToken cancellationToken)
     {
         var config = await _pricing.GetPricingConfigAsync(cancellationToken);
         var pricingPlans = await _pricing.GetPricingPlansAsync(cancellationToken);
@@ -705,6 +942,18 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         return Ok(new
         {
             success = true,
+            config = new
+            {
+                creditUnitPriceBRL = config.CreditUnitPriceBRL,
+                singleDiscountPercent = config.SingleDiscountPercent,
+                pack3DiscountPercent = config.Pack3DiscountPercent,
+                pack5DiscountPercent = config.Pack5DiscountPercent,
+                englishPriceBRL = config.EnglishPriceBRL,
+                englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+                singlePriceBRL = config.SinglePriceBRL,
+                pack3PriceBRL = config.Pack3PriceBRL,
+                pack5PriceBRL = config.Pack5PriceBRL
+            },
             plans,
             analysisPlans,
             englishPlan,
@@ -965,11 +1214,21 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     {
         try
         {
-            var sites = await _data.GetActiveJobSitesAsync(cancellationToken);
+            var rows = await _data.GetActiveJobSitesAsync(cancellationToken);
+            var sites = rows.Select(s => new JobSiteListItemDto
+            {
+                Id = s.Id,
+                Nome = s.Nome ?? "",
+                UrlBase = s.UrlBase,
+                Descricao = s.Descricao,
+                Ativo = s.Ativo ?? true
+            }).ToList();
+
             return Ok(new { success = true, sites });
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Erro ao listar sites de vagas");
             return StatusCode(500, new { success = false, error = "Erro ao listar sites de vagas", message = ex.Message });
         }
     }
@@ -1107,6 +1366,138 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return $"{userName}-carta-apresentacao.pdf";
+    }
+
+    public async Task<IActionResult> GetPendingServices(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    error = "Não autenticado",
+                    message = "É necessário estar autenticado"
+                });
+            }
+
+            var summary = await _analysis.GetPendingServicesSummaryAsync(userId, cancellationToken);
+            return Ok(new
+            {
+                success = true,
+                totalServicosPendentes = summary.TotalServicosPendentes,
+                analisesComPendencias = summary.AnalisesComPendencias,
+                analises = summary.Analises
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao listar serviços pendentes");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao listar serviços pendentes",
+                message = ex.Message
+            });
+        }
+    }
+
+    private async Task TryMarkServiceUsedAsync(
+        string? analysisId,
+        string serviceKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(analysisId))
+        {
+            return;
+        }
+
+        await _analysis.MarkServiceUsedAsync(analysisId, serviceKey, cancellationToken);
+    }
+
+    private async Task<string?> ResolveAnalysisIdForInterviewAsync(
+        string? analysisId,
+        string? simulationId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(analysisId))
+        {
+            return analysisId;
+        }
+
+        if (string.IsNullOrWhiteSpace(simulationId))
+        {
+            return null;
+        }
+
+        var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+
+        var interview = await _data.GetInterviewByIdAsync(simulationId, cancellationToken);
+        if (interview?.IdCurriculo == null)
+        {
+            return null;
+        }
+
+        return await _analysis.GetAnalysisIdByResumeIdAsync(userId, interview.IdCurriculo, cancellationToken);
+    }
+
+    /// <summary>
+    /// Serviços inclusos na análise (entrevista, carta, PDF melhorado) não consomem novo crédito.
+    /// Com analysisId, exige que a análise pertença ao usuário autenticado.
+    /// </summary>
+    private async Task<IActionResult?> EnsureBundledServiceAccessAsync(
+        string? analysisId,
+        CancellationToken cancellationToken)
+    {
+        var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new
+            {
+                success = false,
+                error = "Não autenticado",
+                message = "É necessário estar logado para usar os serviços da sua análise."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(analysisId))
+        {
+            return null;
+        }
+
+        if (!await _analysis.UserOwnsAnalysisAsync(userId, analysisId, cancellationToken))
+        {
+            return StatusCode(403, new
+            {
+                success = false,
+                error = "Acesso negado",
+                message = "Análise não encontrada ou não pertence à sua conta."
+            });
+        }
+
+        return null;
+    }
+
+    private static string MapAiErrorMessage(Exception ex)
+    {
+        var msg = ex.Message ?? "";
+        if (msg.Contains("503", StringComparison.Ordinal) || msg.Contains("high demand", StringComparison.OrdinalIgnoreCase))
+        {
+            return "O serviço de IA está com alta demanda no momento. Aguarde alguns minutos e tente novamente — isso não consome um novo crédito.";
+        }
+
+        if (msg.Contains("429", StringComparison.Ordinal))
+        {
+            return "Limite temporário da IA atingido. Tente novamente em alguns minutos.";
+        }
+
+        return msg;
     }
 
 }

@@ -553,6 +553,10 @@
 
     <p *ngIf="loadingPricing" class="login-pricing__subtitle">Carregando planos...</p>
 
+    <p *ngIf="!loadingPricing && !analysisPlans.length" class="login-pricing__subtitle">
+      Não foi possível carregar os planos. Verifique se a API está rodando ({{ apiBaseUrl }}) e recarregue a página.
+    </p>
+
     <div *ngIf="!loadingPricing && analysisPlans.length" class="login-pricing__grid">
       <article
         *ngFor="let plan of analysisPlans"
@@ -570,9 +574,9 @@
           <p *ngIf="planTagline(plan)" class="login-pricing__card-tagline">{{ planTagline(plan) }}</p>
         </div>
         <ul class="login-pricing__features">
-          <li><mat-icon>check_circle</mat-icon><span><strong>{{ plan.analyses }}</strong> anÃ¡lise{{ plan.analyses > 1 ? 's' : '' }} completa{{ plan.analyses > 1 ? 's' : '' }} com IA</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>OtimizaÃ§Ã£o para sites de vagas</span></li>
-          <li><mat-icon>check_circle</mat-icon><span>CurrÃ­culo PDF ou WORD</span></li>
+          <li><mat-icon>check_circle</mat-icon><span><strong>{{ plan.analyses }}</strong> análise{{ plan.analyses > 1 ? 's' : '' }} completa{{ plan.analyses > 1 ? 's' : '' }} com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
           <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
         </ul>
       </article>
@@ -581,10 +585,10 @@
     <article *ngIf="!loadingPricing && englishPlan" class="login-pricing__english">
       <div class="login-pricing__english-inner">
         <div class="login-pricing__english-info">
-          <span class="login-pricing__english-label">ServiÃ§o Especial</span>
+          <span class="login-pricing__english-label">Serviço Especial</span>
           <h3 class="login-pricing__english-title">{{ englishPlan.name }}</h3>
           <p class="login-pricing__english-desc">
-            TraduÃ§Ã£o profissional do seu currÃ­culo com adaptaÃ§Ã£o cultural para o mercado internacional
+            Tradução profissional do seu currículo com adaptação cultural para o mercado internacional
           </p>
         </div>
         <div class="login-pricing__english-price">
@@ -593,7 +597,7 @@
             <span class="login-pricing__price-value">{{ priceParts(englishPlan.priceBRL).reais }}</span>
             <span class="login-pricing__price-cents">,{{ priceParts(englishPlan.priceBRL).cents }}</span>
           </div>
-          <p class="login-pricing__english-unit">por traduÃ§Ã£o</p>
+          <p class="login-pricing__english-unit">por tradução</p>
         </div>
       </div>
     </article>

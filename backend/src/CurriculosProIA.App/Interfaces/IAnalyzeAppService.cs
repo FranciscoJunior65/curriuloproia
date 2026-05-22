@@ -16,7 +16,11 @@ public interface IAnalyzeAppService
     Task<IActionResult> ListUserInterviews(CancellationToken cancellationToken = default);
     Task<IActionResult> GetInterview(string simulationId, CancellationToken cancellationToken = default);
     Task<IActionResult> DownloadInterview(string simulationId, CancellationToken cancellationToken = default);
+    Task<IActionResult> StartVoiceInterview(VoiceInterviewStartSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> VoiceInterviewTurn(VoiceInterviewTurnSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> FinishVoiceInterview(VoiceInterviewFinishSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GetPlans(CancellationToken cancellationToken = default);
+    Task<IActionResult> GetPricingConfig(CancellationToken cancellationToken = default);
     Task<IActionResult> GetActivePaymentProvider(CancellationToken cancellationToken = default);
     Task<IActionResult> ValidateCoupon(string? code, string? cpf, CouponValidateSignature? body, CancellationToken cancellationToken = default);
     Task<IActionResult> CreatePaymentSession(CreatePaymentSessionSignature body, CancellationToken cancellationToken = default);
@@ -26,4 +30,5 @@ public interface IAnalyzeAppService
     Task<IActionResult> ListJobSites(CancellationToken cancellationToken = default);
     Task<IActionResult> ListUserAnalyses(int limit, int offset, CancellationToken cancellationToken = default);
     Task<IActionResult> GetAnalysis(string analysisId, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetPendingServices(CancellationToken cancellationToken = default);
 }

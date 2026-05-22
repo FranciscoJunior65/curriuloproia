@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Subject, takeUntil, distinctUntilChanged } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -13,6 +14,7 @@ import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service
 import { AuthService, User } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
 import { SiteHeaderComponent } from '../site-header/site-header.component';
+import { VoiceInterviewComponent } from '../voice-interview/voice-interview.component';
 
 @Component({
   selector: 'app-analyzer',
@@ -22,6 +24,7 @@ import { SiteHeaderComponent } from '../site-header/site-header.component';
     FormsModule,
     RouterModule,
     SiteHeaderComponent,
+    VoiceInterviewComponent,
     MatCardModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -32,7 +35,10 @@ import { SiteHeaderComponent } from '../site-header/site-header.component';
   templateUrl: './analyzer.component.html',
   styleUrl: './analyzer.component.scss'
 })
-export class AnalyzerComponent implements OnInit {
+export class AnalyzerComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+  private creditsFetchInFlight = false;
+  private creditsLoadedForUserId: string | null = null;
   selectedFile: File | null = null;
   loading = false;
   generatingResume = false;
@@ -73,7 +79,8 @@ export class AnalyzerComponent implements OnInit {
   generatingPDF = false;
   generatingCoverLetter = false;
   resumeChanges: any = null; // Armazena mudanças após geração
-  showInterviewChat = false; // Controla exibição do chat
+  showInterviewChat = false; // Controla exibição do chat (legado texto)
+  showVoiceInterview = false; // Entrevista por voz com persona
   interviewStarted = false; // Controla se a entrevista foi iniciada
   interviewQuestions: string[] = []; // Perguntas da entrevista
   currentQuestionIndex = 0; // Índice da pergunta atual
@@ -90,6 +97,18 @@ export class AnalyzerComponent implements OnInit {
   
   // Propriedades para histórico de análises
   interviewSummary: any = null;
+  pendingServicesCount = 0;
+  pendingAnalysesCount = 0;
+
+  private updateShowPlans(): void {
+    this.showPlans = this.userCredits === 0 && !this.result;
+  }
+
+  private scrollToResults(): void {
+    setTimeout(() => {
+      document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+  }
 
   resetAnalysis(): void {
     this.selectedFile = null;
@@ -98,6 +117,8 @@ export class AnalyzerComponent implements OnInit {
     this.selectedSiteId = null;
     this.analysisCompleted = false;
     this.resumeChanges = null;
+    this.showVoiceInterview = false;
+    this.updateShowPlans();
     this.showInterviewChat = false;
     this.interviewStarted = false;
     this.interviewQuestions = [];
@@ -164,30 +185,41 @@ export class AnalyzerComponent implements OnInit {
     }
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   private loadComponent(): void {
-    // Observa mudanças no usuário autenticado
-    this.authService.currentUser$.subscribe(user => {
+    // Observa mudanças no usuário autenticado (sem re-buscar créditos a cada setUser)
+    this.authService.currentUser$
+      .pipe(
+        takeUntil(this.destroy$),
+        distinctUntilChanged((prev, curr) =>
+          prev?.id === curr?.id &&
+          prev?.credits === curr?.credits &&
+          prev?.user_type === curr?.user_type
+        )
+      )
+      .subscribe(user => {
       this.currentUser = user;
       this.isAuthenticated = !!user;
       this.isAdmin = this.authService.isAdmin();
       
-      // Debug: verifica se o user_type está presente
-      if (user) {
-        console.log('Usuário atual:', user);
-        console.log('user_type:', user.user_type);
-        console.log('isAdmin:', this.isAdmin);
-      }
-      
       if (user) {
         this.userId = user.id;
         this.userCredits = user.credits || 0;
-        this.showPlans = this.userCredits === 0;
-        this.checkCredits();
+        this.updateShowPlans();
+        if (this.creditsLoadedForUserId !== user.id) {
+          this.creditsLoadedForUserId = user.id;
+          this.checkCredits();
+        }
       } else {
         this.userId = '';
         this.userCredits = 0;
         this.showPlans = true;
         this.isAdmin = false;
+        this.creditsLoadedForUserId = null;
       }
     });
     
@@ -215,6 +247,7 @@ export class AnalyzerComponent implements OnInit {
     this.loadPlans();
     this.loadJobSites();
     this.loadPaymentProvider();
+    this.loadPendingServices();
     // Verifica se retornou do pagamento
     this.checkPaymentStatus();
     // Verifica se veio do histórico para continuar serviços
@@ -236,6 +269,23 @@ export class AnalyzerComponent implements OnInit {
 
   get paymentProviderLabel(): string {
     return this.paymentProvider === 'mercadopago' ? 'Mercado Pago' : 'Stripe';
+  }
+
+  loadPendingServices(): void {
+    if (!this.isAuthenticated) {
+      this.pendingServicesCount = 0;
+      this.pendingAnalysesCount = 0;
+      return;
+    }
+    this.analyzerService.getPendingServices().subscribe({
+      next: (res: any) => {
+        if (res?.success) {
+          this.pendingServicesCount = res.totalServicosPendentes ?? 0;
+          this.pendingAnalysesCount = res.analisesComPendencias ?? 0;
+        }
+      },
+      error: () => {}
+    });
   }
 
   checkAnalysisFromHistory(): void {
@@ -274,23 +324,39 @@ export class AnalyzerComponent implements OnInit {
               score: analysis.score_geral || 0
             },
             resumeId: analysis.id_curriculo,
+            analysisId: analysis.id,
             creditsRemaining: this.userCredits
           };
           
           // Define o site selecionado
           this.selectedSiteId = analysis.id_site_vagas;
           this.analysisCompleted = true;
+          this.updateShowPlans();
           
           // Executa ação solicitada
           if (action === 'cover-letter') {
             setTimeout(() => {
               this.generateCoverLetter();
+              this.scrollToResults();
             }, 500);
           } else if (action === 'interview') {
             setTimeout(() => {
               this.openInterviewSimulation();
+              this.scrollToResults();
             }, 500);
+          } else if (action === 'improved') {
+            setTimeout(() => {
+              this.generateImprovedResume('pdf');
+              this.scrollToResults();
+            }, 500);
+          } else if (action === 'jobs') {
+            setTimeout(() => {
+              this.scrollToResults();
+            }, 500);
+          } else {
+            this.scrollToResults();
           }
+          // voice interview abre via openInterviewSimulation
           
           // Limpa query params
           this.router.navigate([], {
@@ -354,10 +420,10 @@ export class AnalyzerComponent implements OnInit {
   }
 
   private syncUserCredits(): void {
-    if (this.currentUser) {
-      this.currentUser.credits = this.userCredits;
-      this.authService.setUser({ ...this.currentUser, credits: this.userCredits });
+    if (!this.currentUser || this.currentUser.credits === this.userCredits) {
+      return;
     }
+    this.authService.setUser({ ...this.currentUser, credits: this.userCredits });
   }
 
   checkCredits(): void {
@@ -367,14 +433,23 @@ export class AnalyzerComponent implements OnInit {
       return;
     }
 
+    if (this.creditsFetchInFlight) {
+      return;
+    }
+
+    this.creditsFetchInFlight = true;
     this.analyzerService.getCredits(this.userId).subscribe({
       next: (response: any) => {
-        this.userCredits = response.credits || 0;
-        this.showPlans = this.userCredits === 0;
-        this.syncUserCredits();
+        this.creditsFetchInFlight = false;
+        const credits = response?.credits ?? 0;
+        if (this.userCredits !== credits) {
+          this.userCredits = credits;
+          this.syncUserCredits();
+        }
+        this.updateShowPlans();
       },
       error: () => {
-        // Se não encontrar usuário, mostra planos
+        this.creditsFetchInFlight = false;
         this.userCredits = 0;
         this.showPlans = true;
       }
@@ -402,7 +477,7 @@ export class AnalyzerComponent implements OnInit {
           this.userCredits = response.credits ?? this.userCredits + (plan.analyses || 0);
           if (this.currentUser) this.currentUser.credits = this.userCredits;
           this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
-          this.showPlans = this.userCredits === 0;
+          this.updateShowPlans();
         } else {
           this.error = response.error || 'Erro ao adicionar créditos';
         }
@@ -611,7 +686,12 @@ export class AnalyzerComponent implements OnInit {
           this.showPlans = false;
           this.checkCredits();
         },
-        error: () => { this.userCredits = (this.userCredits || 0) + 1; this.showPlans = false; this.checkCredits(); }
+        error: () => {
+          this.creditsFetchInFlight = false;
+          this.userCredits = (this.userCredits || 0) + 1;
+          this.showPlans = false;
+          this.syncUserCredits();
+        }
       });
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
@@ -699,7 +779,9 @@ export class AnalyzerComponent implements OnInit {
           this.userCredits = Math.max(0, this.userCredits - 1);
         }
         this.syncUserCredits();
-        this.checkCredits();
+        this.updateShowPlans();
+        this.scrollToResults();
+        this.loadPendingServices();
       },
       error: (err) => {
         if (err.status === 401) {
@@ -758,7 +840,8 @@ export class AnalyzerComponent implements OnInit {
       this.result.originalText,
       this.result.analysis,
       format,
-      this.selectedSiteId || undefined
+      this.selectedSiteId || undefined,
+      this.result.analysisId || undefined
     ).subscribe({
       next: (response: any) => {
         // Se retornar blob (arquivo)
@@ -850,7 +933,8 @@ export class AnalyzerComponent implements OnInit {
     this.analyzerService.generateCoverLetter(
       this.result.originalText,
       this.result.analysis,
-      this.selectedSiteId || undefined
+      this.selectedSiteId || undefined,
+      this.result.analysisId || undefined
     ).subscribe({
       next: (blob: Blob) => {
         // Cria um link temporário para download
@@ -879,7 +963,8 @@ export class AnalyzerComponent implements OnInit {
       return;
     }
 
-    this.showInterviewChat = true;
+    this.showVoiceInterview = true;
+    this.showInterviewChat = false;
     this.interviewStarted = false;
     this.interviewQuestions = [];
     this.currentQuestionIndex = 0;
@@ -1044,7 +1129,11 @@ export class AnalyzerComponent implements OnInit {
     }
     
     this.loading = true;
-    this.analyzerService.finishInterview(this.simulationId, this.interviewAnswers).subscribe({
+    this.analyzerService.finishInterview(
+      this.simulationId,
+      this.interviewAnswers,
+      this.result?.analysisId || undefined
+    ).subscribe({
       next: (response: any) => {
         this.loading = false;
         console.log('✅ Entrevista finalizada. Score:', response.score);

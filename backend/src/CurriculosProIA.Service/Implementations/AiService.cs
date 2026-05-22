@@ -8,6 +8,7 @@ using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Domain.Dtos;
 
 using CurriculosProIA.Service.Interfaces;
+using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Repository.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -51,8 +52,8 @@ public class AiService : IAiService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Erro no provedor de IA, usando análise mockada como fallback");
-            return await AnalyzeResumeWithMockAsync(resumeText, siteId, cancellationToken);
+            _logger.LogError(ex, "Erro no provedor de IA na análise de currículo");
+            throw;
         }
     }
 
@@ -77,10 +78,7 @@ public class AiService : IAiService
         CancellationToken cancellationToken)
     {
         var apiKey = _configuration["GEMINI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Gemini não configurado. Configure GEMINI_API_KEY no .env");
-        }
+        GeminiApiKeyValidator.EnsureValidOrThrow(apiKey);
 
         var validatedText = ValidateAndTruncateText(resumeText);
         var siteInfo = await BuildSiteInfoAsync(siteId, cancellationToken);
@@ -111,22 +109,11 @@ public class AiService : IAiService
             IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou depois.
             """;
 
-        var requestBody = new
-        {
-            contents = new[]
-            {
-                new
-                {
-                    role = "user",
-                    parts = new[] { new { text = $"{systemPrompt}\n\n{userPrompt}" } }
-                }
-            },
-            generationConfig = new
-            {
-                temperature = 0.7,
-                maxOutputTokens = 4000
-            }
-        };
+        var requestBody = GeminiRequestBuilder.BuildGenerateContentRequest(
+            $"{systemPrompt}\n\n{userPrompt}",
+            temperature: 0.7,
+            maxOutputTokens: 4000,
+            model: GeminiModel);
 
         var client = _httpClientFactory.CreateClient("Gemini");
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent?key={apiKey}";
@@ -138,18 +125,7 @@ public class AiService : IAiService
             throw new InvalidOperationException($"Gemini API error: {response.StatusCode} - {payload}");
         }
 
-        using var doc = JsonDocument.Parse(payload);
-        var responseContent = doc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-
-        if (string.IsNullOrWhiteSpace(responseContent))
-        {
-            throw new InvalidOperationException("Resposta vazia da API Gemini");
-        }
+        var responseContent = GeminiResponseParser.ExtractText(payload);
 
         responseContent = CleanJsonResponse(responseContent);
         var analysis = ParseAnalysisJson(responseContent);
@@ -362,56 +338,52 @@ public class AiService : IAiService
     {
         if (UseMockAi())
         {
-            return "Conteúdo gerado em modo mock. Configure GEMINI_API_KEY para geração real com IA.";
+            throw new InvalidOperationException(
+                "Geração em modo mock desativada para este ambiente. Defina USE_MOCK_AI=false e configure GEMINI_API_KEY.");
         }
 
         var apiKey = _configuration["GEMINI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Gemini não configurado. Configure GEMINI_API_KEY no .env");
-        }
+        GeminiApiKeyValidator.EnsureValidOrThrow(apiKey);
 
-        var requestBody = new
-        {
-            contents = new[]
-            {
-                new
-                {
-                    role = "user",
-                    parts = new[] { new { text = prompt } }
-                }
-            },
-            generationConfig = new
-            {
-                temperature,
-                maxOutputTokens
-            }
-        };
+        var requestBody = GeminiRequestBuilder.BuildGenerateContentRequest(
+            prompt,
+            temperature,
+            maxOutputTokens,
+            GeminiModel);
 
         var client = _httpClientFactory.CreateClient("Gemini");
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent?key={apiKey}";
-        using var response = await client.PostAsJsonAsync(url, requestBody, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
+            using var response = await client.PostAsJsonAsync(url, requestBody, cancellationToken);
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var text = GeminiResponseParser.ExtractText(payload);
+                return CleanMarkdownFence(text);
+            }
+
+            var retryable = response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
+                || response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+
+            if (retryable && attempt < maxAttempts)
+            {
+                _logger.LogWarning(
+                    "Gemini {Status} na tentativa {Attempt}/{Max}. Reagendando...",
+                    response.StatusCode,
+                    attempt,
+                    maxAttempts);
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2), cancellationToken);
+                continue;
+            }
+
             throw new InvalidOperationException($"Gemini API error: {response.StatusCode} - {payload}");
         }
 
-        using var doc = JsonDocument.Parse(payload);
-        var text = doc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidOperationException("Resposta vazia da API Gemini");
-        }
-
-        return CleanMarkdownFence(text.Trim());
+        throw new InvalidOperationException("Gemini API error: falha após tentativas");
     }
 
     internal static string CleanMarkdownFence(string content)

@@ -268,6 +268,20 @@ VALUES
     '{"foco": "descrições detalhadas", "formato": "tradicional", "destaque": "experiência quantificada"}'::JSONB
   ),
   (
+    'Trabalhar Brasil',
+    'https://www.trabalhabrasil.com.br',
+    TRUE,
+    '["experiência", "formação", "competências", "objetivos", "disponibilidade"]'::JSONB,
+    '{"foco": "mercado brasileiro", "formato": "tradicional", "destaque": "clareza e objetividade"}'::JSONB
+  ),
+  (
+    'Empregos.com.br',
+    'https://www.empregos.com.br',
+    TRUE,
+    '["experiência", "habilidades", "formação", "realizações", "objetivos"]'::JSONB,
+    '{"foco": "diversidade de vagas", "formato": "tradicional", "destaque": "experiência e competências"}'::JSONB
+  ),
+  (
     'InfoJobs',
     'https://www.infojobs.com.br',
     TRUE,

@@ -9,4 +9,5 @@ public class SearchJobsSignature
     public string? Location { get; set; }
     public string? ResumeText { get; set; }
     public string? ResumeId { get; set; }
+    public string? AnalysisId { get; set; }
 }

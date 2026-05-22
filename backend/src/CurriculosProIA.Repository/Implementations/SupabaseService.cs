@@ -5,6 +5,7 @@ using CurriculosProIA.Domain.Entities;
 using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Repository.Persistence;
+using CurriculosProIA.Domain.Helpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Postgrest.Exceptions;
@@ -1534,6 +1535,231 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
     }
 
+    public async Task<string?> SaveAnalysisAsync(
+        string resumeId,
+        string userId,
+        string siteId,
+        ResumeAnalysisResult analysis,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(resumeId) || string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(siteId))
+        {
+            return null;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var analysisId = Guid.NewGuid().ToString();
+            var resultadoCompleto = JsonSerializer.SerializeToElement(new
+            {
+                experiencia = analysis.Experiencia,
+                formacao = analysis.Formacao,
+                habilidades = analysis.Habilidades,
+                score = analysis.Score,
+                pontosFortes = analysis.PontosFortes,
+                pontosMelhorar = analysis.PontosMelhorar,
+                recomendacoes = analysis.Recomendacoes
+            });
+
+            var insert = new AnaliseCurriculoRow
+            {
+                Id = analysisId,
+                IdCurriculo = resumeId,
+                IdUsuario = userId,
+                IdSiteVagas = siteId,
+                ScoreGeral = analysis.Score,
+                PontosFortes = analysis.PontosFortes,
+                PontosMelhorar = analysis.PontosMelhorar,
+                PalavrasChaveSugeridas = analysis.Habilidades,
+                Recomendacoes = analysis.Recomendacoes,
+                ResultadoCompleto = resultadoCompleto,
+                ServicosUtilizados = AnalysisServicesStatusHelper.SerializeStatus(
+                    AnalysisBundledServiceKeys.CreateDefaultStatus()),
+                CriadoEm = DateTimeOffset.UtcNow
+            };
+
+            await _client.From<AnaliseCurriculoRow>().Insert(insert);
+            return analysisId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao salvar análise de currículo");
+            return null;
+        }
+    }
+
+    public async Task<bool> UserOwnsAnalysisAsync(
+        string userId,
+        string analysisId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(analysisId))
+        {
+            return false;
+        }
+
+        var analysis = await GetAnalysisByIdAsync(analysisId, cancellationToken);
+        return analysis != null && analysis.IdUsuario == userId;
+    }
+
+    public async Task<bool> MarkServiceUsedAsync(
+        string analysisId,
+        string serviceKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(analysisId) || string.IsNullOrEmpty(serviceKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var response = await _client
+                .From<AnaliseCurriculoRow>()
+                .Select("*")
+                .Filter("id", Operator.Equals, analysisId)
+                .Get();
+
+            var row = response.Models.FirstOrDefault();
+            if (row == null)
+            {
+                return false;
+            }
+
+            var status = AnalysisServicesStatusHelper.ParseStatus(row.ServicosUtilizados);
+            status[serviceKey] = true;
+            status[AnalysisBundledServiceKeys.Analise] = true;
+
+            await _client
+                .From<AnaliseCurriculoRow>()
+                .Filter("id", Operator.Equals, analysisId)
+                .Set(x => x.ServicosUtilizados, AnalysisServicesStatusHelper.SerializeStatus(status))
+                .Update();
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Erro ao marcar serviço {Service} na análise {AnalysisId}", serviceKey, analysisId);
+            return false;
+        }
+    }
+
+    public async Task<string?> GetAnalysisIdByResumeIdAsync(
+        string userId,
+        string resumeId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(resumeId))
+        {
+            return null;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<AnaliseCurriculoRow>()
+            .Select("id")
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Filter("id_curriculo", Operator.Equals, resumeId)
+            .Order("criado_em", Ordering.Descending)
+            .Limit(1)
+            .Get();
+
+        return response.Models.FirstOrDefault()?.Id;
+    }
+
+    public async Task<bool> HasInterviewForResumeAsync(
+        string resumeId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(resumeId))
+        {
+            return false;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<SimulacaoEntrevistaRow>()
+            .Select("id")
+            .Filter("id_curriculo", Operator.Equals, resumeId)
+            .Limit(1)
+            .Get();
+
+        return response.Models.Count > 0;
+    }
+
+    public async Task<AnalysisServicesStatusDto> GetServicesStatusAsync(
+        string analysisId,
+        CancellationToken cancellationToken = default)
+    {
+        var empty = AnalysisServicesStatusHelper.Build(AnalysisBundledServiceKeys.CreateDefaultStatus());
+        if (_client == null || string.IsNullOrEmpty(analysisId))
+        {
+            return empty;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<AnaliseCurriculoRow>()
+            .Select("*")
+            .Filter("id", Operator.Equals, analysisId)
+            .Get();
+
+        var row = response.Models.FirstOrDefault();
+        if (row == null)
+        {
+            return empty;
+        }
+
+        var hasInterview = await HasInterviewForResumeAsync(row.IdCurriculo ?? "", cancellationToken);
+        var status = AnalysisServicesStatusHelper.ParseStatus(row.ServicosUtilizados);
+        return AnalysisServicesStatusHelper.Build(status, hasInterview);
+    }
+
+    public async Task<PendingServicesSummaryDto> GetPendingServicesSummaryAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        var summary = new PendingServicesSummaryDto();
+        if (_client == null || string.IsNullOrEmpty(userId))
+        {
+            return summary;
+        }
+
+        var analyses = await GetUserAnalysesAsync(userId, 100, 0, cancellationToken);
+        foreach (var analysis in analyses)
+        {
+            if (analysis.Servicos == null || analysis.Servicos.ServicosPendentes <= 0)
+            {
+                continue;
+            }
+
+            var pendentes = analysis.Servicos.Itens
+                .Where(i => i.Pendente)
+                .Select(i => i.Label)
+                .ToList();
+
+            summary.Analises.Add(new PendingAnalysisItemDto
+            {
+                AnalysisId = analysis.Id,
+                NomeArquivo = analysis.CurriculosImportados?.NomeArquivoOriginal,
+                SiteNome = analysis.SitesVagas?.Nome,
+                ScoreGeral = analysis.ScoreGeral,
+                CriadoEm = analysis.CriadoEm,
+                ServicosPendentes = analysis.Servicos.ServicosPendentes,
+                Pendentes = pendentes,
+                Servicos = analysis.Servicos
+            });
+
+            summary.TotalServicosPendentes += analysis.Servicos.ServicosPendentes;
+        }
+
+        summary.AnalisesComPendencias = summary.Analises.Count;
+        return summary;
+    }
+
     private async Task<AnaliseCurriculoListItemDto> MapAnaliseWithRelationsAsync(
         AnaliseCurriculoRow row,
         CancellationToken cancellationToken,
@@ -1551,7 +1777,9 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
                     NomeArquivoOriginal = resume.NomeArquivoOriginal,
                     TipoArquivo = resume.TipoArquivo,
                     ConteudoExtraido = includeResumeContent ? resume.ConteudoExtraido : null,
-                    DadosEstruturados = includeResumeContent ? resume.DadosEstruturados : null,
+                    DadosEstruturados = includeResumeContent
+                        ? JsonElementCloneHelper.CloneOrNull(resume.DadosEstruturados)
+                        : null,
                     CriadoEm = resume.CriadoEm
                 };
             }
@@ -1572,6 +1800,12 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             }
         }
 
+        var hasInterview = !string.IsNullOrEmpty(row.IdCurriculo) &&
+            await HasInterviewForResumeAsync(row.IdCurriculo, cancellationToken);
+        var servicosStatus = AnalysisServicesStatusHelper.Build(
+            AnalysisServicesStatusHelper.ParseStatus(JsonElementCloneHelper.CloneOrNull(row.ServicosUtilizados)),
+            hasInterview);
+
         return new AnaliseCurriculoListItemDto
         {
             Id = row.Id,
@@ -1583,10 +1817,11 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             PontosMelhorar = row.PontosMelhorar,
             PalavrasChaveSugeridas = row.PalavrasChaveSugeridas,
             Recomendacoes = row.Recomendacoes,
-            ResultadoCompleto = row.ResultadoCompleto,
+            ResultadoCompleto = JsonElementCloneHelper.CloneOrNull(row.ResultadoCompleto),
             CriadoEm = row.CriadoEm,
             CurriculosImportados = curriculo,
-            SitesVagas = site
+            SitesVagas = site,
+            Servicos = servicosStatus
         };
     }
 

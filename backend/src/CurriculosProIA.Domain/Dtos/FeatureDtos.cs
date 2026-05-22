@@ -157,6 +157,9 @@ public class AnaliseCurriculoListItemDto
 
     [JsonPropertyName("sites_vagas")]
     public SiteVagasRefDto? SitesVagas { get; set; }
+
+    [JsonPropertyName("servicos")]
+    public AnalysisServicesStatusDto? Servicos { get; set; }
 }
 
 public class CurriculoImportadoRefDto
@@ -250,4 +253,14 @@ public class InterviewMessageDto
     public int Ordem { get; set; }
     public Dictionary<string, object?>? DadosExtras { get; set; }
     public DateTimeOffset? CriadoEm { get; set; }
+}
+
+/// <summary>DTO serializável para listagem de sites (evita metadados Postgrest no JSON).</summary>
+public class JobSiteListItemDto
+{
+    public string Id { get; set; } = "";
+    public string Nome { get; set; } = "";
+    public string? UrlBase { get; set; }
+    public string? Descricao { get; set; }
+    public bool Ativo { get; set; } = true;
 }

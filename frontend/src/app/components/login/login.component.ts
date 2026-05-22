@@ -72,6 +72,7 @@ export class LoginComponent implements OnInit {
   analysisPlans: PublicPlan[] = [];
   englishPlan: PublicPlan | null = null;
   loadingPricing = true;
+  readonly apiBaseUrl = environment.apiUrl.replace(/\/api\/?$/, '');
 
   constructor(
     private authService: AuthService,
@@ -96,13 +97,14 @@ export class LoginComponent implements OnInit {
 
   private loadPricingPlans(): void {
     this.loadingPricing = true;
+    this.pricingPlansService.clearCache();
     this.pricingPlansService.getPlans().subscribe({
       next: (response) => {
         const fromApi =
           response.analysisPlans?.length
             ? response.analysisPlans
             : (response.plans || []).filter((p) => p.id !== 'english');
-        this.analysisPlans = fromApi;
+        this.analysisPlans = fromApi.length ? fromApi : [];
         this.englishPlan =
           response.englishPlan ||
           (response.plans || []).find((p) => p.id === 'english') ||

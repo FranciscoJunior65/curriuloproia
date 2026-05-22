@@ -8,4 +8,5 @@ public class GenerateImprovedSignature
     public AnalysisInput? Analysis { get; set; }
     public string? SiteId { get; set; }
     public string? Format { get; set; }
+    public string? AnalysisId { get; set; }
 }

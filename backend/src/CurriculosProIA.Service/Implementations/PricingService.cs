@@ -186,7 +186,7 @@ public class PricingService : IPricingService
                 Features =
                 [
                     "1 análise completa com IA",
-                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)",
+                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)",
                     "Simulador de entrevista com IA",
                     "Currículo melhorado em PDF ou WORD",
                     "Palavras-chave estratégicas",
@@ -205,7 +205,7 @@ public class PricingService : IPricingService
                 Features =
                 [
                     "3 análises completas com IA",
-                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)",
+                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)",
                     "Simulador de entrevista com IA",
                     "Currículo melhorado em PDF ou WORD",
                     "Palavras-chave estratégicas"
@@ -223,7 +223,7 @@ public class PricingService : IPricingService
                 Features =
                 [
                     "5 análises completas com IA",
-                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)",
+                    "Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)",
                     "Simulador de entrevista com IA",
                     "Currículo melhorado em PDF ou WORD",
                     "Palavras-chave estratégicas"

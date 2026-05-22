@@ -116,7 +116,7 @@ export const PRICING_PLANS = {
     priceUSD: 1.98,
     features: [
       '1 análise completa com IA',
-      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)',
+      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
       'Palavras-chave estratégicas',
@@ -133,7 +133,7 @@ export const PRICING_PLANS = {
     savings: 'Melhor custo-benefício',
     features: [
       '3 análises completas com IA',
-      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)',
+      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
       'Palavras-chave estratégicas'
@@ -149,7 +149,7 @@ export const PRICING_PLANS = {
     savings: 'Economize R$ 1,60',
     features: [
       '5 análises completas com IA',
-      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, InfoJobs, Catho, Indeed)',
+      'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
       'Palavras-chave estratégicas'

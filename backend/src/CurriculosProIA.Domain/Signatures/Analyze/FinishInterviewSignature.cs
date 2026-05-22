@@ -6,4 +6,5 @@ public class FinishInterviewSignature
 {
     public string? SimulationId { get; set; }
     public List<InterviewAnswerItem>? AllAnswers { get; set; }
+    public string? AnalysisId { get; set; }
 }

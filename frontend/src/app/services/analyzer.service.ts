@@ -17,6 +17,7 @@ export interface AnalysisResult {
   };
   creditsRemaining?: number | null;
   resumeId?: string | null; // ID do currículo no banco de dados
+  analysisId?: string | null; // ID da análise paga — libera serviços inclusos sem novo crédito
   metadata?: {
     fileName: string;
     fileSize: number;
@@ -44,10 +45,19 @@ export class AnalyzerService {
   }
 
 
-  generateImprovedResume(originalText: string, analysis: any, format: 'pdf' | 'word' = 'pdf', siteId?: string): Observable<Blob | any> {
+  generateImprovedResume(
+    originalText: string,
+    analysis: any,
+    format: 'pdf' | 'word' = 'pdf',
+    siteId?: string,
+    analysisId?: string
+  ): Observable<Blob | any> {
     const body: any = { originalText, analysis, format };
     if (siteId) {
       body.siteId = siteId;
+    }
+    if (analysisId) {
+      body.analysisId = analysisId;
     }
     
     const headers = this.getAuthHeaders();
@@ -177,10 +187,13 @@ export class AnalyzerService {
     });
   }
 
-  generateCoverLetter(resumeText: string, analysis: any, siteId?: string): Observable<Blob> {
+  generateCoverLetter(resumeText: string, analysis: any, siteId?: string, analysisId?: string): Observable<Blob> {
     const body: any = { resumeText, analysis };
     if (siteId) {
       body.siteId = siteId;
+    }
+    if (analysisId) {
+      body.analysisId = analysisId;
     }
     
     return this.http.post(
@@ -193,7 +206,14 @@ export class AnalyzerService {
     ) as Observable<Blob>;
   }
 
-  searchJobs(analysis: any, siteId: string, location?: string, resumeText?: string, resumeId?: string): Observable<any> {
+  searchJobs(
+    analysis: any,
+    siteId: string,
+    location?: string,
+    resumeText?: string,
+    resumeId?: string,
+    analysisId?: string
+  ): Observable<any> {
     const body: any = { analysis, siteId };
     if (location) {
       body.location = location;
@@ -203,6 +223,9 @@ export class AnalyzerService {
     }
     if (resumeId) {
       body.resumeId = resumeId;
+    }
+    if (analysisId) {
+      body.analysisId = analysisId;
     }
     
     return this.http.post(
@@ -247,10 +270,62 @@ export class AnalyzerService {
     );
   }
 
-  finishInterview(simulationId: string, allAnswers: any[]): Observable<any> {
+  startVoiceInterview(
+    resumeText: string,
+    analysis: any,
+    siteId?: string,
+    resumeId?: string,
+    analysisId?: string
+  ): Observable<any> {
+    const body: any = { resumeText, analysis };
+    if (siteId) body.siteId = siteId;
+    if (resumeId) body.resumeId = resumeId;
+    if (analysisId) body.analysisId = analysisId;
+    return this.http.post(`${this.apiUrl}/analyze/interview/voice/start`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  voiceInterviewTurn(
+    resumeText: string,
+    analysis: any,
+    candidateMessage: string,
+    history: { role: string; content: string }[],
+    turnNumber: number,
+    siteId?: string,
+    simulationId?: string,
+    analysisId?: string
+  ): Observable<any> {
+    const body: any = { resumeText, analysis, candidateMessage, history, turnNumber };
+    if (siteId) body.siteId = siteId;
+    if (simulationId) body.simulationId = simulationId;
+    if (analysisId) body.analysisId = analysisId;
+    return this.http.post(`${this.apiUrl}/analyze/interview/voice/turn`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  finishVoiceInterview(
+    resumeText: string,
+    analysis: any,
+    history: { role: string; content: string }[],
+    simulationId?: string,
+    analysisId?: string
+  ): Observable<any> {
+    const body: any = { resumeText, analysis, history };
+    if (simulationId) body.simulationId = simulationId;
+    if (analysisId) body.analysisId = analysisId;
+    return this.http.post(`${this.apiUrl}/analyze/interview/voice/finish`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  finishInterview(simulationId: string, allAnswers: any[], analysisId?: string): Observable<any> {
+    const body: any = { simulationId, allAnswers };
+    if (analysisId) body.analysisId = analysisId;
     return this.http.post(
       `${this.apiUrl}/analyze/interview/finish`,
-      { simulationId, allAnswers },
+      body,
       { 
         headers: this.getAuthHeaders()
       }
@@ -293,6 +368,12 @@ export class AnalyzerService {
         headers: this.getAuthHeaders()
       }
     );
+  }
+
+  getPendingServices(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/analyze/pending-services`, {
+      headers: this.getAuthHeaders()
+    });
   }
 
   getAnalysisById(analysisId: string): Observable<any> {

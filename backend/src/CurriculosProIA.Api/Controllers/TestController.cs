@@ -1,5 +1,6 @@
 using CurriculosProIA.Api.Infrastructure;
 using CurriculosProIA.Repository.Interfaces;
+using CurriculosProIA.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CurriculosProIA.Api.Controllers;
@@ -9,11 +10,16 @@ namespace CurriculosProIA.Api.Controllers;
 public class TestController : ControllerBase
 {
     private readonly ISupabaseConnectionTester _supabase;
+    private readonly IAiService _ai;
     private readonly IConfiguration _configuration;
 
-    public TestController(ISupabaseConnectionTester supabase, IConfiguration configuration)
+    public TestController(
+        ISupabaseConnectionTester supabase,
+        IAiService ai,
+        IConfiguration configuration)
     {
         _supabase = supabase;
+        _ai = ai;
         _configuration = configuration;
     }
 
@@ -71,5 +77,92 @@ public class TestController : ControllerBase
             connection = "OK",
             envFile = EnvFileLoader.LoadedPath
         });
+    }
+
+    /// <summary>Testa conexão real com Gemini (equivalente ao GET /api/test/gemini da API Node).</summary>
+    [HttpGet("gemini")]
+    public async Task<IActionResult> TestGemini(CancellationToken cancellationToken)
+    {
+        var apiKey = _configuration["GEMINI_API_KEY"]?.Trim() ?? "";
+        var useMock = _configuration["USE_MOCK_AI"] is "true" or "1";
+        var model = _configuration["GEMINI_MODEL"] ?? "gemini-3-flash-preview";
+        if (model == "gemini-pro")
+        {
+            model = "gemini-3-flash-preview";
+        }
+
+        var debug = new
+        {
+            hasApiKey = !string.IsNullOrWhiteSpace(apiKey),
+            apiKeyPreview = string.IsNullOrWhiteSpace(apiKey) ? "não definido" : $"{apiKey[..Math.Min(20, apiKey.Length)]}...",
+            apiKeyLength = apiKey.Length,
+            provider = _configuration["AI_PROVIDER"] ?? "gemini",
+            model,
+            useMockAi = useMock,
+            envFile = EnvFileLoader.LoadedPath
+        };
+
+        if (useMock)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Modo mock ativo",
+                message = "USE_MOCK_AI está true. Defina USE_MOCK_AI=false no .env para testar a IA real.",
+                debug
+            });
+        }
+
+        var invalidKeyReason = GeminiConfigHelper.GetInvalidKeyReason(apiKey);
+        if (invalidKeyReason != null)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Gemini não configurado",
+                message = invalidKeyReason,
+                debug,
+                help = new[]
+                {
+                    "1. Acesse https://aistudio.google.com/apikey",
+                    "2. Crie uma API key (grátis)",
+                    "3. Edite backend/.env e substitua GEMINI_API_KEY=sua-chave-gemini-aqui pela chave real",
+                    "4. Reinicie a API após salvar"
+                }
+            });
+        }
+
+        try
+        {
+            var start = DateTime.UtcNow;
+            var response = await _ai.GenerateTextAsync(
+                "Responda apenas com a palavra OK, sem mais nada.",
+                temperature: 0.1,
+                maxOutputTokens: 256,
+                cancellationToken);
+            var elapsedMs = (int)(DateTime.UtcNow - start).TotalMilliseconds;
+
+            return Ok(new
+            {
+                success = true,
+                message = "Conexão com Gemini OK!",
+                response = response.Trim(),
+                responseTime = $"{elapsedMs}ms",
+                debug,
+                connection = "OK",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao conectar com Gemini",
+                message = ex.Message,
+                debug,
+                connection = "ERRO"
+            });
+        }
     }
 }

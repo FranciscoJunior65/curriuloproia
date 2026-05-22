@@ -1,5 +1,6 @@
 using CurriculosProIA.App.Interfaces;
 using CurriculosProIA.Domain.Signatures.Analyze;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CurriculosProIA.Api.Controllers;
@@ -52,9 +53,28 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> DownloadInterview(string simulationId, CancellationToken ct) =>
         _analyze.DownloadInterview(simulationId, ct);
 
+    [HttpPost("interview/voice/start")]
+    public Task<IActionResult> StartVoiceInterview([FromBody] VoiceInterviewStartSignature body, CancellationToken ct) =>
+        _analyze.StartVoiceInterview(body, ct);
+
+    [HttpPost("interview/voice/turn")]
+    public Task<IActionResult> VoiceInterviewTurn([FromBody] VoiceInterviewTurnSignature body, CancellationToken ct) =>
+        _analyze.VoiceInterviewTurn(body, ct);
+
+    [HttpPost("interview/voice/finish")]
+    public Task<IActionResult> FinishVoiceInterview([FromBody] VoiceInterviewFinishSignature body, CancellationToken ct) =>
+        _analyze.FinishVoiceInterview(body, ct);
+
+    /// <summary>Planos e preços configurados (público, sem autenticação).</summary>
+    [AllowAnonymous]
+    [HttpGet("pricing-config")]
+    public Task<IActionResult> GetPricingConfig(CancellationToken ct) => _analyze.GetPricingConfig(ct);
+
+    [AllowAnonymous]
     [HttpGet("plans")]
     public Task<IActionResult> GetPlans(CancellationToken ct) => _analyze.GetPlans(ct);
 
+    [AllowAnonymous]
     [HttpGet("payment/provider")]
     public Task<IActionResult> GetActivePaymentProvider(CancellationToken ct) =>
         _analyze.GetActivePaymentProvider(ct);
@@ -90,4 +110,8 @@ public class AnalyzeController : ControllerBase
     [HttpGet("analyses/{analysisId}")]
     public Task<IActionResult> GetAnalysis(string analysisId, CancellationToken ct) =>
         _analyze.GetAnalysis(analysisId, ct);
+
+    [HttpGet("pending-services")]
+    public Task<IActionResult> GetPendingServices(CancellationToken ct) =>
+        _analyze.GetPendingServices(ct);
 }

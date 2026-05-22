@@ -91,6 +91,43 @@
 <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4 md:p-8">
   <div class="max-w-7xl mx-auto pt-4">
 
+    <!-- Resumo de pendências -->
+    <div *ngIf="totalServicosPendentes > 0" class="mb-6">
+      <mat-card class="bg-amber-50 border-l-4 border-amber-500 shadow-md">
+        <mat-card-content class="p-5">
+          <div class="flex items-start gap-3">
+            <mat-icon class="text-amber-600">pending_actions</mat-icon>
+            <div>
+              <p class="font-semibold text-gray-800">
+                Você tem {{ totalServicosPendentes }} serviço(s) pendente(s) em {{ analisesComPendencias }} análise(s)
+              </p>
+              <p class="text-sm text-gray-600 mt-1">
+                Cada compra libera um pacote completo. Use quando quiser — não precisa fazer tudo no mesmo dia.
+              </p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Filtros -->
+    <div *ngIf="!loading && analyses.length > 0" class="flex flex-wrap gap-2 mb-6">
+      <button
+        mat-stroked-button
+        [color]="filterMode === 'all' ? 'primary' : undefined"
+        (click)="setFilter('all')"
+      >
+        Todas ({{ analyses.length }})
+      </button>
+      <button
+        mat-stroked-button
+        [color]="filterMode === 'pending' ? 'primary' : undefined"
+        (click)="setFilter('pending')"
+      >
+        Com pendências ({{ analisesComPendencias }})
+      </button>
+    </div>
+
     <!-- Loading -->
     <div *ngIf="loading" class="flex justify-center items-center py-20">
       <mat-spinner diameter="50"></mat-spinner>
@@ -99,6 +136,11 @@
     <!-- Error -->
     <div *ngIf="error && !loading" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
       {{ error }}
+    </div>
+
+    <div *ngIf="!loading && !error && analyses.length > 0 && filteredAnalyses.length === 0" class="text-center py-12">
+      <mat-icon class="text-5xl text-green-500 mb-2">check_circle</mat-icon>
+      <p class="text-gray-700 font-medium">Nenhuma análise com pendências — todos os pacotes estão em dia.</p>
     </div>
 
     <!-- Empty State -->
@@ -113,12 +155,24 @@
     </div>
 
     <!-- Analyses List -->
-    <div *ngIf="!loading && !error && analyses.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div *ngIf="!loading && !error && filteredAnalyses.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <mat-card 
-        *ngFor="let analysis of analyses" 
+        *ngFor="let analysis of filteredAnalyses" 
         class="group relative overflow-hidden border-2 border-transparent hover:border-indigo-300 transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-2xl"
         (click)="viewAnalysis(analysis)"
       >
+        <!-- Pendências -->
+        <div *ngIf="getPendingCount(analysis) > 0" class="absolute top-3 left-3 z-10">
+          <span class="px-2 py-1 rounded-full bg-amber-500 text-white text-xs font-bold shadow">
+            {{ getPendingCount(analysis) }} pendente(s)
+          </span>
+        </div>
+        <div *ngIf="isPackageComplete(analysis)" class="absolute top-3 left-3 z-10">
+          <span class="px-2 py-1 rounded-full bg-green-600 text-white text-xs font-bold shadow">
+            Pacote completo
+          </span>
+        </div>
+
         <!-- Score Badge -->
         <div class="absolute top-12 right-4 z-10">
           <div 
@@ -157,6 +211,22 @@
           <div class="flex items-center gap-2 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
             <mat-icon class="text-sm">schedule</mat-icon>
             <span>{{ formatDate(analysis.criado_em) }}</span>
+          </div>
+
+          <!-- Status dos serviços -->
+          <div *ngIf="analysis.servicos?.itens?.length" class="mb-4 flex flex-wrap gap-1">
+            <span
+              *ngFor="let s of analysis.servicos!.itens"
+              class="px-2 py-0.5 text-xs rounded-full border"
+              [class.bg-green-50]="s.usado && !s.pendente"
+              [class.border-green-300]="s.usado && !s.pendente"
+              [class.text-green-800]="s.usado && !s.pendente"
+              [class.bg-amber-50]="s.pendente"
+              [class.border-amber-300]="s.pendente"
+              [class.text-amber-900]="s.pendente"
+            >
+              {{ s.usado ? '✓' : '○' }} {{ s.label }}
+            </span>
           </div>
 
           <!-- Pontos Fortes Preview -->
@@ -375,24 +445,29 @@
 
         <!-- Footer Actions -->
         <div class="bg-gray-50 border-t border-gray-200 p-6">
-          <div class="flex flex-col sm:flex-row gap-3 justify-end">
-            <button 
-              mat-raised-button 
-              color="primary" 
-              class="flex-1 sm:flex-none"
-              (click)="generateCoverLetter(selectedAnalysis)"
-            >
-              <mat-icon>description</mat-icon>
-              <span class="ml-2">Gerar Carta de Apresentação</span>
-            </button>
-            <button 
-              mat-raised-button 
-              color="accent" 
-              class="flex-1 sm:flex-none"
-              (click)="startInterview(selectedAnalysis)"
-            >
-              <mat-icon>mic</mat-icon>
-              <span class="ml-2">Simular Entrevista</span>
+          <p class="text-sm text-gray-600 mb-4 text-center sm:text-left">
+            Pacote desta análise — <strong>sem gastar crédito extra</strong>. Conclua os itens pendentes quando quiser.
+          </p>
+          <div class="flex flex-col gap-2">
+            <ng-container *ngFor="let s of selectedAnalysis.servicos?.itens">
+              <button
+                *ngIf="s.pendente"
+                mat-raised-button
+                color="primary"
+                class="w-full justify-start"
+                (click)="openService(selectedAnalysis!, s.key)"
+              >
+                <mat-icon>play_arrow</mat-icon>
+                <span class="ml-2">Fazer: {{ s.label }}</span>
+              </button>
+              <p *ngIf="!s.pendente && s.key !== 'analise'" class="text-sm text-green-700 flex items-center gap-2 px-2">
+                <mat-icon class="text-base">check_circle</mat-icon>
+                {{ s.label }} — concluído
+              </p>
+            </ng-container>
+            <button mat-stroked-button class="w-full mt-2" (click)="openService(selectedAnalysis!, 'view')">
+              <mat-icon>visibility</mat-icon>
+              <span class="ml-2">Ver análise completa no início</span>
             </button>
           </div>
         </div>

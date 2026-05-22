@@ -16,7 +16,11 @@ var builder = WebApplication.CreateBuilder(args);
 // DotNetEnv já definiu process env; reforça no IConfiguration
 builder.Configuration.AddEnvironmentVariables();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

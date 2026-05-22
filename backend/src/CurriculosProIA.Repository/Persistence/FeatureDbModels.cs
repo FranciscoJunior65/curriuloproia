@@ -105,6 +105,9 @@ public class AnaliseCurriculoRow : BaseModel
     [Column("resultado_completo")]
     public JsonElement? ResultadoCompleto { get; set; }
 
+    [Column("servicos_utilizados")]
+    public JsonElement? ServicosUtilizados { get; set; }
+
     [Column("criado_em")]
     public DateTimeOffset? CriadoEm { get; set; }
 }

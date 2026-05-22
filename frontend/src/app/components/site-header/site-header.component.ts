@@ -6,6 +6,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonModule } from '@angular/material/button';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService, User } from '../../services/auth.service';
+import { AnalyzerService } from '../../services/analyzer.service';
 
 @Component({
   selector: 'app-site-header',
@@ -18,12 +19,14 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   isAuthenticated = false;
   isAdmin = false;
   userCredits = 0;
+  pendingServicesCount = 0;
 
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     public authService: AuthService,
-    private router: Router
+    private router: Router,
+    private analyzerService: AnalyzerService
   ) {}
 
   ngOnInit(): void {
@@ -32,6 +35,11 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       this.isAuthenticated = !!user;
       this.isAdmin = this.authService.isAdmin();
       this.userCredits = user?.credits ?? 0;
+      if (user) {
+        this.loadPendingServices();
+      } else {
+        this.pendingServicesCount = 0;
+      }
     });
 
     const user = this.authService.getCurrentUser();
@@ -40,7 +48,21 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       this.isAuthenticated = true;
       this.isAdmin = this.authService.isAdmin();
       this.userCredits = user.credits ?? 0;
+      this.loadPendingServices();
     }
+  }
+
+  loadPendingServices(): void {
+    this.analyzerService.getPendingServices().subscribe({
+      next: (res: any) => {
+        if (res?.success) {
+          this.pendingServicesCount = res.totalServicosPendentes ?? 0;
+        }
+      },
+      error: () => {
+        this.pendingServicesCount = 0;
+      }
+    });
   }
 
   ngOnDestroy(): void {
