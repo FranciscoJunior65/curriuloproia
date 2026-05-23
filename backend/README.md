@@ -32,6 +32,17 @@ Teste Supabase: `GET http://localhost:3000/api/test/supabase`
 
 Porta padrão: **http://localhost:3000**
 
+## Publicar no IIS / Plesk (Windows)
+
+1. `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`
+2. Copie a pasta `publish` para o site `api.curriculoproia.com.br` (deve conter `CurriculosProIA.Api.dll` e `web.config`)
+3. No Plesk: site ASP.NET Core, runtime **.NET 8**, pool **Sem código gerenciado** (ou integrado, conforme o módulo)
+4. Coloque o `.env` na pasta publicada (mesmas variáveis do desenvolvimento)
+5. Defina `ENABLE_SWAGGER=true` e `ASPNETCORE_ENVIRONMENT=Production`
+6. Teste: `https://api.curriculoproia.com.br/api/health` e `https://api.curriculoproia.com.br/swagger`
+
+Se `/api/health` responder mas `/swagger` der 404, a API está no ar — falta `ENABLE_SWAGGER=true` no ambiente do servidor.
+
 ## Camadas
 
 | Camada | Responsabilidade |

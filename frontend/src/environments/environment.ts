@@ -1,7 +1,5 @@
 export const environment = {
-  production: false,
-  // API ASP.NET Core 8 (backend/) — mesma URL/porta do backend Node anterior
-  apiUrl: 'http://localhost:3000/api',
+  production: true,
+  apiUrl: 'https://api.curriculoproia.com.br/api',
   stripePublishableKey: 'pk_live_51RyHWoBp8nPpyUbivcdINWnufzpZDcj9c6zILwKmXzCLeilDjAaVA7tPvfMdIkX9sRWVCSCGOGZ5WzPxt72UlUL400yPWSCzdk'
 };
-

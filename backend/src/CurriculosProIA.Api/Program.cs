@@ -7,6 +7,7 @@ using CurriculosProIA.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 
 EnvFileLoader.Load();
@@ -24,10 +25,20 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var allowedOrigins = new List<string>
 {
     "http://localhost:4200",
+    "http://127.0.0.1:4200",
     "http://localhost:58438",
+    "https://curriculoproia.com.br",
+    "https://www.curriculoproia.com.br",
     "https://curriculosproia.getpushtecnologia.com.br",
     "https://www.curriculosproia.getpushtecnologia.com.br"
 };
@@ -44,6 +55,11 @@ builder.Services.AddCors(options =>
                 if (string.IsNullOrEmpty(origin)) return true;
                 var normalized = origin.TrimEnd('/');
                 if (allowedOrigins.Any(o => string.Equals(o.TrimEnd('/'), normalized, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+                if (System.Text.RegularExpressions.Regex.IsMatch(
+                    origin,
+                    @"^https://(www\.)?curriculoproia\.com\.br$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                     return true;
                 return System.Text.RegularExpressions.Regex.IsMatch(
                     origin,
@@ -105,11 +121,25 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+var enableSwagger = app.Environment.IsDevelopment()
+    || string.Equals(app.Configuration["ENABLE_SWAGGER"], "true", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(app.Configuration["ENABLE_SWAGGER"], "1", StringComparison.OrdinalIgnoreCase);
+
+app.UseForwardedHeaders();
+
+if (enableSwagger)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "CurriculosPro IA API");
+        options.RoutePrefix = "swagger";
+    });
 }
+
+app.MapGet("/", () => enableSwagger
+    ? Results.Redirect("/swagger")
+    : Results.Json(new { status = "ok", docs = "/api/health" }));
 
 app.UseCors();
 
