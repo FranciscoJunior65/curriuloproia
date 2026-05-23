@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="web.config" CopyToPublishDirectory="Always" />
+    <Content Include="..\..\ENV_EXAMPLE.env" Link="app.env.example" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -37,11 +37,19 @@ Porta padrão: **http://localhost:3000**
 1. `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`
 2. Copie a pasta `publish` para o site `api.curriculoproia.com.br` (deve conter `CurriculosProIA.Api.dll` e `web.config`)
 3. No Plesk: site ASP.NET Core, runtime **.NET 8**, pool **Sem código gerenciado** (ou integrado, conforme o módulo)
-4. Coloque o `.env` na pasta publicada (mesmas variáveis do desenvolvimento)
-5. Defina `ENABLE_SWAGGER=true` e `ASPNETCORE_ENVIRONMENT=Production`
-6. Teste: `https://api.curriculoproia.com.br/api/health` e `https://api.curriculoproia.com.br/swagger`
+4. **Supabase no servidor** — copie o `.env` para a pasta do site (obrigatório):
+   ```powershell
+   dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish
+   .\scripts\copy-env-to-publish.ps1 -PublishDir ".\publish"
+   ```
+   No servidor, o arquivo deve ficar na **mesma pasta** do `CurriculosProIA.Api.dll` como `.env` ou `app.env` (FTP às vezes não envia arquivos que começam com ponto — use `app.env`).
 
-Se `/api/health` responder mas `/swagger` der 404, a API está no ar — falta `ENABLE_SWAGGER=true` no ambiente do servidor.
+   Alternativa: variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no painel Plesk → ASP.NET Core → Variáveis de ambiente.
+
+5. Defina `ENABLE_SWAGGER=true` e `ASPNETCORE_ENVIRONMENT=Production`
+6. Teste: `https://api.curriculoproia.com.br/api/test/supabase`
+
+Se `/api/health` responder mas Supabase falhar, o `.env` não está na pasta do site ou as chaves estão vazias.
 
 ## Camadas
 

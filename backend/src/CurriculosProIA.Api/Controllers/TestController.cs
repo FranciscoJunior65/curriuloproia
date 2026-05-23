@@ -1,5 +1,6 @@
 using CurriculosProIA.Api.Infrastructure;
 using CurriculosProIA.Repository.Interfaces;
+using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,15 +13,18 @@ public class TestController : ControllerBase
     private readonly ISupabaseConnectionTester _supabase;
     private readonly IAiService _ai;
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _hostEnvironment;
 
     public TestController(
         ISupabaseConnectionTester supabase,
         IAiService ai,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment)
     {
         _supabase = supabase;
         _ai = ai;
         _configuration = configuration;
+        _hostEnvironment = hostEnvironment;
     }
 
     /// <summary>Testa conexão com Supabase (equivalente ao GET /api/test/supabase da API Node).</summary>
@@ -32,8 +36,10 @@ public class TestController : ControllerBase
         {
             var url = _configuration["SUPABASE_URL"]?.Trim() ?? "";
             var key = _configuration["SUPABASE_SERVICE_ROLE_KEY"]?.Trim() ?? "";
-            var isPlaceholderUrl = url.Contains("seu-projeto.supabase.co", StringComparison.OrdinalIgnoreCase);
-            var isPlaceholderKey = key is "sua_service_role_key_aqui" or { Length: < 40 };
+            var isPlaceholderUrl = !string.IsNullOrEmpty(url) &&
+                url.Contains("seu-projeto.supabase.co", StringComparison.OrdinalIgnoreCase);
+            var isPlaceholderKey = !string.IsNullOrEmpty(key) &&
+                (key == "sua_service_role_key_aqui" || key.StartsWith("sua_", StringComparison.Ordinal) || key.Length < 40);
 
             return StatusCode(500, new
             {
@@ -42,16 +48,19 @@ public class TestController : ControllerBase
                 message = config.Message,
                 envFile = EnvFileLoader.LoadedPath,
                 envFileExists = EnvFileLoader.LoadedPath != null && System.IO.File.Exists(EnvFileLoader.LoadedPath),
+                searchedPaths = EnvFileLoader.LastSearchedPaths.Take(8),
                 hasSupabaseUrl = !string.IsNullOrEmpty(url),
                 hasSupabaseServiceKey = !string.IsNullOrEmpty(key),
                 usingPlaceholderValues = isPlaceholderUrl || isPlaceholderKey,
-                currentDirectory = Directory.GetCurrentDirectory(),
+                contentRoot = Directory.GetCurrentDirectory(),
+                appBaseDirectory = AppContext.BaseDirectory,
                 help = new[]
                 {
-                    "1. Edite o arquivo backend/.env (já criado se você rodou scripts/setup-env.ps1)",
-                    "2. Cole SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY do painel Supabase → Settings → API",
-                    "3. Use os MESMOS valores que funcionam na API Node (backend-node/.env)",
-                    "4. Reinicie a API .NET (pare o Visual Studio e suba de novo)"
+                    "SERVIDOR (IIS/Plesk): copie backend/.env para a pasta do site como .env ou app.env",
+                    "  Ex.: F:\\Inetpub\\vhosts\\...\\api.curriculoproia.com.br\\app.env (mesma pasta do .dll)",
+                    "  Ou defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente do Plesk",
+                    "DEV: edite backend/.env com os valores do Supabase → Settings → API",
+                    "Reinicie o site / app pool após alterar"
                 }
             });
         }
@@ -84,7 +93,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> TestGemini(CancellationToken cancellationToken)
     {
         var apiKey = _configuration["GEMINI_API_KEY"]?.Trim() ?? "";
-        var useMock = _configuration["USE_MOCK_AI"] is "true" or "1";
+        var useMock = AiRuntimeOptions.UseMockAi(_configuration, _hostEnvironment);
         var model = _configuration["GEMINI_MODEL"] ?? "gemini-3-flash-preview";
         if (model == "gemini-pro")
         {
@@ -108,7 +117,7 @@ public class TestController : ControllerBase
             {
                 success = false,
                 error = "Modo mock ativo",
-                message = "USE_MOCK_AI está true. Defina USE_MOCK_AI=false no .env para testar a IA real.",
+                message = "USE_MOCK_AI está true (apenas em Development). Em Production o mock é ignorado; ajuste o .env ou ASPNETCORE_ENVIRONMENT.",
                 debug
             });
         }
@@ -126,8 +135,9 @@ public class TestController : ControllerBase
                 {
                     "1. Acesse https://aistudio.google.com/apikey",
                     "2. Crie uma API key (grátis)",
-                    "3. Edite backend/.env e substitua GEMINI_API_KEY=sua-chave-gemini-aqui pela chave real",
-                    "4. Reinicie a API após salvar"
+                    "3. No servidor: edite app.env — GEMINI_API_KEY=chave real (https://aistudio.google.com/apikey)",
+                    "4. USE_MOCK_AI=false (opcional em Production; mock já é desligado automaticamente)",
+                    "5. Reinicie o site / app pool no Plesk"
                 }
             });
         }

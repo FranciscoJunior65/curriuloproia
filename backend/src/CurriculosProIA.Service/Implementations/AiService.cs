@@ -11,6 +11,7 @@ using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Repository.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CurriculosProIA.Service.Implementations;
@@ -18,17 +19,20 @@ namespace CurriculosProIA.Service.Implementations;
 public class AiService : IAiService
 {
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly IJobSiteRepository _jobSites;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AiService> _logger;
 
     public AiService(
         IConfiguration configuration,
+        IHostEnvironment hostEnvironment,
         IJobSiteRepository jobSites,
         IHttpClientFactory httpClientFactory,
         ILogger<AiService> logger)
     {
         _configuration = configuration;
+        _hostEnvironment = hostEnvironment;
         _jobSites = jobSites;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
@@ -57,11 +61,7 @@ public class AiService : IAiService
         }
     }
 
-    private bool UseMockAi()
-    {
-        var flag = _configuration["USE_MOCK_AI"];
-        return flag is "true" or "1";
-    }
+    private bool UseMockAi() => AiRuntimeOptions.UseMockAi(_configuration, _hostEnvironment);
 
     private string GeminiModel
     {

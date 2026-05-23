@@ -14,6 +14,9 @@ EnvFileLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// IIS/Plesk: ContentRoot = pasta do site (ex.: api.curriculoproia.com.br)
+EnvFileLoader.TryLoadContentRoot(builder.Environment.ContentRootPath);
+
 // DotNetEnv já definiu process env; reforça no IConfiguration
 builder.Configuration.AddEnvironmentVariables();
 
