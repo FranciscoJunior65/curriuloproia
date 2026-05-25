@@ -311,4 +311,131 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         }
     }
 
+    public async Task<IActionResult> ListPartners(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var partners = await _data.ListPartnersAsync(cancellationToken);
+        return Ok(new { success = true, partners });
+    }
+
+    public async Task<IActionResult> CreatePartner(CreatePartnerSignature body, CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        if (string.IsNullOrWhiteSpace(body.Nome))
+        {
+            return BadRequest(new { success = false, error = "Nome do parceiro é obrigatório." });
+        }
+
+        if (string.IsNullOrWhiteSpace(body.Cpf))
+        {
+            return BadRequest(new { success = false, error = "CPF ou CNPJ do parceiro é obrigatório." });
+        }
+
+        try
+        {
+            var partner = await _data.CreatePartnerAsync(
+                body.Nome.Trim(),
+                body.Cpf.Trim(),
+                body.Descricao,
+                body.Email,
+                cancellationToken);
+            return Ok(new { success = true, message = "Parceiro criado.", partner });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> ListCoupons(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var coupons = await _data.ListCouponsAdminAsync(cancellationToken);
+        return Ok(new { success = true, coupons });
+    }
+
+    public async Task<IActionResult> CreateCoupon(CreateCouponSignature body, CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        if (string.IsNullOrWhiteSpace(body.Nome))
+        {
+            return BadRequest(new { success = false, error = "Código do cupom é obrigatório." });
+        }
+
+        if (body.PorcentagemDesconto is null)
+        {
+            return BadRequest(new { success = false, error = "Porcentagem de desconto é obrigatória." });
+        }
+
+        try
+        {
+            var coupon = await _data.CreateCouponAsync(
+                body.Nome.Trim(),
+                body.PorcentagemDesconto.Value,
+                body.ParceiroId,
+                body.PorcentagemParceiro,
+                cancellationToken);
+
+            return Ok(new { success = true, message = "Cupom criado.", coupon });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> UpdateCoupon(
+        string couponId,
+        UpdateCouponSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        try
+        {
+            var coupon = await _data.UpdateCouponAsync(
+                couponId,
+                body.PorcentagemDesconto,
+                body.ParceiroId,
+                body.PorcentagemParceiro,
+                body.Ativo,
+                body.ClearParceiro,
+                cancellationToken);
+
+            if (coupon == null)
+            {
+                return NotFound(new { success = false, error = "Cupom não encontrado." });
+            }
+
+            return Ok(new { success = true, message = "Cupom atualizado.", coupon });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> GetCouponMetrics(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var metrics = await _data.GetCouponMetricsAsync(cancellationToken);
+        return Ok(new
+        {
+            success = true,
+            metrics = new
+            {
+                byCoupon = metrics.ByCoupon,
+                byPartner = metrics.ByPartner,
+                totalPurchasesWithCoupon = metrics.TotalPurchasesWithCoupon,
+                totalRevenueWithCoupon = metrics.TotalRevenueWithCoupon,
+                totalPartnerPayout = metrics.TotalPartnerPayout
+            }
+        });
+    }
+
 }

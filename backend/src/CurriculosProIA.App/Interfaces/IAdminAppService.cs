@@ -18,4 +18,10 @@ public interface IAdminAppService
     IActionResult GetAiUsage(string period = "day");
     IActionResult GetJobSiteStats();
     IActionResult GetJobSiteDetailedStats(string siteId);
+    Task<IActionResult> ListPartners(CancellationToken cancellationToken = default);
+    Task<IActionResult> CreatePartner(CreatePartnerSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> ListCoupons(CancellationToken cancellationToken = default);
+    Task<IActionResult> CreateCoupon(CreateCouponSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> UpdateCoupon(string couponId, UpdateCouponSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetCouponMetrics(CancellationToken cancellationToken = default);
 }

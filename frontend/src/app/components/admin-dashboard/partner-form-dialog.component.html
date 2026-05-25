@@ -1,0 +1,59 @@
+<h2 mat-dialog-title class="partner-dialog__title">
+  <mat-icon>person_add</mat-icon>
+  Cadastrar parceiro
+</h2>
+
+<mat-dialog-content class="partner-dialog__content">
+  <p class="partner-dialog__hint">
+    Preencha os dados do parceiro. Ele entrará na lista para vincular aos cupons.
+  </p>
+
+  <div class="partner-dialog__field">
+    <label for="partner-nome">Nome</label>
+    <input
+      id="partner-nome"
+      type="text"
+      [(ngModel)]="nome"
+      class="partner-dialog__input"
+      placeholder="Nome ou marca"
+      [disabled]="saving"
+    />
+  </div>
+
+  <div class="partner-dialog__field">
+    <label for="partner-doc">CPF ou CNPJ</label>
+    <input
+      id="partner-doc"
+      type="text"
+      [ngModel]="documento"
+      (input)="onDocumentoInput($event)"
+      class="partner-dialog__input"
+      placeholder="CPF ou CNPJ"
+      maxlength="18"
+      [disabled]="saving"
+    />
+  </div>
+
+  <div class="partner-dialog__field">
+    <label for="partner-desc">Descrição</label>
+    <textarea
+      id="partner-desc"
+      [(ngModel)]="descricao"
+      class="partner-dialog__input partner-dialog__textarea"
+      rows="3"
+      placeholder="Canal, nicho, observações..."
+      [disabled]="saving"
+    ></textarea>
+  </div>
+
+  <p *ngIf="error" class="partner-dialog__error">{{ error }}</p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="partner-dialog__actions">
+  <button mat-button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button>
+  <button mat-raised-button color="primary" type="button" (click)="submit()" [disabled]="saving">
+    <mat-spinner *ngIf="saving" diameter="18" class="partner-dialog__spinner"></mat-spinner>
+    <mat-icon *ngIf="!saving">check</mat-icon>
+    <span>{{ saving ? 'Incluindo...' : 'Incluir parceiro' }}</span>
+  </button>
+</mat-dialog-actions>

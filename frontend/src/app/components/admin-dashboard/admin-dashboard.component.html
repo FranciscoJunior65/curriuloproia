@@ -216,6 +216,209 @@
           </mat-card>
         </div>
       </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">local_offer</mat-icon>
+          Cupons de desconto
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
+                Crie cupons únicos com percentual de desconto. Opcionalmente vincule um parceiro e defina a % de recebimento dele sobre cada compra com o cupom.
+              </p>
+
+              <div *ngIf="loadingCoupons" class="loading-inline">
+                <mat-spinner diameter="28"></mat-spinner>
+              </div>
+
+              <div *ngIf="!loadingCoupons" class="coupon-admin">
+                <!-- Métricas resumo -->
+                <div *ngIf="couponMetrics" class="coupon-metrics-summary">
+                  <div class="metric-pill">
+                    <span class="metric-pill__label">Compras com cupom</span>
+                    <strong>{{ couponMetrics.totalPurchasesWithCoupon }}</strong>
+                  </div>
+                  <div class="metric-pill">
+                    <span class="metric-pill__label">Receita (cupons)</span>
+                    <strong>{{ formatCurrency(couponMetrics.totalRevenueWithCoupon) }}</strong>
+                  </div>
+                  <div class="metric-pill">
+                    <span class="metric-pill__label">Total parceiros</span>
+                    <strong>{{ formatCurrency(couponMetrics.totalPartnerPayout) }}</strong>
+                  </div>
+                </div>
+
+                <!-- Parceiros (cadastro via popup) -->
+                <div class="coupon-section coupon-section--inline">
+                  <button
+                    mat-raised-button
+                    color="primary"
+                    type="button"
+                    class="partner-add-btn"
+                    (click)="openPartnerDialog()"
+                  >
+                    <mat-icon>person_add</mat-icon>
+                    Incluir parceiro
+                  </button>
+                  <span *ngIf="partners.length" class="coupon-hint coupon-hint--inline">
+                    {{ partners.length }} parceiro(s) disponível(is) para vincular ao cupom
+                  </span>
+                  <p *ngIf="partnerSettingsMessage" class="settings-success partner-feedback">{{ partnerSettingsMessage }}</p>
+                  <p *ngIf="partnerSettingsError" class="settings-error partner-feedback">{{ partnerSettingsError }}</p>
+                </div>
+
+                <!-- Criar cupom -->
+                <div class="coupon-section">
+                  <h3>Criar cupom</h3>
+                  <div class="coupon-form-grid">
+                    <div class="pricing-field">
+                      <label>Código do cupom</label>
+                      <input type="text" [(ngModel)]="newCouponCode" class="period-select" placeholder="Ex: PARCEIRO10" style="text-transform: uppercase" />
+                    </div>
+                    <div class="pricing-field">
+                      <label>Desconto para o cliente (%)</label>
+                      <div class="input-with-suffix">
+                        <input
+                          type="text"
+                          inputmode="decimal"
+                          [ngModel]="newCouponDiscountText"
+                          (input)="onDiscountPercentInput($event)"
+                          class="period-select"
+                          placeholder="0,00"
+                        />
+                        <span class="input-suffix">%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <label class="coupon-checkbox">
+                    <input type="checkbox" [(ngModel)]="linkPartnerToCoupon" />
+                    <span>Vincular parceiro a este cupom</span>
+                  </label>
+
+                  <div *ngIf="linkPartnerToCoupon" class="coupon-partner-box">
+                    <p class="coupon-partner-box__title">Vincular parceiro ao cupom</p>
+
+                    <p *ngIf="!partners.length" class="coupon-hint coupon-hint--warn">
+                      Nenhum parceiro cadastrado. Use o botão <strong>Incluir parceiro</strong> acima e depois selecione aqui.
+                    </p>
+
+                    <div class="coupon-form-grid" *ngIf="partners.length">
+                      <div class="pricing-field pricing-field--full">
+                        <label>Selecionar parceiro</label>
+                        <select [(ngModel)]="newCouponPartnerId" class="period-select">
+                          <option value="">Escolha na lista...</option>
+                          <option *ngFor="let p of partners" [value]="p.id">
+                            {{ p.nome }} — {{ documentLabel(p.cpf) }} {{ formatDocument(p.cpf) }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="pricing-field">
+                        <label>Recebimento do parceiro (% do valor pago)</label>
+                        <div class="input-with-suffix">
+                          <input
+                            type="text"
+                            inputmode="decimal"
+                            [ngModel]="newCouponPartnerPercentText"
+                            (input)="onPartnerPercentInput($event)"
+                            class="period-select"
+                            placeholder="0,00"
+                          />
+                          <span class="input-suffix">%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button mat-raised-button color="primary" class="coupon-create-btn" (click)="createCoupon()" [disabled]="savingCoupon">
+                    {{ savingCoupon ? 'Criando...' : 'Criar cupom' }}
+                  </button>
+                </div>
+
+                <!-- Lista de cupons -->
+                <div class="coupon-section">
+                  <h3>Cupons cadastrados</h3>
+                  <div *ngIf="!coupons.length" class="coupon-empty">Nenhum cupom cadastrado ainda.</div>
+                  <div class="coupon-table-wrap" *ngIf="coupons.length">
+                    <table class="usage-table coupon-table">
+                      <thead>
+                        <tr>
+                          <th>Código</th>
+                          <th>Desconto</th>
+                          <th>Parceiro</th>
+                          <th>% parceiro</th>
+                          <th>Compras</th>
+                          <th>Receita</th>
+                          <th>Repasse</th>
+                          <th>Status</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let c of coupons">
+                          <td><strong>{{ c.nome }}</strong></td>
+                          <td>{{ c.porcentagemDesconto }}%</td>
+                          <td>{{ c.parceiroNome || '—' }}</td>
+                          <td>{{ c.porcentagemParceiro != null ? c.porcentagemParceiro + '%' : '—' }}</td>
+                          <td>{{ c.totalCompras }}</td>
+                          <td>{{ formatCurrency(c.receitaTotal) }}</td>
+                          <td>{{ formatCurrency(c.totalParceiro) }}</td>
+                          <td>
+                            <span [class]="c.ativo ? 'coupon-status coupon-status--on' : 'coupon-status coupon-status--off'">
+                              {{ c.ativo ? 'Ativo' : 'Inativo' }}
+                            </span>
+                          </td>
+                          <td>
+                            <button mat-stroked-button type="button" (click)="toggleCouponActive(c)">
+                              {{ c.ativo ? 'Desativar' : 'Ativar' }}
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Métricas por parceiro -->
+                <div class="coupon-section" *ngIf="couponMetrics?.byPartner?.length">
+                  <h3>Métricas por parceiro</h3>
+                  <div class="coupon-table-wrap">
+                    <table class="usage-table coupon-table">
+                      <thead>
+                        <tr>
+                          <th>Parceiro</th>
+                          <th>Cupons</th>
+                          <th>Compras</th>
+                          <th>Receita gerada</th>
+                          <th>Total repasse</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let p of couponMetrics!.byPartner">
+                          <td><strong>{{ p.parceiroNome }}</strong></td>
+                          <td>{{ p.couponsCount }}</td>
+                          <td>{{ p.purchasesCount }}</td>
+                          <td>{{ formatCurrency(p.revenueTotal) }}</td>
+                          <td>{{ formatCurrency(p.partnerTotal) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <button mat-button type="button" (click)="loadCouponsData()" class="coupon-refresh">
+                  <mat-icon>refresh</mat-icon> Atualizar métricas
+                </button>
+              </div>
+
+              <p *ngIf="couponSettingsMessage" class="settings-success">{{ couponSettingsMessage }}</p>
+              <p *ngIf="couponSettingsError" class="settings-error">{{ couponSettingsError }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
     </mat-tab-group>
   </div>
 

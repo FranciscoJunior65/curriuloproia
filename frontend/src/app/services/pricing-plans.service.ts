@@ -41,28 +41,44 @@ export interface PriceParts {
   cents: string;
 }
 
-/** Planos exibidos na tela de login quando a API não responde */
+const SHARED_ANALYSIS_FEATURES = [
+  'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
+  'Simulador de entrevista com IA',
+  'Currículo melhorado em PDF ou WORD',
+  'Palavras-chave estratégicas'
+];
+
+/** Planos exibidos quando a API não responde */
 export const FALLBACK_ANALYSIS_PLANS: PublicPlan[] = [
   {
     id: 'single',
     name: 'Análise Única',
+    description: '1 análise completa otimizada para sites de vagas',
     analyses: 1,
     priceBRL: 7.9,
-    savings: undefined
+    features: [
+      '1 análise completa com IA',
+      ...SHARED_ANALYSIS_FEATURES,
+      'Análise única para um site específico'
+    ]
   },
   {
     id: 'pack3',
     name: 'Pacote 3 Análises',
+    description: '3 análises completas otimizadas para diferentes sites',
     analyses: 3,
     priceBRL: 27.9,
-    savings: 'Melhor custo-benefício'
+    savings: 'Melhor custo-benefício',
+    features: ['3 análises completas com IA', ...SHARED_ANALYSIS_FEATURES]
   },
   {
     id: 'pack5',
     name: 'Pacote 5 Análises',
+    description: '5 análises completas otimizadas para diferentes sites',
     analyses: 5,
     priceBRL: 37.9,
-    savings: 'Economize R$ 1,60'
+    savings: 'Economize R$ 1,60',
+    features: ['5 análises completas com IA', ...SHARED_ANALYSIS_FEATURES]
   }
 ];
 

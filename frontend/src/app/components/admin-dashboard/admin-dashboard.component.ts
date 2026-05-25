@@ -2,7 +2,16 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AdminService, DashboardStats, UsageData, PaymentProvider, PricingConfig } from '../../services/admin.service';
+import {
+  AdminService,
+  DashboardStats,
+  UsageData,
+  PaymentProvider,
+  PricingConfig,
+  AdminPartner,
+  AdminCoupon,
+  CouponMetrics
+} from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
 import { MatCardModule } from '@angular/material/card';
@@ -10,7 +19,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SiteHeaderComponent } from '../site-header/site-header.component';
+import { PartnerFormDialogComponent } from './partner-form-dialog.component';
+import { formatCpfCnpjDisplay, getDocumentDigits, partnerDocumentLabel } from '../../utils/documento.utils';
+import { formatPercentDisplay, maskPercentInput } from '../../utils/percent.utils';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -23,7 +36,8 @@ import { SiteHeaderComponent } from '../site-header/site-header.component';
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
-    MatTabsModule
+    MatTabsModule,
+    MatDialogModule
   ],
   templateUrl: './admin-dashboard.component.html',
   styleUrl: './admin-dashboard.component.scss'
@@ -69,11 +83,31 @@ export class AdminDashboardComponent implements OnInit {
   pricingSettingsMessage = '';
   pricingSettingsError = '';
 
+  loadingCoupons = false;
+  savingCoupon = false;
+  coupons: AdminCoupon[] = [];
+  partners: AdminPartner[] = [];
+  couponMetrics: CouponMetrics | null = null;
+  couponSettingsMessage = '';
+  couponSettingsError = '';
+
+  newCouponCode = '';
+  newCouponDiscount = 10;
+  newCouponDiscountText = '10,00';
+  newCouponPartnerId = '';
+  newCouponPartnerPercent = 10;
+  newCouponPartnerPercentText = '10,00';
+  linkPartnerToCoupon = false;
+
+  partnerSettingsMessage = '';
+  partnerSettingsError = '';
+
   constructor(
     private adminService: AdminService,
     private authService: AuthService,
     private router: Router,
-    private pricingPlansService: PricingPlansService
+    private pricingPlansService: PricingPlansService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -110,6 +144,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
           this.loadPricingSettings();
+          this.loadCouponsData();
         } else {
           console.error('❌ Token inválido, redirecionando...');
           alert('Sua sessão expirou. Por favor, faça login novamente.');
@@ -130,6 +165,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
           this.loadPricingSettings();
+          this.loadCouponsData();
         }
       }
     });
@@ -342,6 +378,163 @@ export class AdminDashboardComponent implements OnInit {
     const base = (this.pricingConfig.creditUnitPriceBRL || 0) * analyses;
     const factor = 1 - (discountPercent || 0) / 100;
     return Math.round(Math.max(0, base * factor) * 100) / 100;
+  }
+
+  loadCouponsData(): void {
+    this.loadingCoupons = true;
+    this.couponSettingsError = '';
+    this.adminService.getPartners().subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.partners = (res.partners || []).sort((a, b) => a.nome.localeCompare(b.nome));
+        }
+      },
+      error: () => {}
+    });
+    this.adminService.getCoupons().subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.coupons = res.coupons || [];
+        }
+        this.loadingCoupons = false;
+      },
+      error: (err) => {
+        this.loadingCoupons = false;
+        this.couponSettingsError = err.error?.error || 'Erro ao carregar cupons';
+      }
+    });
+    this.adminService.getCouponMetrics().subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.couponMetrics = res.metrics;
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  formatDocument(doc?: string): string {
+    const digits = getDocumentDigits(doc || '');
+    if (!digits) return '—';
+    return formatCpfCnpjDisplay(digits);
+  }
+
+  documentLabel(doc?: string): string {
+    return partnerDocumentLabel(doc);
+  }
+
+  onDiscountPercentInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const masked = maskPercentInput(input.value);
+    this.newCouponDiscountText = masked.text;
+    this.newCouponDiscount = masked.value;
+    input.value = masked.text;
+  }
+
+  onPartnerPercentInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const masked = maskPercentInput(input.value);
+    this.newCouponPartnerPercentText = masked.text;
+    this.newCouponPartnerPercent = masked.value;
+    input.value = masked.text;
+  }
+
+  openPartnerDialog(): void {
+    this.partnerSettingsError = '';
+    const ref = this.dialog.open(PartnerFormDialogComponent, {
+      width: '440px',
+      maxWidth: '95vw',
+      panelClass: 'partner-dialog-panel',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true
+    });
+
+    ref.afterClosed().subscribe((partner) => {
+      if (partner) {
+        this.partners = [...this.partners, partner].sort((a, b) => a.nome.localeCompare(b.nome));
+        this.partnerSettingsMessage = `Parceiro "${partner.nome}" incluído. Selecione-o ao criar o cupom.`;
+        if (!this.newCouponPartnerId) {
+          this.newCouponPartnerId = partner.id;
+        }
+      }
+    });
+  }
+
+  createCoupon(): void {
+    const code = this.newCouponCode.trim().toUpperCase();
+    if (!code) {
+      this.couponSettingsError = 'Informe o código do cupom.';
+      return;
+    }
+    if (this.newCouponDiscount < 0 || this.newCouponDiscount > 100) {
+      this.couponSettingsError = 'Desconto deve estar entre 0 e 100%.';
+      return;
+    }
+    if (this.linkPartnerToCoupon) {
+      if (!this.partners.length) {
+        this.couponSettingsError =
+          'Cadastre pelo menos um parceiro na seção acima e depois selecione-o aqui.';
+        return;
+      }
+      if (!this.newCouponPartnerId) {
+        this.couponSettingsError = 'Selecione o parceiro na lista.';
+        return;
+      }
+    }
+
+    const payload: {
+      nome: string;
+      porcentagemDesconto: number;
+      parceiroId?: string;
+      porcentagemParceiro?: number;
+    } = {
+      nome: code,
+      porcentagemDesconto: this.newCouponDiscount
+    };
+
+    if (this.linkPartnerToCoupon) {
+      payload.parceiroId = this.newCouponPartnerId;
+      payload.porcentagemParceiro = this.newCouponPartnerPercent;
+    }
+
+    this.savingCoupon = true;
+    this.couponSettingsError = '';
+    this.couponSettingsMessage = '';
+
+    this.adminService.createCoupon(payload).subscribe({
+      next: (res) => {
+        this.savingCoupon = false;
+        if (res.success) {
+          this.couponSettingsMessage = res.message || 'Cupom criado.';
+          this.newCouponCode = '';
+          this.newCouponDiscount = 10;
+          this.newCouponDiscountText = formatPercentDisplay(10);
+          this.newCouponPartnerPercent = 10;
+          this.newCouponPartnerPercentText = formatPercentDisplay(10);
+          this.newCouponPartnerId = '';
+          this.linkPartnerToCoupon = false;
+          this.loadCouponsData();
+        }
+      },
+      error: (err) => {
+        this.savingCoupon = false;
+        this.couponSettingsError = err.error?.error || 'Erro ao criar cupom';
+      }
+    });
+  }
+
+  toggleCouponActive(coupon: AdminCoupon): void {
+    this.adminService.updateCoupon(coupon.id, { ativo: !coupon.ativo }).subscribe({
+      next: (res) => {
+        if (res.success) {
+          coupon.ativo = res.coupon.ativo;
+          this.couponSettingsMessage = `Cupom ${coupon.nome} ${coupon.ativo ? 'ativado' : 'desativado'}.`;
+        }
+      },
+      error: (err) => {
+        this.couponSettingsError = err.error?.error || 'Erro ao atualizar cupom';
+      }
+    });
   }
 
   testPaymentConnection(): void {

@@ -48,6 +48,73 @@ export interface PricingConfig {
   pack5PriceBRL?: number;
 }
 
+export interface AdminPartner {
+  id: string;
+  nome: string;
+  cpf?: string;
+  descricao?: string;
+  email?: string;
+  ativo: boolean;
+}
+
+export interface CreatePartnerPayload {
+  nome: string;
+  cpf: string;
+  descricao?: string;
+}
+
+export interface AdminCoupon {
+  id: string;
+  nome: string;
+  porcentagemDesconto: number;
+  ativo: boolean;
+  parceiroId?: string;
+  parceiroNome?: string;
+  porcentagemParceiro?: number;
+  totalCompras: number;
+  totalUsosCpf: number;
+  receitaTotal: number;
+  totalParceiro: number;
+}
+
+export interface CouponMetricRow {
+  couponId: string;
+  couponName: string;
+  discountPercent: number;
+  ativo: boolean;
+  parceiroId?: string;
+  parceiroNome?: string;
+  parceiroPercent?: number;
+  purchasesCount: number;
+  uniqueCpfUses: number;
+  revenueTotal: number;
+  partnerTotal: number;
+}
+
+export interface PartnerMetricRow {
+  parceiroId: string;
+  parceiroNome: string;
+  couponsCount: number;
+  purchasesCount: number;
+  revenueTotal: number;
+  partnerTotal: number;
+}
+
+export interface CouponMetrics {
+  byCoupon: CouponMetricRow[];
+  byPartner: PartnerMetricRow[];
+  totalPurchasesWithCoupon: number;
+  totalRevenueWithCoupon: number;
+  totalPartnerPayout: number;
+}
+
+export interface CreateCouponPayload {
+  nome: string;
+  porcentagemDesconto: number;
+  parceiroId?: string | null;
+  porcentagemParceiro?: number | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -154,6 +221,58 @@ export class AdminService {
         englishPriceBRL: config.englishPriceBRL,
         englishBundlePriceBRL: config.englishBundlePriceBRL
       },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getPartners(): Observable<{ success: boolean; partners: AdminPartner[] }> {
+    return this.http.get<{ success: boolean; partners: AdminPartner[] }>(
+      `${this.apiUrl}/admin/partners`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  createPartner(payload: CreatePartnerPayload): Observable<{ success: boolean; message?: string; partner: AdminPartner }> {
+    return this.http.post<{ success: boolean; message?: string; partner: AdminPartner }>(
+      `${this.apiUrl}/admin/partners`,
+      {
+        nome: payload.nome,
+        cpf: payload.cpf,
+        descricao: payload.descricao || null
+      },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getCoupons(): Observable<{ success: boolean; coupons: AdminCoupon[] }> {
+    return this.http.get<{ success: boolean; coupons: AdminCoupon[] }>(
+      `${this.apiUrl}/admin/coupons`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  createCoupon(payload: CreateCouponPayload): Observable<{ success: boolean; message?: string; coupon: AdminCoupon }> {
+    return this.http.post<{ success: boolean; message?: string; coupon: AdminCoupon }>(
+      `${this.apiUrl}/admin/coupons`,
+      payload,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  updateCoupon(
+    couponId: string,
+    body: { ativo?: boolean; porcentagemDesconto?: number; parceiroId?: string; porcentagemParceiro?: number; clearParceiro?: boolean }
+  ): Observable<{ success: boolean; message?: string; coupon: AdminCoupon }> {
+    return this.http.put<{ success: boolean; message?: string; coupon: AdminCoupon }>(
+      `${this.apiUrl}/admin/coupons/${couponId}`,
+      body,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getCouponMetrics(): Observable<{ success: boolean; metrics: CouponMetrics }> {
+    return this.http.get<{ success: boolean; metrics: CouponMetrics }>(
+      `${this.apiUrl}/admin/coupons/metrics`,
       { headers: this.getAuthHeaders() }
     );
   }

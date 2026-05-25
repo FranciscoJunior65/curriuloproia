@@ -57,4 +57,25 @@ public class AdminController : ControllerBase
 
     [HttpGet("job-sites/{siteId}/stats")]
     public IActionResult GetJobSiteDetailedStats(string siteId) => _admin.GetJobSiteDetailedStats(siteId);
+
+    [HttpGet("partners")]
+    public Task<IActionResult> ListPartners(CancellationToken ct) => _admin.ListPartners(ct);
+
+    [HttpPost("partners")]
+    public Task<IActionResult> CreatePartner([FromBody] CreatePartnerSignature body, CancellationToken ct) =>
+        _admin.CreatePartner(body, ct);
+
+    [HttpGet("coupons")]
+    public Task<IActionResult> ListCoupons(CancellationToken ct) => _admin.ListCoupons(ct);
+
+    [HttpPost("coupons")]
+    public Task<IActionResult> CreateCoupon([FromBody] CreateCouponSignature body, CancellationToken ct) =>
+        _admin.CreateCoupon(body, ct);
+
+    [HttpPut("coupons/{couponId}")]
+    public Task<IActionResult> UpdateCoupon(string couponId, [FromBody] UpdateCouponSignature body, CancellationToken ct) =>
+        _admin.UpdateCoupon(couponId, body, ct);
+
+    [HttpGet("coupons/metrics")]
+    public Task<IActionResult> GetCouponMetrics(CancellationToken ct) => _admin.GetCouponMetrics(ct);
 }

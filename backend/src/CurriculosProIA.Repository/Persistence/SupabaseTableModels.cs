@@ -113,6 +113,69 @@ public class CompraRow : BaseModel
 
     [Column("preco_original")]
     public decimal? PrecoOriginal { get; set; }
+
+    [Column("id_parceiro")]
+    public string? IdParceiro { get; set; }
+
+    [Column("porcentagem_parceiro_aplicada")]
+    public decimal? PorcentagemParceiroAplicada { get; set; }
+
+    [Column("valor_parceiro")]
+    public decimal? ValorParceiro { get; set; }
+}
+
+[Table("parceiros")]
+public class ParceiroRow : BaseModel
+{
+    [PrimaryKey("id", false)]
+    [Column("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [Column("nome")]
+    public string? Nome { get; set; }
+
+    [Column("cpf")]
+    public string? Cpf { get; set; }
+
+    [Column("descricao")]
+    public string? Descricao { get; set; }
+
+    [Column("email")]
+    public string? Email { get; set; }
+
+    [Column("ativo")]
+    public bool? Ativo { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset? CriadoEm { get; set; }
+
+    [Column("atualizado_em")]
+    public DateTimeOffset? AtualizadoEm { get; set; }
+}
+
+[Table("parceiros")]
+public class ParceiroInsert : BaseModel
+{
+    [Column("nome")]
+    public string Nome { get; set; } = string.Empty;
+
+    [Column("cpf")]
+    public string? Cpf { get; set; }
+
+    [Column("descricao")]
+    public string? Descricao { get; set; }
+
+    [Column("email")]
+    public string? Email { get; set; }
+
+    [Column("ativo")]
+    public bool Ativo { get; set; } = true;
+
+    [Column("criado_em")]
+    public DateTimeOffset CriadoEm { get; set; }
+
+    [Column("atualizado_em")]
+    public DateTimeOffset AtualizadoEm { get; set; }
 }
 
 [Table("creditos")]
@@ -162,6 +225,40 @@ public class CupomRow : BaseModel
 
     [Column("ativo")]
     public bool? Ativo { get; set; }
+
+    [Column("id_parceiro")]
+    public string? IdParceiro { get; set; }
+
+    [Column("porcentagem_parceiro")]
+    public decimal? PorcentagemParceiro { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset? CriadoEm { get; set; }
+}
+
+[Table("cupons")]
+public class CupomInsert : BaseModel
+{
+    [Column("nome")]
+    public string Nome { get; set; } = string.Empty;
+
+    [Column("porcentagem_desconto")]
+    public decimal PorcentagemDesconto { get; set; }
+
+    [Column("ativo")]
+    public bool Ativo { get; set; } = true;
+
+    [Column("id_parceiro")]
+    public string? IdParceiro { get; set; }
+
+    [Column("porcentagem_parceiro")]
+    public decimal? PorcentagemParceiro { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset CriadoEm { get; set; }
+
+    [Column("atualizado_em")]
+    public DateTimeOffset AtualizadoEm { get; set; }
 }
 
 [Table("cupom_uso")]

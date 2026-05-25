@@ -59,6 +59,21 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
             };
         }
 
+        string? partnerId = null;
+        decimal? partnerPercent = null;
+        decimal? partnerAmount = null;
+
+        if (!string.IsNullOrEmpty(request.CouponId))
+        {
+            var cupom = await _coupons.GetCouponByIdAsync(request.CouponId, cancellationToken);
+            if (cupom != null && !string.IsNullOrEmpty(cupom.IdParceiro) && cupom.PorcentagemParceiro > 0)
+            {
+                partnerId = cupom.IdParceiro;
+                partnerPercent = cupom.PorcentagemParceiro;
+                partnerAmount = Math.Round(request.Price * cupom.PorcentagemParceiro.Value / 100m, 2);
+            }
+        }
+
         await _purchases.CreatePurchaseAsync(
             request.UserId,
             request.PlanId,
@@ -73,6 +88,9 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
             couponName: request.CouponName,
             discountPercent: request.DiscountPercent,
             originalPrice: request.OriginalPrice,
+            partnerId: partnerId,
+            partnerPercent: partnerPercent,
+            partnerAmount: partnerAmount,
             cancellationToken: cancellationToken);
 
         if (!string.IsNullOrEmpty(request.CouponId) && !string.IsNullOrEmpty(request.CpfNormalized))

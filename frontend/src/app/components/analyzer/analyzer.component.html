@@ -174,58 +174,9 @@
           Planos acessíveis para transformar seu currículo e impulsionar sua
           carreira
         </p>
-        
-        <!-- Descrição Única dos Serviços -->
-        <div class="max-w-5xl mx-auto mb-12">
-          <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-200 shadow-lg">
-            <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">O que está incluído em cada análise:</h3>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Análise completa com IA GPT-4</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Recomendações de melhorias</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Currículo recriado com palavras-chave estratégicas</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Criação de carta de apresentação</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Download do currículo em PDF</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Download do currículo em WORD</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mt-0.5">
-                  <mat-icon class="text-white text-sm" style="font-size: 0.875rem; width: 0.875rem; height: 0.875rem; line-height: 0.875rem;">check</mat-icon>
-                </div>
-                <span class="text-gray-700 text-sm">Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
+
+      <p *ngIf="loadingPlans" class="text-center text-gray-500 mb-8">Carregando planos e preços...</p>
 
       <p class="text-xs text-gray-500 mb-2 text-center">
         Pagamento seguro via <strong>{{ paymentProviderLabel }}</strong>
@@ -287,7 +238,7 @@
         </mat-card>
       </div>
 
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div *ngIf="!loadingPlans && plans.length" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
         <mat-card
           *ngFor="let plan of plans; let i = index"
           class="relative overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 border-2"
@@ -320,9 +271,12 @@
           <mat-card-content class="p-6 md:p-8">
             <div class="text-center">
               <!-- Nome do Plano -->
-              <h3 class="text-xl md:text-2xl font-bold text-gray-800 mb-6">
+              <h3 class="text-xl md:text-2xl font-bold text-gray-800 mb-2">
                 {{ plan.name }}
               </h3>
+              <p *ngIf="plan.description" class="text-sm text-gray-600 mb-4 px-1">
+                {{ plan.description }}
+              </p>
 
               <!-- Quantidade em Destaque -->
               <div class="mb-6">
@@ -335,19 +289,27 @@
                 </div>
               </div>
 
-              <!-- Preço -->
-              <div class="mb-6">
+              <!-- Preço (API) -->
+              <div class="mb-4">
                 <div class="flex flex-col items-center gap-1">
                   <span class="text-4xl md:text-5xl font-extrabold text-gray-800">
-                    R$ {{ plan.priceBRL.toFixed(2) }}
+                    R$ {{ formatPriceParts(plan.priceBRL).reais }},{{ formatPriceParts(plan.priceBRL).cents }}
                   </span>
-                  <p class="text-gray-500 text-sm" *ngIf="plan.id !== 'english'">
-                    R$ {{ (plan.priceBRL / plan.analyses).toFixed(2) }} por análise
+                  <p class="text-gray-500 text-sm" *ngIf="plan.id !== 'english' && plan.analyses > 0">
+                    R$ {{ formatPriceParts(pricePerAnalysis(plan)).reais }},{{ formatPriceParts(pricePerAnalysis(plan)).cents }} por análise
                   </p>
                   <p class="text-gray-500 text-sm" *ngIf="plan.id === 'english'">serviço único</p>
                 </div>
               </div>
             </div>
+
+            <!-- Serviços incluídos no plano (API) -->
+            <ul *ngIf="planFeatures(plan).length" class="mb-5 space-y-2 text-left border-t border-gray-100 pt-4">
+              <li *ngFor="let feature of planFeatures(plan)" class="flex items-start gap-2">
+                <mat-icon class="text-green-600 flex-shrink-0 text-base" style="width: 1.125rem; height: 1.125rem; font-size: 1.125rem;">check_circle</mat-icon>
+                <span class="text-gray-700 text-sm leading-snug">{{ feature }}</span>
+              </li>
+            </ul>
 
             <!-- Opção de Currículo em Inglês (apenas para planos de análise) -->
             <div *ngIf="plan.id !== 'english'" class="mb-4">
@@ -414,7 +376,10 @@
             <!-- Mostrar preço total se incluir inglês -->
             <div *ngIf="plan.id !== 'english' && includeEnglishResume[plan.id]" class="mt-2 text-center">
               <p class="text-xs text-gray-600">
-                Total: <span class="font-semibold text-indigo-600">R$ {{ (plan.priceBRL + englishBundlePriceBRL).toFixed(2) }}</span>
+                Total:
+                <span class="font-semibold text-indigo-600">
+                  R$ {{ formatPriceParts(plan.priceBRL + englishBundlePriceBRL).reais }},{{ formatPriceParts(plan.priceBRL + englishBundlePriceBRL).cents }}
+                </span>
               </p>
             </div>
           </mat-card-content>

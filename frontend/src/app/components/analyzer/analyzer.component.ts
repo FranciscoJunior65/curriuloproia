@@ -12,7 +12,11 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { AuthService, User } from '../../services/auth.service';
-import { PricingPlansService } from '../../services/pricing-plans.service';
+import {
+  PricingPlansService,
+  PublicPlan,
+  PriceParts
+} from '../../services/pricing-plans.service';
 import { SiteHeaderComponent } from '../site-header/site-header.component';
 import { VoiceInterviewComponent } from '../voice-interview/voice-interview.component';
 
@@ -46,9 +50,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   error: string | null = null;
   
   // Payment/Plans
-  plans: any[] = [];
+  plans: PublicPlan[] = [];
   loadingPlans = false;
-  selectedPlan: any = null;
+  selectedPlan: PublicPlan | null = null;
   userId: string = '';
   userCredits: number = 0;
   showPlans = true;
@@ -146,6 +150,19 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.englishStandalonePriceBRL,
       this.englishBundlePriceBRL
     );
+  }
+
+  formatPriceParts(priceBRL: number): PriceParts {
+    return this.pricingPlansService.formatPriceParts(priceBRL);
+  }
+
+  planFeatures(plan: PublicPlan): string[] {
+    return plan.features?.length ? plan.features : [];
+  }
+
+  pricePerAnalysis(plan: PublicPlan): number {
+    if (!plan.analyses) return plan.priceBRL;
+    return plan.priceBRL / plan.analyses;
   }
 
   ngOnInit(): void {
@@ -393,12 +410,12 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
   loadPlans(): void {
     this.loadingPlans = true;
-    this.analyzerService.getPlans().subscribe({
-      next: (response: any) => {
+    this.pricingPlansService.getPlans().subscribe({
+      next: (response) => {
         const analysis =
           response.analysisPlans?.length
             ? response.analysisPlans
-            : (response.plans || []).filter((plan: any) => plan.id !== 'english');
+            : (response.plans || []).filter((plan) => plan.id !== 'english');
         this.plans = analysis;
         if (response.englishBundlePriceBRL != null) {
           this.englishBundlePriceBRL = Number(response.englishBundlePriceBRL);
@@ -406,7 +423,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         if (response.englishStandalonePriceBRL != null) {
           this.englishStandalonePriceBRL = Number(response.englishStandalonePriceBRL);
         }
-        const english = response.englishPlan || (response.plans || []).find((p: any) => p.id === 'english');
+        const english =
+          response.englishPlan || (response.plans || []).find((p) => p.id === 'english');
         if (english?.priceBRL != null) {
           this.englishStandalonePriceBRL = Number(english.priceBRL);
         }
@@ -456,7 +474,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectPlan(plan: any): void {
+  selectPlan(plan: PublicPlan): void {
     this.selectedPlan = plan;
     // Inicializa o checkbox se não existir
     if (!this.includeEnglishResume.hasOwnProperty(plan.id)) {
@@ -464,7 +482,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }
   }
 
-  requestAdminFreeCredits(plan: any): void {
+  requestAdminFreeCredits(plan: PublicPlan): void {
     if (!plan || !this.isAdmin) return;
     this.adminFreeLoading = true;
     this.adminFreePlanId = plan.id;
@@ -490,7 +508,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
-  purchasePlan(plan: any): void {
+  purchasePlan(plan: PublicPlan): void {
     if (!plan) return;
 
     // Verifica se está autenticado

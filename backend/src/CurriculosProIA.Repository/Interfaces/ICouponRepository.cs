@@ -9,5 +9,6 @@ public interface ICouponRepository
     Task<bool> CouponAlreadyUsedByCpfAsync(string couponId, string cpf, CancellationToken cancellationToken = default);
     Task RegisterCouponUseAsync(string couponId, string cpf, CancellationToken cancellationToken = default);
     Task<CupomRow?> GetCouponByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<CupomRow?> GetCouponByIdAsync(string couponId, CancellationToken cancellationToken = default);
     Task<CouponValidationResult> ValidateCouponAsync(string code, string? cpf = null, CancellationToken cancellationToken = default);
 }

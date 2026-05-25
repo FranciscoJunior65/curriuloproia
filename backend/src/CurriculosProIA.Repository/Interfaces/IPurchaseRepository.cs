@@ -13,6 +13,7 @@ public interface IPurchaseRepository
         string? parentPurchaseId = null, string serviceType = "analysis_plan",
         string? couponId = null, string? couponName = null,
         decimal? discountPercent = null, decimal? originalPrice = null,
+        string? partnerId = null, decimal? partnerPercent = null, decimal? partnerAmount = null,
         CancellationToken cancellationToken = default);
     Task<Purchase?> GetPurchaseByPaymentIdAsync(string paymentId, CancellationToken cancellationToken = default);
     Task<List<PurchaseWithCredits>> GetUserPurchasesAsync(string userId, int limit = 50, CancellationToken cancellationToken = default);

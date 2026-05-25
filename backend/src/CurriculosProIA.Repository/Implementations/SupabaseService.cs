@@ -390,7 +390,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             await EnsureInitializedAsync(cancellationToken);
             var response = await _client
                 .From<CupomRow>()
-                .Select("id, nome, porcentagem_desconto, ativo")
+                .Select("id, nome, porcentagem_desconto, ativo, id_parceiro, porcentagem_parceiro")
                 .Filter("nome", Operator.ILike, trimmed)
                 .Filter("ativo", Operator.Equals, BoolCriterion(true))
                 .Get();
@@ -453,6 +453,342 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             }
         };
     }
+
+    public async Task<CupomRow?> GetCouponByIdAsync(string couponId, CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(couponId))
+        {
+            return null;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var response = await _client
+                .From<CupomRow>()
+                .Select("id, nome, porcentagem_desconto, ativo, id_parceiro, porcentagem_parceiro")
+                .Filter("id", Operator.Equals, couponId)
+                .Get();
+
+            return response.Models.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar cupom por id");
+            return null;
+        }
+    }
+
+    public async Task<List<PartnerDto>> ListPartnersAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return new List<PartnerDto>();
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<ParceiroRow>()
+            .Select("*")
+            .Order("nome", Ordering.Ascending)
+            .Get();
+
+        return response.Models.Select(p => new PartnerDto
+        {
+            Id = p.Id,
+            Nome = p.Nome ?? string.Empty,
+            Cpf = p.Cpf,
+            Descricao = p.Descricao,
+            Email = p.Email,
+            Ativo = p.Ativo ?? true,
+            CriadoEm = p.CriadoEm
+        }).ToList();
+    }
+
+    public async Task<PartnerDto> CreatePartnerAsync(
+        string nome,
+        string cpf,
+        string? descricao,
+        string? email,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var trimmed = nome.Trim();
+        if (trimmed.Length == 0)
+        {
+            throw new InvalidOperationException("Nome do parceiro é obrigatório.");
+        }
+
+        var docNorm = NormalizeCpf(cpf);
+        if (docNorm.Length != 11 && docNorm.Length != 14)
+        {
+            throw new InvalidOperationException("CPF ou CNPJ inválido. Informe 11 dígitos (CPF) ou 14 dígitos (CNPJ).");
+        }
+
+        var existingDoc = await _client!
+            .From<ParceiroRow>()
+            .Select("id")
+            .Filter("cpf", Operator.Equals, docNorm)
+            .Get();
+        if (existingDoc.Models.Count > 0)
+        {
+            throw new InvalidOperationException("Já existe um parceiro cadastrado com este CPF ou CNPJ.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var partnerId = Guid.NewGuid().ToString();
+        var insert = new ParceiroRow
+        {
+            Id = partnerId,
+            Nome = trimmed,
+            Cpf = docNorm,
+            Descricao = string.IsNullOrWhiteSpace(descricao) ? null : descricao.Trim(),
+            Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim(),
+            Ativo = true,
+            CriadoEm = now,
+            AtualizadoEm = now
+        };
+
+        var response = await _client.From<ParceiroRow>().Insert(insert);
+        var row = response.Models.FirstOrDefault()
+            ?? throw new InvalidOperationException("Parceiro não retornado após insert");
+
+        return new PartnerDto
+        {
+            Id = row.Id,
+            Nome = row.Nome ?? trimmed,
+            Cpf = row.Cpf,
+            Descricao = row.Descricao,
+            Email = row.Email,
+            Ativo = row.Ativo ?? true,
+            CriadoEm = row.CriadoEm
+        };
+    }
+
+    public async Task<List<AdminCouponDto>> ListCouponsAdminAsync(CancellationToken cancellationToken = default)
+    {
+        var metrics = await GetCouponMetricsAsync(cancellationToken);
+        return metrics.ByCoupon.Select(c => new AdminCouponDto
+        {
+            Id = c.CouponId,
+            Nome = c.CouponName,
+            PorcentagemDesconto = c.DiscountPercent,
+            Ativo = c.Ativo,
+            ParceiroId = c.ParceiroId,
+            ParceiroNome = c.ParceiroNome,
+            PorcentagemParceiro = c.ParceiroPercent,
+            TotalCompras = c.PurchasesCount,
+            TotalUsosCpf = c.UniqueCpfUses,
+            ReceitaTotal = c.RevenueTotal,
+            TotalParceiro = c.PartnerTotal
+        }).ToList();
+    }
+
+    public async Task<AdminCouponDto> CreateCouponAsync(
+        string nome,
+        decimal porcentagemDesconto,
+        string? parceiroId,
+        decimal? porcentagemParceiro,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var code = nome.Trim().ToUpperInvariant();
+        if (code.Length == 0)
+        {
+            throw new InvalidOperationException("Código do cupom é obrigatório.");
+        }
+
+        if (porcentagemDesconto < 0 || porcentagemDesconto > 100)
+        {
+            throw new InvalidOperationException("Desconto deve estar entre 0 e 100.");
+        }
+
+        if (!string.IsNullOrEmpty(parceiroId))
+        {
+            if (porcentagemParceiro is null or < 0 or > 100)
+            {
+                throw new InvalidOperationException("Informe a porcentagem de recebimento do parceiro (0-100).");
+            }
+        }
+        else
+        {
+            parceiroId = null;
+            porcentagemParceiro = null;
+        }
+
+        var existing = await GetCouponByCodeAsync(code, cancellationToken);
+        if (existing != null)
+        {
+            throw new InvalidOperationException("Já existe um cupom com este código.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var couponId = Guid.NewGuid().ToString();
+        var insert = new CupomRow
+        {
+            Id = couponId,
+            Nome = code,
+            PorcentagemDesconto = porcentagemDesconto,
+            Ativo = true,
+            IdParceiro = parceiroId,
+            PorcentagemParceiro = porcentagemParceiro,
+            CriadoEm = now
+        };
+
+        await _client!.From<CupomRow>().Insert(insert);
+
+        var list = await ListCouponsAdminAsync(cancellationToken);
+        return list.FirstOrDefault(c => c.Id == couponId)
+            ?? new AdminCouponDto
+            {
+                Id = couponId,
+                Nome = code,
+                PorcentagemDesconto = porcentagemDesconto,
+                Ativo = true,
+                ParceiroId = parceiroId,
+                PorcentagemParceiro = porcentagemParceiro
+            };
+    }
+
+    public async Task<AdminCouponDto?> UpdateCouponAsync(
+        string couponId,
+        decimal? porcentagemDesconto,
+        string? parceiroId,
+        decimal? porcentagemParceiro,
+        bool? ativo,
+        bool clearParceiro,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var current = await GetCouponByIdAsync(couponId, cancellationToken)
+            ?? throw new InvalidOperationException("Cupom não encontrado.");
+
+        if (porcentagemDesconto is < 0 or > 100)
+        {
+            throw new InvalidOperationException("Desconto deve estar entre 0 e 100.");
+        }
+
+        var update = new CupomRow
+        {
+            Id = current.Id,
+            Nome = current.Nome,
+            PorcentagemDesconto = porcentagemDesconto ?? current.PorcentagemDesconto,
+            Ativo = ativo ?? current.Ativo,
+            IdParceiro = clearParceiro ? null : (parceiroId ?? current.IdParceiro),
+            PorcentagemParceiro = clearParceiro ? null : (porcentagemParceiro ?? current.PorcentagemParceiro)
+        };
+
+        if (!string.IsNullOrEmpty(update.IdParceiro) && update.PorcentagemParceiro is null or < 0 or > 100)
+        {
+            throw new InvalidOperationException("Informe a porcentagem de recebimento do parceiro (0-100).");
+        }
+
+        await _client!
+            .From<CupomRow>()
+            .Filter("id", Operator.Equals, couponId)
+            .Update(update);
+
+        var list = await ListCouponsAdminAsync(cancellationToken);
+        return list.FirstOrDefault(c => c.Id == couponId);
+    }
+
+    public async Task<CouponMetricsSummaryDto> GetCouponMetricsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return new CouponMetricsSummaryDto();
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+
+        var cuponsResponse = await _client.From<CupomRow>().Select("*").Get();
+        var parceirosResponse = await _client.From<ParceiroRow>().Select("id, nome").Get();
+        var comprasResponse = await _client
+            .From<CompraRow>()
+            .Select("id, id_cupom, preco, id_parceiro, valor_parceiro, status")
+            .Get();
+        var usosResponse = await _client.From<CupomUsoRow>().Select("id_cupom").Get();
+
+        var parceirosById = parceirosResponse.Models.ToDictionary(p => p.Id, p => p.Nome ?? string.Empty);
+        var usosByCupom = usosResponse.Models
+            .Where(u => !string.IsNullOrEmpty(u.IdCupom))
+            .GroupBy(u => u.IdCupom!)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var comprasConcluidas = comprasResponse.Models
+            .Where(c => !string.IsNullOrWhiteSpace(c.IdCupom) && IsPurchaseCompleted(c.Status))
+            .ToList();
+
+        var comprasByCupom = comprasConcluidas
+            .GroupBy(c => c.IdCupom!)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var byCoupon = cuponsResponse.Models.Select(cupom =>
+        {
+            comprasByCupom.TryGetValue(cupom.Id, out var compras);
+            compras ??= new List<CompraRow>();
+            var partnerName = cupom.IdParceiro != null && parceirosById.TryGetValue(cupom.IdParceiro, out var pn)
+                ? pn
+                : null;
+
+            return new CouponMetricItemDto
+            {
+                CouponId = cupom.Id,
+                CouponName = cupom.Nome ?? string.Empty,
+                DiscountPercent = cupom.PorcentagemDesconto ?? 0,
+                Ativo = cupom.Ativo ?? true,
+                ParceiroId = cupom.IdParceiro,
+                ParceiroNome = partnerName,
+                ParceiroPercent = cupom.PorcentagemParceiro,
+                PurchasesCount = compras.Count,
+                UniqueCpfUses = usosByCupom.GetValueOrDefault(cupom.Id),
+                RevenueTotal = compras.Sum(c => c.Preco ?? 0),
+                PartnerTotal = compras.Sum(c => c.ValorParceiro ?? 0)
+            };
+        }).OrderByDescending(c => c.PurchasesCount).ToList();
+
+        var byPartner = comprasConcluidas
+            .Where(c => !string.IsNullOrEmpty(c.IdParceiro))
+            .GroupBy(c => c.IdParceiro!)
+            .Select(g =>
+            {
+                parceirosById.TryGetValue(g.Key, out var nome);
+                var couponIds = cuponsResponse.Models
+                    .Where(c => c.IdParceiro == g.Key)
+                    .Select(c => c.Id)
+                    .ToHashSet();
+
+                return new PartnerMetricItemDto
+                {
+                    ParceiroId = g.Key,
+                    ParceiroNome = nome ?? "Parceiro",
+                    CouponsCount = couponIds.Count,
+                    PurchasesCount = g.Count(),
+                    RevenueTotal = g.Sum(c => c.Preco ?? 0),
+                    PartnerTotal = g.Sum(c => c.ValorParceiro ?? 0)
+                };
+            })
+            .OrderByDescending(p => p.PurchasesCount)
+            .ToList();
+
+        return new CouponMetricsSummaryDto
+        {
+            ByCoupon = byCoupon,
+            ByPartner = byPartner,
+            TotalPurchasesWithCoupon = comprasConcluidas.Count,
+            TotalRevenueWithCoupon = comprasConcluidas.Sum(c => c.Preco ?? 0),
+            TotalPartnerPayout = comprasConcluidas.Sum(c => c.ValorParceiro ?? 0)
+        };
+    }
+
+    private static bool IsPurchaseCompleted(string? status) =>
+        status is "concluida" or "completed";
 
     private static Credit MapCreditToEnglish(CreditoRow credit)
     {
@@ -875,6 +1211,9 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         string? couponName = null,
         decimal? discountPercent = null,
         decimal? originalPrice = null,
+        string? partnerId = null,
+        decimal? partnerPercent = null,
+        decimal? partnerAmount = null,
         CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
@@ -902,7 +1241,10 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             IdCupom = couponId,
             NomeCupom = string.IsNullOrEmpty(couponName) ? null : couponName,
             PorcentagemDescontoAplicado = discountPercent,
-            PrecoOriginal = originalPrice
+            PrecoOriginal = originalPrice,
+            IdParceiro = partnerId,
+            PorcentagemParceiroAplicada = partnerPercent,
+            ValorParceiro = partnerAmount
         };
 
         var purchaseResponse = await _client!
