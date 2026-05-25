@@ -31,6 +31,7 @@ COMMENT ON COLUMN public.parceiros.cpf IS 'CPF (11 dígitos) ou CNPJ (14 dígito
 
 COMMENT ON COLUMN public.cupons.id_parceiro IS 'Parceiro vinculado ao cupom (opcional)';
 COMMENT ON COLUMN public.cupons.porcentagem_parceiro IS '% do valor pago repassado ao parceiro';
+
 ALTER TABLE public.compras
   ADD COLUMN IF NOT EXISTS id_parceiro UUID REFERENCES public.parceiros(id),
   ADD COLUMN IF NOT EXISTS porcentagem_parceiro_aplicada NUMERIC(5, 2),
