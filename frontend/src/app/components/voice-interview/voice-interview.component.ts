@@ -307,7 +307,7 @@ export class VoiceInterviewComponent implements OnDestroy {
       company: raw?.company ?? '',
       initials,
       avatarColor: raw?.avatarColor ?? '#6366f1',
-      avatarUrl: INTERVIEWER_AVATARS[initials],
+      avatarUrl: INTERVIEWER_AVATARS[initials] ?? 'assets/imagens/persona.jpeg',
       voiceGender: PERSONA_GENDER[initials] ?? 'female'
     };
   }

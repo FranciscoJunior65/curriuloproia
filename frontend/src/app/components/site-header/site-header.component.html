@@ -1,109 +1,147 @@
-<header class="bg-white shadow-sm sticky top-0 z-50">
-  <div class="w-full px-4 sm:px-6 lg:px-12 py-4">
-    <div class="flex justify-between items-center w-full">
-      <div class="flex items-center gap-4">
-        <a routerLink="/" class="flex items-center gap-2 hover:opacity-90 transition-opacity">
-          <mat-icon class="text-indigo-600">description</mat-icon>
-          <span class="text-xl font-bold text-gray-800">CurriculosPro IA</span>
-        </a>
-        <a
-          *ngIf="isAdmin"
-          routerLink="/admin"
-          routerLinkActive="bg-indigo-100 border-indigo-400 text-indigo-700"
-          class="px-4 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 hover:border-indigo-300 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
-        >
-          <mat-icon class="text-lg">dashboard</mat-icon>
-          <span>Painel Admin</span>
-        </a>
+<header class="site-header">
+  <div class="site-header__inner">
+    <div class="site-header__brand">
+      <a routerLink="/" class="site-header__logo" aria-label="CurrículosPro IA - Início">
+        <mat-icon aria-hidden="true">description</mat-icon>
+        <span class="site-header__logo-text">
+          <span class="site-header__logo-short">Pro IA</span>
+          <span class="site-header__logo-full">CurriculosPro IA</span>
+        </span>
+      </a>
+      <a
+        *ngIf="isAdmin"
+        routerLink="/admin"
+        routerLinkActive="active"
+        class="site-header__admin-link"
+        title="Painel Admin"
+        aria-label="Painel Admin"
+      >
+        <mat-icon aria-hidden="true">dashboard</mat-icon>
+        <span class="site-header__admin-label">Painel Admin</span>
+      </a>
+    </div>
+
+    <div *ngIf="isAuthenticated" class="site-header__actions">
+      <div class="site-header__user-summary">
+        <p class="site-header__user-name">
+          {{ currentUser?.name || currentUser?.email }}
+        </p>
+        <p class="site-header__user-meta">
+          <mat-icon aria-hidden="true">stars</mat-icon>
+          <span>{{ userCredits }} crédito(s)</span>
+          <span *ngIf="pendingServicesCount > 0" class="site-header__user-pending">
+            · {{ pendingServicesCount }} pendente(s)
+          </span>
+        </p>
       </div>
 
-      <div class="flex items-center gap-3 flex-shrink-0">
-        <div *ngIf="isAuthenticated" class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-semibold text-gray-800">
-              {{ currentUser?.name || currentUser?.email }}
-            </p>
-            <p class="text-xs text-gray-500 flex items-center gap-1 justify-end flex-wrap">
-              <mat-icon class="text-xs">stars</mat-icon>
-              <span>{{ userCredits }} crédito(s)</span>
-              <span *ngIf="pendingServicesCount > 0" class="text-amber-700 font-semibold">
-                · {{ pendingServicesCount }} serviço(s) pendente(s)
-              </span>
-            </p>
-          </div>
-          <div class="relative">
-            <button
-              type="button"
-              [matMenuTriggerFor]="userMenu"
-              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <mat-icon class="text-indigo-600">account_circle</mat-icon>
-              <span class="text-sm font-medium text-gray-700 hidden md:inline">Painel do usuário</span>
-              <mat-icon class="text-gray-500 text-sm">arrow_drop_down</mat-icon>
-            </button>
-            <mat-menu #userMenu="matMenu" class="mt-2">
-              <div class="p-2">
-                <div class="px-3 py-2 border-b border-gray-200 mb-2">
-                  <p class="text-sm font-semibold text-gray-800">{{ getUserDisplayName() }}</p>
-                  <p class="text-xs text-gray-500">{{ userCredits }} crédito(s) disponível(is)</p>
-                </div>
-                <button
-                  mat-menu-item
-                  routerLink="/"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">home</mat-icon>
-                  <span>Início</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/historico-analises"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">history</mat-icon>
-                  <span>Histórico de Análises</span>
-                  <span
-                    *ngIf="pendingServicesCount > 0"
-                    class="ml-auto text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full"
-                  >{{ pendingServicesCount }}</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/financeiro"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">account_balance</mat-icon>
-                  <span>Menu Financeiro</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/meus-dados"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">person</mat-icon>
-                  <span>Meus Dados</span>
-                </button>
-                <button
-                  mat-menu-item
-                  routerLink="/trocar-senha"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">lock</mat-icon>
-                  <span>Trocar Senha</span>
-                </button>
-                <button
-                  mat-menu-item
-                  (click)="logout()"
-                  class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors duration-150 flex items-center gap-2"
-                >
-                  <mat-icon class="text-lg">logout</mat-icon>
-                  <span>Sair</span>
-                </button>
-              </div>
-            </mat-menu>
-          </div>
-        </div>
+      <div class="site-header__mobile-badges" aria-label="Resumo da conta">
+        <span class="site-header__badge site-header__badge--credits" title="Créditos disponíveis">
+          <mat-icon aria-hidden="true">stars</mat-icon>
+          {{ userCredits }}
+        </span>
+        <span
+          *ngIf="pendingServicesCount > 0"
+          class="site-header__badge site-header__badge--pending"
+          title="Serviços pendentes"
+        >
+          {{ pendingServicesCount }}
+        </span>
       </div>
+
+      <button
+        type="button"
+        class="site-header__menu-trigger"
+        [class.site-header__menu-trigger--active]="userMenuOpen"
+        [attr.aria-expanded]="userMenuOpen"
+        aria-controls="site-header-user-menu"
+        aria-label="Abrir menu do usuário"
+        (click)="toggleUserMenu()"
+      >
+        <mat-icon aria-hidden="true">account_circle</mat-icon>
+        <span class="site-header__menu-trigger-label">Menu</span>
+        <mat-icon class="site-header__menu-chevron" aria-hidden="true">{{ userMenuOpen ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </button>
     </div>
   </div>
 </header>
+
+<ng-container *ngIf="isAuthenticated && userMenuOpen">
+  <button
+    type="button"
+    class="site-header__backdrop"
+    aria-label="Fechar menu"
+    (click)="closeUserMenu()"
+  ></button>
+
+  <div
+    id="site-header-user-menu"
+    class="site-header__sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Menu da conta"
+  >
+    <div class="site-header__sheet-inner">
+    <div class="site-header__sheet-handle" aria-hidden="true"></div>
+
+    <div class="site-header__profile">
+      <div class="site-header__avatar" aria-hidden="true">{{ getUserInitials() }}</div>
+      <div class="site-header__profile-body">
+        <p class="site-header__profile-name">{{ currentUser?.name || currentUser?.email }}</p>
+        <div class="site-header__profile-chips">
+          <span class="site-header__chip site-header__chip--credit">
+            <mat-icon aria-hidden="true">stars</mat-icon>
+            {{ userCredits }} crédito{{ userCredits === 1 ? '' : 's' }}
+          </span>
+          <span *ngIf="pendingServicesCount > 0" class="site-header__chip site-header__chip--pending">
+            {{ pendingServicesCount }} pendente{{ pendingServicesCount === 1 ? '' : 's' }}
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="site-header__sheet-close"
+        aria-label="Fechar menu"
+        (click)="closeUserMenu()"
+      >
+        <mat-icon aria-hidden="true">close</mat-icon>
+      </button>
+    </div>
+
+    <nav class="site-header__nav" aria-label="Navegação da conta">
+      <a routerLink="/" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">home</mat-icon></span>
+        <span class="site-header__nav-label">Início</span>
+      </a>
+      <a routerLink="/historico-analises" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">history</mat-icon></span>
+        <span class="site-header__nav-label">Histórico de Análises</span>
+        <span *ngIf="pendingServicesCount > 0" class="site-header__nav-badge">{{ pendingServicesCount }}</span>
+      </a>
+      <a routerLink="/financeiro" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">account_balance_wallet</mat-icon></span>
+        <span class="site-header__nav-label">Financeiro</span>
+      </a>
+      <a routerLink="/meus-dados" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">person</mat-icon></span>
+        <span class="site-header__nav-label">Meus Dados</span>
+      </a>
+      <a routerLink="/trocar-senha" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">lock</mat-icon></span>
+        <span class="site-header__nav-label">Trocar Senha</span>
+      </a>
+      <a *ngIf="isAdmin" routerLink="/admin" class="site-header__nav-link" (click)="closeUserMenu()">
+        <span class="site-header__nav-icon"><mat-icon aria-hidden="true">dashboard</mat-icon></span>
+        <span class="site-header__nav-label">Painel Admin</span>
+      </a>
+    </nav>
+
+    <div class="site-header__sheet-footer">
+      <button type="button" class="site-header__logout" (click)="logout()">
+        <mat-icon aria-hidden="true">logout</mat-icon>
+        Sair da conta
+      </button>
+    </div>
+    </div>
+  </div>
+</ng-container>

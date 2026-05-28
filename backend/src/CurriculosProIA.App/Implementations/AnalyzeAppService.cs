@@ -313,6 +313,60 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
     }
 
+        public async Task<IActionResult> GenerateEnglishExcel(
+        GenerateEnglishExcelSignature body,
+        CancellationToken cancellationToken)
+    {
+        var startTime = DateTime.UtcNow;
+
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(body.OriginalText))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Dados incompletos",
+                    message = "É necessário fornecer originalText"
+                });
+            }
+
+            var englishResume = await _resumeGenerator.GenerateEnglishResumeAsync(
+                body.OriginalText,
+                body.Analysis,
+                body.SiteId,
+                cancellationToken);
+
+            var excelBuffer = _resumeGenerator.GenerateResumeExcel(englishResume);
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
+
+            var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
+            _logger.LogInformation("Currículo em inglês (Excel) gerado em {Seconds:F2}s", processingTime);
+
+            return File(
+                excelBuffer,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "curriculo-ingles.xlsx");
+        }
+        catch (Exception ex)
+        {
+            var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
+            _logger.LogError(ex, "Erro ao gerar Excel em inglês ({Seconds:F2}s)", processingTime);
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao gerar Excel em inglês",
+                message = ex.Message
+            });
+        }
+    }
+
         public async Task<IActionResult> GenerateCoverLetter(
         GenerateCoverLetterSignature body,
         CancellationToken cancellationToken)

@@ -1,18 +1,17 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatButtonModule } from '@angular/material/button';
-import { Subject, takeUntil } from 'rxjs';
+import { filter, Subject, takeUntil } from 'rxjs';
 import { AuthService, User } from '../../services/auth.service';
 import { AnalyzerService } from '../../services/analyzer.service';
 
 @Component({
   selector: 'app-site-header',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatMenuModule, MatButtonModule],
-  templateUrl: './site-header.component.html'
+  imports: [CommonModule, RouterModule, MatIconModule],
+  templateUrl: './site-header.component.html',
+  styleUrl: './site-header.component.scss'
 })
 export class SiteHeaderComponent implements OnInit, OnDestroy {
   currentUser: User | null = null;
@@ -20,6 +19,7 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   isAdmin = false;
   userCredits = 0;
   pendingServicesCount = 0;
+  userMenuOpen = false;
 
   private readonly destroy$ = new Subject<void>();
 
@@ -35,10 +35,11 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       this.isAuthenticated = !!user;
       this.isAdmin = this.authService.isAdmin();
       this.userCredits = user?.credits ?? 0;
-      if (user) {
-        this.loadPendingServices();
-      } else {
+      if (!user) {
+        this.closeUserMenu();
         this.pendingServicesCount = 0;
+      } else {
+        this.loadPendingServices();
       }
     });
 
@@ -50,6 +51,13 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       this.userCredits = user.credits ?? 0;
       this.loadPendingServices();
     }
+
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => this.closeUserMenu());
   }
 
   loadPendingServices(): void {
@@ -66,8 +74,29 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.setBodyScrollLocked(false);
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.userMenuOpen) {
+      this.closeUserMenu();
+    }
+  }
+
+  toggleUserMenu(): void {
+    this.userMenuOpen = !this.userMenuOpen;
+    this.setBodyScrollLocked(this.userMenuOpen);
+  }
+
+  closeUserMenu(): void {
+    if (!this.userMenuOpen) {
+      return;
+    }
+    this.userMenuOpen = false;
+    this.setBodyScrollLocked(false);
   }
 
   getUserDisplayName(): string {
@@ -80,8 +109,23 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
     return 'Usuário';
   }
 
+  getUserInitials(): string {
+    const source = (this.currentUser?.name || this.currentUser?.email || 'U').trim();
+    const parts = source.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+  }
+
   logout(): void {
+    this.closeUserMenu();
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  private setBodyScrollLocked(locked: boolean): void {
+    document.body.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflowX = locked ? 'hidden' : '';
   }
 }

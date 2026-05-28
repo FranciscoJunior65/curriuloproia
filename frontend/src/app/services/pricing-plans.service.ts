@@ -45,7 +45,8 @@ const SHARED_ANALYSIS_FEATURES = [
   'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
   'Simulador de entrevista com IA',
   'Currículo melhorado em PDF ou WORD',
-  'Palavras-chave estratégicas'
+  'Palavras-chave estratégicas',
+  'Pesquisa de vagas de emprego'
 ];
 
 /** Planos exibidos quando a API não responde */

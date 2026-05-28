@@ -25,7 +25,7 @@
         Painel Administrativo
       </h1>
       <div class="header-actions">
-        <button mat-raised-button color="primary" (click)="loadDashboard()">
+        <button mat-raised-button color="primary" class="admin-refresh-btn" (click)="loadDashboard()">
           <mat-icon>refresh</mat-icon>
           Atualizar
         </button>
@@ -108,7 +108,7 @@
 
   <!-- Configurações -->
   <div *ngIf="!loading && stats" class="settings-section">
-    <mat-tab-group>
+    <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" class="admin-tabs">
       <mat-tab>
         <ng-template mat-tab-label>
           <mat-icon class="settings-tab-icon">payments</mat-icon>
@@ -358,19 +358,19 @@
                       </thead>
                       <tbody>
                         <tr *ngFor="let c of coupons">
-                          <td><strong>{{ c.nome }}</strong></td>
-                          <td>{{ c.porcentagemDesconto }}%</td>
-                          <td>{{ c.parceiroNome || '—' }}</td>
-                          <td>{{ c.porcentagemParceiro != null ? c.porcentagemParceiro + '%' : '—' }}</td>
-                          <td>{{ c.totalCompras }}</td>
-                          <td>{{ formatCurrency(c.receitaTotal) }}</td>
-                          <td>{{ formatCurrency(c.totalParceiro) }}</td>
-                          <td>
+                          <td data-label="Código"><strong>{{ c.nome }}</strong></td>
+                          <td data-label="Desconto">{{ c.porcentagemDesconto }}%</td>
+                          <td data-label="Parceiro">{{ c.parceiroNome || '—' }}</td>
+                          <td data-label="% parceiro">{{ c.porcentagemParceiro != null ? c.porcentagemParceiro + '%' : '—' }}</td>
+                          <td data-label="Compras">{{ c.totalCompras }}</td>
+                          <td data-label="Receita">{{ formatCurrency(c.receitaTotal) }}</td>
+                          <td data-label="Repasse">{{ formatCurrency(c.totalParceiro) }}</td>
+                          <td data-label="Status">
                             <span [class]="c.ativo ? 'coupon-status coupon-status--on' : 'coupon-status coupon-status--off'">
                               {{ c.ativo ? 'Ativo' : 'Inativo' }}
                             </span>
                           </td>
-                          <td>
+                          <td data-label="Ação">
                             <button mat-stroked-button type="button" (click)="toggleCouponActive(c)">
                               {{ c.ativo ? 'Desativar' : 'Ativar' }}
                             </button>
@@ -397,11 +397,11 @@
                       </thead>
                       <tbody>
                         <tr *ngFor="let p of couponMetrics!.byPartner">
-                          <td><strong>{{ p.parceiroNome }}</strong></td>
-                          <td>{{ p.couponsCount }}</td>
-                          <td>{{ p.purchasesCount }}</td>
-                          <td>{{ formatCurrency(p.revenueTotal) }}</td>
-                          <td>{{ formatCurrency(p.partnerTotal) }}</td>
+                          <td data-label="Parceiro"><strong>{{ p.parceiroNome }}</strong></td>
+                          <td data-label="Cupons">{{ p.couponsCount }}</td>
+                          <td data-label="Compras">{{ p.purchasesCount }}</td>
+                          <td data-label="Receita gerada">{{ formatCurrency(p.revenueTotal) }}</td>
+                          <td data-label="Total repasse">{{ formatCurrency(p.partnerTotal) }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -424,7 +424,7 @@
 
   <!-- Usage Tabs -->
   <div *ngIf="!loading && stats" class="usage-section">
-    <mat-tab-group>
+    <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" class="admin-tabs">
       <!-- Tab: Uso Diário -->
       <mat-tab label="Uso Diário">
         <div class="tab-content">
@@ -459,10 +459,10 @@
               </thead>
               <tbody>
                 <tr *ngFor="let day of dailyUsage" [class.has-data]="day.analyses > 0 || day.registrations > 0">
-                  <td>{{ formatDate(day.date || '') }}</td>
-                  <td>{{ day.registrations }}</td>
-                  <td>{{ day.analyses }}</td>
-                  <td class="revenue-cell">{{ formatCurrency(day.revenue) }}</td>
+                  <td data-label="Data">{{ formatDate(day.date || '') }}</td>
+                  <td data-label="Registros">{{ day.registrations }}</td>
+                  <td data-label="Análises">{{ day.analyses }}</td>
+                  <td data-label="Faturamento" class="revenue-cell">{{ formatCurrency(day.revenue) }}</td>
                 </tr>
                 <tr *ngIf="dailyUsage.length === 0">
                   <td colspan="4" class="no-data">Nenhum dado disponível</td>
@@ -507,10 +507,10 @@
               </thead>
               <tbody>
                 <tr *ngFor="let month of monthlyUsage" [class.has-data]="month.analyses > 0 || month.registrations > 0">
-                  <td>{{ formatMonth(month.month || '') }}</td>
-                  <td>{{ month.registrations }}</td>
-                  <td>{{ month.analyses }}</td>
-                  <td class="revenue-cell">{{ formatCurrency(month.revenue) }}</td>
+                  <td data-label="Mês">{{ formatMonth(month.month || '') }}</td>
+                  <td data-label="Registros">{{ month.registrations }}</td>
+                  <td data-label="Análises">{{ month.analyses }}</td>
+                  <td data-label="Faturamento" class="revenue-cell">{{ formatCurrency(month.revenue) }}</td>
                 </tr>
                 <tr *ngIf="monthlyUsage.length === 0">
                   <td colspan="4" class="no-data">Nenhum dado disponível</td>

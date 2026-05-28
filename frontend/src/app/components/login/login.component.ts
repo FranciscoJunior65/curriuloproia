@@ -1,4 +1,11 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  HostListener,
+  OnInit,
+  ViewChild,
+  ElementRef
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -20,7 +27,7 @@ import { environment } from '../../../environments/environment';
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, AfterViewInit {
   isLogin = true;
   nome = '';
   cpf = '';
@@ -67,7 +74,12 @@ export class LoginComponent implements OnInit {
   acceptPrivacyPolicy = false;
 
   @ViewChild('loginVideo') loginVideoRef?: ElementRef<HTMLVideoElement>;
+  @ViewChild('loginVideoMedia') loginVideoMediaRef?: ElementRef<HTMLElement>;
   videoPlaying = false;
+  videoExpanded = false;
+  wideLayout = false;
+  readonly loginVideoSrc = 'assets/videos/video.mp4';
+  private static readonly WIDE_LAYOUT_MIN_PX = 768;
 
   analysisPlans: PublicPlan[] = [];
   englishPlan: PublicPlan | null = null;
@@ -126,6 +138,147 @@ export class LoginComponent implements OnInit {
       void video.play();
     } else {
       video.pause();
+    }
+  }
+
+  onLoginVideoReady(): void {
+    if (!this.videoPlaying) {
+      this.initLoginVideo();
+    }
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.updateWideLayout();
+    setTimeout(() => this.initLoginVideo(), 100);
+  }
+
+  @HostListener('document:fullscreenchange')
+  @HostListener('document:webkitfullscreenchange')
+  onDocumentFullscreenChange(): void {
+    const active = this.isNativeFullscreenActive();
+    if (!active) {
+      this.videoExpanded = false;
+      document.body.style.overflow = '';
+    } else {
+      this.videoExpanded = true;
+    }
+  }
+
+  toggleVideoFullscreen(): void {
+    if (this.videoExpanded || this.isNativeFullscreenActive()) {
+      this.exitVideoFullscreen();
+      return;
+    }
+    this.enterVideoFullscreen();
+  }
+
+  exitVideoFullscreen(): void {
+    const video = this.loginVideoRef?.nativeElement as
+      | (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean })
+      | undefined;
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+    }
+
+    if (video?.webkitDisplayingFullscreen && (video as HTMLVideoElement & { webkitExitFullscreen?: () => void }).webkitExitFullscreen) {
+      (video as HTMLVideoElement & { webkitExitFullscreen: () => void }).webkitExitFullscreen();
+    }
+
+    this.videoExpanded = false;
+    document.body.style.overflow = '';
+  }
+
+  private enterVideoFullscreen(): void {
+    const media = this.loginVideoMediaRef?.nativeElement;
+    const video = this.loginVideoRef?.nativeElement;
+    if (!media || !video) {
+      return;
+    }
+
+    if (!video.paused) {
+      void video.play();
+    }
+
+    const iosVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+    if (typeof iosVideo.webkitEnterFullscreen === 'function') {
+      try {
+        iosVideo.webkitEnterFullscreen();
+        this.videoExpanded = true;
+        document.body.style.overflow = 'hidden';
+        return;
+      } catch {
+        // fallback abaixo
+      }
+    }
+
+    const mediaEl = media as HTMLElement & {
+      requestFullscreen?: () => Promise<void>;
+      webkitRequestFullscreen?: () => void;
+    };
+
+    if (mediaEl.requestFullscreen) {
+      void mediaEl.requestFullscreen().then(() => {
+        this.videoExpanded = true;
+        document.body.style.overflow = 'hidden';
+      }).catch(() => {
+        this.videoExpanded = true;
+        document.body.style.overflow = 'hidden';
+      });
+      return;
+    }
+
+    if (mediaEl.webkitRequestFullscreen) {
+      mediaEl.webkitRequestFullscreen();
+      this.videoExpanded = true;
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    this.videoExpanded = true;
+    document.body.style.overflow = 'hidden';
+  }
+
+  private isNativeFullscreenActive(): boolean {
+    const media = this.loginVideoMediaRef?.nativeElement;
+    const video = this.loginVideoRef?.nativeElement as
+      | (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean })
+      | undefined;
+
+    return (
+      !!document.fullscreenElement ||
+      document.fullscreenElement === media ||
+      !!video?.webkitDisplayingFullscreen
+    );
+  }
+
+  private updateWideLayout(): void {
+    this.wideLayout =
+      typeof window !== 'undefined' &&
+      window.innerWidth >= LoginComponent.WIDE_LAYOUT_MIN_PX;
+  }
+
+  private initLoginVideo(): void {
+    const video = this.loginVideoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    const playPromise = video.play();
+    if (playPromise) {
+      playPromise
+        .then(() => {
+          this.videoPlaying = !video.paused;
+        })
+        .catch(() => {
+          this.videoPlaying = false;
+        });
     }
   }
 
@@ -734,7 +887,13 @@ export class LoginComponent implements OnInit {
     });
   }
 
+  ngAfterViewInit(): void {
+    this.updateWideLayout();
+    setTimeout(() => this.initLoginVideo(), 150);
+  }
+
   ngOnInit() {
+    this.updateWideLayout();
     this.loadPricingPlans();
 
     // Verifica se há token de reset ou OAuth na URL

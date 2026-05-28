@@ -1,33 +1,68 @@
 <div class="login-page">
-  <div class="login-card">
-    <div class="login-card__image">
-      <div class="login-card__media">
+  <div class="login-card" [class.login-card--wide]="wideLayout">
+    <div class="login-card__hero" [class.login-card__hero--video-expanded]="videoExpanded">
+      <div
+        #loginVideoMedia
+        class="login-card__media"
+        [class.login-card__media--expanded]="videoExpanded"
+      >
         <video
           #loginVideo
-          src="assets/videos/video.mp4"
+          [src]="loginVideoSrc"
+          muted
           loop
           playsinline
-          preload="metadata"
+          autoplay
+          preload="auto"
           (play)="videoPlaying = true"
           (pause)="videoPlaying = false"
+          (loadeddata)="onLoginVideoReady()"
+          (canplay)="onLoginVideoReady()"
         ></video>
+        <div class="login-card__video-toolbar">
+          <button
+            type="button"
+            class="login-card__video-tool-btn"
+            (click)="toggleVideoFullscreen()"
+            [attr.aria-label]="videoExpanded ? 'Sair da tela cheia' : 'Expandir vídeo em tela cheia'"
+          >
+            <mat-icon>{{ videoExpanded ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          </button>
+          <button
+            type="button"
+            class="login-card__video-tool-btn"
+            (click)="toggleLoginVideo()"
+            [attr.aria-label]="videoPlaying ? 'Pausar vídeo' : 'Reproduzir vídeo'"
+          >
+            <mat-icon>{{ videoPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+          </button>
+        </div>
         <button
           type="button"
           class="login-card__video-control"
-          [class.login-card__video-control--playing]="videoPlaying"
+          [class.login-card__video-control--hidden]="videoPlaying"
           (click)="toggleLoginVideo()"
-          [attr.aria-label]="videoPlaying ? 'Pausar vídeo' : 'Reproduzir vídeo'"
+          aria-label="Reproduzir vídeo"
         >
-          <mat-icon>{{ videoPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+          <mat-icon>play_arrow</mat-icon>
+        </button>
+        <button
+          *ngIf="videoExpanded"
+          type="button"
+          class="login-card__video-close-fs"
+          (click)="exitVideoFullscreen()"
+          aria-label="Fechar tela cheia"
+        >
+          <mat-icon>close</mat-icon>
         </button>
       </div>
-      <div class="login-card__image-overlay">
+      <div class="login-card__hero-overlay">
         <p class="login-card__badge">CurriculoPro IA</p>
         <h2 class="login-card__headline">
           Seu currículo profissional,
           <span>impulsionado por IA.</span>
         </h2>
-        <p class="login-card__subtitle">
+        <p class="login-card__subtitle login-card__subtitle--desktop">
           Analise, otimize e melhore seu currículo com inteligência artificial em poucos minutos.
         </p>
       </div>
@@ -578,6 +613,7 @@
           <li><mat-icon>check_circle</mat-icon><span>Otimização para sites de vagas</span></li>
           <li><mat-icon>check_circle</mat-icon><span>Currículo PDF ou WORD</span></li>
           <li><mat-icon>check_circle</mat-icon><span>Simulador de entrevista com IA</span></li>
+          <li><mat-icon>check_circle</mat-icon><span>Pesquisa de vagas de emprego</span></li>
         </ul>
       </article>
     </div>

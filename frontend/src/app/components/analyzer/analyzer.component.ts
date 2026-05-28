@@ -81,10 +81,18 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   analysisCompleted = false; // Flag para travar após análise
   generatingWord = false;
   generatingPDF = false;
+  generatingEnglishExcel = false;
   generatingCoverLetter = false;
+  readonly personaImageUrl = 'assets/imagens/persona.jpeg';
+  readonly founderImageUrl = 'assets/imagens/david-oliveira.jpeg';
+  readonly supportWhatsapp = '(71) 98309-6865';
+  readonly supportWhatsappUrl = 'https://wa.me/5571983096865';
+  readonly supportEmail = 'curriculoproia@gmail.com';
   resumeChanges: any = null; // Armazena mudanças após geração
   showInterviewChat = false; // Controla exibição do chat (legado texto)
   showVoiceInterview = false; // Entrevista por voz com persona
+  foundJobs: Array<{ title?: string; company?: string; url?: string; location?: string; description?: string }> = [];
+  searchingJobs = false;
   interviewStarted = false; // Controla se a entrevista foi iniciada
   interviewQuestions: string[] = []; // Perguntas da entrevista
   currentQuestionIndex = 0; // Índice da pergunta atual
@@ -122,6 +130,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.analysisCompleted = false;
     this.resumeChanges = null;
     this.showVoiceInterview = false;
+    this.foundJobs = [];
+    this.searchingJobs = false;
+    this.generatingEnglishExcel = false;
     this.updateShowPlans();
     this.showInterviewChat = false;
     this.interviewStarted = false;
@@ -368,6 +379,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             }, 500);
           } else if (action === 'jobs') {
             setTimeout(() => {
+              this.searchJobs();
               this.scrollToResults();
             }, 500);
           } else {
@@ -905,6 +917,41 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
+  generateEnglishExcel(): void {
+    if (!this.result) {
+      this.error = 'Nenhuma análise disponível';
+      return;
+    }
+
+    this.generatingEnglishExcel = true;
+    this.error = null;
+
+    this.analyzerService
+      .generateEnglishExcel(
+        this.result.originalText,
+        this.result.analysis,
+        this.selectedSiteId || undefined,
+        this.result.analysisId || undefined
+      )
+      .subscribe({
+        next: (blob: Blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'curriculo-ingles.xlsx';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          this.generatingEnglishExcel = false;
+        },
+        error: (err: any) => {
+          this.generatingEnglishExcel = false;
+          this.error = err?.error?.message || 'Erro ao gerar Excel em inglês';
+        }
+      });
+  }
+
   downloadInterviewFromServer(): void {
     if (!this.simulationId) {
       alert('ID da simulação não encontrado.');
@@ -973,6 +1020,65 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         console.error('Erro ao gerar carta de apresentação:', err);
       }
     });
+  }
+
+  searchJobs(): void {
+    if (!this.result) {
+      this.error = 'Nenhuma análise disponível';
+      return;
+    }
+
+    if (!this.selectedSiteId) {
+      this.error = 'Por favor, selecione um site de vagas para buscar oportunidades';
+      return;
+    }
+
+    this.searchingJobs = true;
+    this.error = null;
+    this.foundJobs = [];
+
+    this.analyzerService
+      .searchJobs(
+        this.result.analysis,
+        this.selectedSiteId,
+        'Brasil',
+        this.result.originalText || undefined,
+        this.result.resumeId || undefined,
+        this.result.analysisId || undefined
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.searchingJobs = false;
+
+          if (!response.success) {
+            this.error = response.message || 'Erro ao buscar vagas';
+            return;
+          }
+
+          const totalFound = response.totalFound ?? response.jobs?.length ?? 0;
+          this.foundJobs = response.jobs || [];
+
+          if (totalFound > 0) {
+            if (response.url) {
+              window.open(response.url, '_blank');
+            }
+            return;
+          }
+
+          if (response.url) {
+            window.open(response.url, '_blank');
+            this.error = response.message || 'Nenhuma vaga encontrada automaticamente. A busca foi aberta em nova aba.';
+            return;
+          }
+
+          this.error = response.message || 'Nenhuma vaga encontrada';
+        },
+        error: (err) => {
+          this.searchingJobs = false;
+          this.error = err.error?.message || err.error?.error || 'Erro ao buscar vagas';
+          console.error('Erro ao buscar vagas:', err);
+        }
+      });
   }
 
   openInterviewSimulation(): void {

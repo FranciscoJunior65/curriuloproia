@@ -93,21 +93,23 @@
 
     <!-- Resumo de pendências -->
     <div *ngIf="totalServicosPendentes > 0" class="mb-6">
-      <mat-card class="bg-amber-50 border-l-4 border-amber-500 shadow-md">
-        <mat-card-content class="p-5">
-          <div class="flex items-start gap-3">
-            <mat-icon class="text-amber-600">pending_actions</mat-icon>
-            <div>
-              <p class="font-semibold text-gray-800">
-                Você tem {{ totalServicosPendentes }} serviço(s) pendente(s) em {{ analisesComPendencias }} análise(s)
-              </p>
-              <p class="text-sm text-gray-600 mt-1">
-                Cada compra libera um pacote completo. Use quando quiser — não precisa fazer tudo no mesmo dia.
-              </p>
-            </div>
+      <section class="history-pending-card" aria-label="Serviços pendentes">
+        <div class="history-pending-card__layout">
+          <div class="history-pending-card__icon" aria-hidden="true">
+            <mat-icon>pending_actions</mat-icon>
           </div>
-        </mat-card-content>
-      </mat-card>
+          <div class="history-pending-card__content">
+            <p class="history-pending-card__eyebrow">Pacotes ativos para concluir</p>
+            <h2 class="history-pending-card__title">
+              Você tem {{ totalServicosPendentes }} serviço(s) pendente(s) em
+              {{ analisesComPendencias }} análise(s)
+            </h2>
+            <p class="history-pending-card__desc">
+              Cada compra libera um pacote completo. Use quando quiser — não precisa fazer tudo no mesmo dia.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- Filtros -->

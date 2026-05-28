@@ -94,6 +94,28 @@
         </div>
       </div>
 
+      <!-- Contato -->
+      <div class="hero-contacts max-w-3xl mx-auto mt-10" aria-label="Contato CurrículosPro Aí">
+        <p class="hero-contacts__label">Fale conosco</p>
+        <div class="hero-contacts__items">
+          <a
+            class="hero-contacts__link hero-contacts__link--whatsapp"
+            [href]="supportWhatsappUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <mat-icon aria-hidden="true">chat</mat-icon>
+            <span>WhatsApp {{ supportWhatsapp }}</span>
+          </a>
+          <a
+            class="hero-contacts__link hero-contacts__link--email"
+            [href]="'mailto:' + supportEmail"
+          >
+            <mat-icon aria-hidden="true">mail</mat-icon>
+            <span>{{ supportEmail }}</span>
+          </a>
+        </div>
+      </div>
 
       <!-- Aviso: Simulador de Entrevista -->
       <aside
@@ -138,29 +160,36 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
     <!-- Serviços pendentes de análises já pagas -->
-    <div *ngIf="isAuthenticated && pendingServicesCount > 0 && !result" class="mb-8">
-      <mat-card class="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 shadow-md">
-        <mat-card-content class="p-5">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div class="flex items-start gap-3">
-              <mat-icon class="text-amber-600">pending_actions</mat-icon>
-              <div>
-                <p class="font-semibold text-gray-800">
-                  {{ pendingServicesCount }} serviço(s) pendente(s) em {{ pendingAnalysesCount }} análise(s) já paga(s)
-                </p>
-                <p class="text-sm text-gray-600 mt-1">
-                  Carta, entrevista, currículo melhorado e busca de vagas — use quando quiser, sem novo crédito.
-                </p>
-              </div>
-            </div>
-            <button mat-raised-button color="primary" routerLink="/historico-analises">
-              <mat-icon>history</mat-icon>
-              <span class="ml-1">Abrir histórico</span>
-            </button>
+    <section
+      *ngIf="isAuthenticated && pendingServicesCount > 0 && !result"
+      class="pending-card mb-8"
+      aria-label="Serviços pendentes"
+    >
+      <div class="pending-card__layout">
+        <div class="pending-card__icon-wrap" aria-hidden="true">
+          <mat-icon>pending_actions</mat-icon>
+        </div>
+        <div class="pending-card__body">
+          <p class="pending-card__eyebrow">Você tem créditos prontos para usar</p>
+          <h2 class="pending-card__title">Serviços aguardando você</h2>
+          <div class="pending-card__chips">
+            <span class="pending-card__chip pending-card__chip--services">
+              {{ pendingServicesCount }} serviço{{ pendingServicesCount === 1 ? '' : 's' }}
+            </span>
+            <span class="pending-card__chip pending-card__chip--analyses">
+              {{ pendingAnalysesCount }} análise{{ pendingAnalysesCount === 1 ? '' : 's' }} paga{{ pendingAnalysesCount === 1 ? '' : 's' }}
+            </span>
           </div>
-        </mat-card-content>
-      </mat-card>
-    </div>
+          <p class="pending-card__desc">
+            Carta, entrevista, currículo melhorado e busca de vagas — use quando quiser, sem novo crédito.
+          </p>
+        </div>
+      </div>
+      <a routerLink="/historico-analises" class="pending-card__cta">
+        <mat-icon aria-hidden="true">history</mat-icon>
+        <span>Abrir histórico</span>
+      </a>
+    </section>
 
     <!-- Plans Section -->
     <div *ngIf="showPlans" id="plans-section" class="mb-16">
@@ -803,14 +832,10 @@
               <button
                 mat-raised-button
                 (click)="generateImprovedResume('pdf')"
-                [disabled]="generatingPDF"
-                class="bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
+                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
+                class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
               >
-                <mat-spinner
-                  *ngIf="generatingPDF"
-                  diameter="20"
-                  class="inline-block mr-3"
-                ></mat-spinner>
+                <mat-spinner *ngIf="generatingPDF" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
                 <mat-icon *ngIf="!generatingPDF" class="mr-2">picture_as_pdf</mat-icon>
                 <span>{{ generatingPDF ? "Gerando PDF..." : "Baixar PDF" }}</span>
               </button>
@@ -818,16 +843,23 @@
               <button
                 mat-raised-button
                 (click)="generateImprovedResume('word')"
-                [disabled]="generatingWord"
-                class="bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
+                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
+                class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
               >
-                <mat-spinner
-                  *ngIf="generatingWord"
-                  diameter="20"
-                  class="inline-block mr-3"
-                ></mat-spinner>
+                <mat-spinner *ngIf="generatingWord" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
                 <mat-icon *ngIf="!generatingWord" class="mr-2">description</mat-icon>
                 <span>{{ generatingWord ? "Gerando Word..." : "Baixar Word" }}</span>
+              </button>
+
+              <button
+                mat-raised-button
+                (click)="generateEnglishExcel()"
+                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
+                class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
+              >
+                <mat-spinner *ngIf="generatingEnglishExcel" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
+                <mat-icon *ngIf="!generatingEnglishExcel" class="mr-2">table_chart</mat-icon>
+                <span>{{ generatingEnglishExcel ? 'Gerando Excel...' : 'Excel em Inglês' }}</span>
               </button>
             </div>
             
@@ -885,11 +917,39 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Busca de Vagas -->
+          <mat-card class="shadow-xl hover:shadow-2xl transition-shadow">
+            <mat-card-content class="p-6 text-center">
+              <div class="p-3 bg-green-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <mat-icon class="text-green-600 text-3xl">search</mat-icon>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Buscar Vagas</h3>
+              <p class="text-gray-600 text-sm mb-4">
+                Encontre oportunidades no {{ getSelectedSiteName() || 'site selecionado' }} com base na sua análise
+              </p>
+              <button
+                mat-raised-button
+                color="accent"
+                (click)="searchJobs()"
+                [disabled]="searchingJobs"
+                class="w-full"
+              >
+                <mat-spinner *ngIf="searchingJobs" diameter="20" class="inline-block mr-2"></mat-spinner>
+                <mat-icon *ngIf="!searchingJobs" class="mr-2">work</mat-icon>
+                <span>{{ searchingJobs ? 'Buscando...' : 'Buscar Vagas' }}</span>
+              </button>
+            </mat-card-content>
+          </mat-card>
+
           <!-- Simulação de Entrevista -->
           <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
             <mat-card-content class="p-6 text-center">
-              <div class="p-3 bg-purple-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <mat-icon class="text-purple-600 text-3xl">mic</mat-icon>
+              <div class="w-16 h-16 mx-auto mb-4 rounded-full overflow-hidden ring-2 ring-purple-200 shadow-md">
+                <img
+                  [src]="personaImageUrl"
+                  alt="Persona virtual da entrevista"
+                  class="w-full h-full object-cover object-top"
+                />
               </div>
               <h3 class="text-lg font-bold text-gray-800 mb-2">Simular Entrevista</h3>
               <p class="text-gray-600 text-sm mb-4">
@@ -901,12 +961,41 @@
                 (click)="openInterviewSimulation()"
                 class="w-full"
               >
-                <mat-icon class="mr-2">mic</mat-icon>
                 <span>Iniciar Simulação</span>
               </button>
             </mat-card-content>
           </mat-card>
         </div>
+
+        <!-- Resultados da busca de vagas -->
+        <mat-card *ngIf="foundJobs.length" class="shadow-xl border-l-4 border-green-500">
+          <mat-card-content class="p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <mat-icon class="text-green-600">work</mat-icon>
+              Vagas encontradas ({{ foundJobs.length }})
+            </h3>
+            <ul class="space-y-3 max-h-96 overflow-y-auto">
+              <li
+                *ngFor="let job of foundJobs"
+                class="p-4 rounded-lg border border-gray-200 bg-gray-50 hover:bg-green-50 transition-colors"
+              >
+                <p class="font-semibold text-gray-800">{{ job.title || 'Vaga' }}</p>
+                <p *ngIf="job.company" class="text-sm text-gray-600">{{ job.company }}</p>
+                <p *ngIf="job.location" class="text-xs text-gray-500 mt-1">{{ job.location }}</p>
+                <a
+                  *ngIf="job.url"
+                  [href]="job.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline mt-2"
+                >
+                  <mat-icon class="text-base">open_in_new</mat-icon>
+                  Ver vaga
+                </a>
+              </li>
+            </ul>
+          </mat-card-content>
+        </mat-card>
 
         <!-- Entrevista por voz (persona + conversa) -->
         <mat-card *ngIf="showVoiceInterview" class="shadow-xl">
@@ -1318,10 +1407,12 @@
           ></div>
           <mat-card-content class="p-8 relative z-10">
             <div class="flex flex-col items-center text-center">
-              <div
-                class="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center mb-6 shadow-lg transform hover:scale-110 transition-transform"
-              >
-                <mat-icon class="text-white text-4xl" style="font-size: 2.5rem; width: 2.5rem; height: 2.5rem; line-height: 2.5rem;">mic</mat-icon>
+              <div class="w-20 h-20 rounded-2xl overflow-hidden mb-6 shadow-lg ring-2 ring-teal-200 transform hover:scale-110 transition-transform mx-auto">
+                <img
+                  [src]="personaImageUrl"
+                  alt="Persona virtual"
+                  class="w-full h-full object-cover object-top"
+                />
               </div>
               <h3 class="text-2xl font-bold text-gray-800 mb-3">
                 Simulador de Entrevista
@@ -1393,6 +1484,50 @@
           </div>
         </div>
       </div>
+
+      <!-- Mensagem do fundador -->
+      <section
+        class="founder-message mt-16 mb-4"
+        aria-labelledby="founder-message-title"
+      >
+        <div class="founder-message__inner">
+          <div class="founder-message__content">
+            <p class="founder-message__eyebrow">
+              <mat-icon aria-hidden="true">favorite</mat-icon>
+              Uma mensagem de quem acredita no seu futuro
+            </p>
+            <h2 id="founder-message-title" class="founder-message__title">
+              Sua jornada profissional começa com um passo de fé
+            </h2>
+            <blockquote class="founder-message__quote">
+              <p>Cada currículo enviado é uma nova oportunidade de mudar de vida.</p>
+              <p>
+                O sucesso começa quando você acredita no seu potencial e dá o primeiro passo.
+              </p>
+              <p>
+                Que essa plataforma seja uma ponte para grandes conquistas, crescimento profissional e novos começos.
+              </p>
+              <p>
+                Que Deus venha abrir muitas portas de emprego através dessa plataforma, abençoando cada pessoa que confiar no seu sonho.
+              </p>
+            </blockquote>
+            <footer class="founder-message__author">
+              <span class="founder-message__author-name">David Oliveira</span>
+              <span class="founder-message__author-role">CEO Fundador do CurrículosPro Aí</span>
+            </footer>
+          </div>
+          <figure class="founder-message__photo">
+            <img
+              [src]="founderImageUrl"
+              alt="David Oliveira, CEO e Fundador do CurrículosPro Aí"
+              width="360"
+              height="480"
+              loading="lazy"
+              class="founder-message__img"
+            />
+          </figure>
+        </div>
+      </section>
 
       <!-- Seção adicional de recursos -->
       <div class="mt-16 grid md:grid-cols-4 gap-6 max-w-5xl mx-auto">

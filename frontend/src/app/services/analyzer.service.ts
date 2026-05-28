@@ -45,6 +45,33 @@ export class AnalyzerService {
   }
 
 
+  generateEnglishExcel(
+    originalText: string,
+    analysis?: any,
+    siteId?: string,
+    analysisId?: string
+  ): Observable<Blob> {
+    const body: any = { originalText };
+    if (analysis) {
+      body.analysis = analysis;
+    }
+    if (siteId) {
+      body.siteId = siteId;
+    }
+    if (analysisId) {
+      body.analysisId = analysisId;
+    }
+
+    return this.http.post(
+      `${this.apiUrl}/analyze/generate-english-excel`,
+      body,
+      {
+        headers: this.getAuthHeaders(),
+        responseType: 'blob'
+      }
+    );
+  }
+
   generateImprovedResume(
     originalText: string,
     analysis: any,

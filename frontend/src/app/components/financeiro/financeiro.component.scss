@@ -2,6 +2,105 @@
   border-radius: 12px;
 }
 
+.fin-purchase-card {
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow:
+    0 8px 20px -10px rgba(15, 23, 42, 0.25),
+    0 0 0 1px rgba(148, 163, 184, 0.08);
+  border-radius: 1rem;
+}
+
+.fin-purchase-card__content {
+  display: block;
+}
+
+.fin-purchase-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fin-purchase-card__top-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.fin-purchase-card__icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+
+  mat-icon {
+    color: #fff;
+    font-size: 1.15rem !important;
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    line-height: 1.15rem !important;
+  }
+}
+
+.fin-purchase-card__kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6366f1;
+}
+
+.fin-purchase-card__plan {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.fin-purchase-card__row {
+  border-radius: 0.75rem;
+}
+
+.fin-purchase-card__field {
+  padding: 0.2rem 0;
+}
+
+.fin-purchase-card__label {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.fin-purchase-card__value {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fin-purchase-card__expand {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #f8fafc;
+}
+
+.fin-purchase-card__actions {
+  flex-shrink: 0;
+}
+
 // Cards de resumo — ícones sem corte
 .fin-stat-card {
   overflow: visible;
@@ -23,7 +122,20 @@
 .fin-buy-again {
   display: inline-flex !important;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem !important;
+  border-radius: 0.7rem !important;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px -8px rgba(79, 70, 229, 0.65);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+
+  span {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
 
   mat-icon {
     display: inline-flex !important;
@@ -35,6 +147,21 @@
     line-height: 1.125rem !important;
     margin: 0;
     overflow: visible;
+    color: #ffffff !important;
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 22px -10px rgba(79, 70, 229, 0.75);
+    filter: brightness(1.03);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  @media (max-width: 640px) {
+    width: 100%;
   }
 }
 

@@ -6,6 +6,8 @@ html, body {
   height: 100%;
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 /* Header compartilhado (Meus Dados, Trocar Senha, Financeiro, etc.) */
@@ -33,6 +35,94 @@ html, body {
 
 .app-page-header__menu-btn {
   white-space: nowrap;
+}
+
+/* Botões globais (padrão visual premium) */
+:root {
+  --app-btn-grad-start: #4f46e5;
+  --app-btn-grad-mid: #6366f1;
+  --app-btn-grad-end: #7c3aed;
+  --app-btn-text: #ffffff;
+  --app-btn-shadow: 0 10px 18px -10px rgba(79, 70, 229, 0.75);
+  --app-btn-shadow-hover: 0 14px 24px -12px rgba(79, 70, 229, 0.8);
+}
+
+button[mat-raised-button],
+button[mat-flat-button],
+a[mat-raised-button],
+a[mat-flat-button] {
+  border-radius: 0.72rem !important;
+  min-height: 2.55rem;
+  padding: 0.55rem 1.05rem !important;
+  color: var(--app-btn-text) !important;
+  background: linear-gradient(
+    135deg,
+    var(--app-btn-grad-start) 0%,
+    var(--app-btn-grad-mid) 55%,
+    var(--app-btn-grad-end) 100%
+  ) !important;
+  box-shadow: var(--app-btn-shadow) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
+}
+
+button[mat-raised-button]:hover,
+button[mat-flat-button]:hover,
+a[mat-raised-button]:hover,
+a[mat-flat-button]:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--app-btn-shadow-hover) !important;
+  filter: brightness(1.03);
+}
+
+button[mat-raised-button]:active,
+button[mat-flat-button]:active,
+a[mat-raised-button]:active,
+a[mat-flat-button]:active {
+  transform: translateY(0);
+}
+
+button[mat-stroked-button],
+a[mat-stroked-button] {
+  border-radius: 0.72rem !important;
+  min-height: 2.45rem;
+  padding: 0.5rem 1rem !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 10px -8px rgba(15, 23, 42, 0.35);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease !important;
+}
+
+button[mat-stroked-button]:hover,
+a[mat-stroked-button]:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  transform: translateY(-1px);
+}
+
+button[mat-raised-button] .mat-icon,
+button[mat-flat-button] .mat-icon,
+a[mat-raised-button] .mat-icon,
+a[mat-flat-button] .mat-icon {
+  font-size: 1.1rem !important;
+  width: 1.1rem !important;
+  height: 1.1rem !important;
+  line-height: 1.1rem !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+@media (max-width: 640px) {
+  button[mat-raised-button],
+  button[mat-flat-button],
+  button[mat-stroked-button],
+  a[mat-raised-button],
+  a[mat-flat-button],
+  a[mat-stroked-button] {
+    min-height: 2.5rem;
+  }
 }
 
 

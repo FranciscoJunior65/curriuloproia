@@ -22,6 +22,10 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> GenerateImproved([FromBody] GenerateImprovedSignature body, CancellationToken ct) =>
         _analyze.GenerateImproved(body, ct);
 
+    [HttpPost("generate-english-excel")]
+    public Task<IActionResult> GenerateEnglishExcel([FromBody] GenerateEnglishExcelSignature body, CancellationToken ct) =>
+        _analyze.GenerateEnglishExcel(body, ct);
+
     [HttpPost("generate-cover-letter")]
     public Task<IActionResult> GenerateCoverLetter([FromBody] GenerateCoverLetterSignature body, CancellationToken ct) =>
         _analyze.GenerateCoverLetter(body, ct);

@@ -221,3 +221,123 @@ export const generatePDF = (resumeText) => {
   });
 };
 
+const cleanAiText = (text) => {
+  let cleaned = (text || '').trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/i, '');
+  }
+  return cleaned;
+};
+
+const generateTextWithAi = async (systemPrompt, userPrompt) => {
+  if (openai) {
+    const completion = await openai.chat.completions.create({
+      model: DEFAULT_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 3000
+    });
+    return completion.choices[0].message.content.trim();
+  }
+
+  if (genAI) {
+    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 3000 }
+    });
+    const text = result.response.text();
+    if (!text) throw new Error('Resposta vazia da API Gemini');
+    return text.trim();
+  }
+
+  throw new Error('Configure GEMINI_API_KEY no .env para gerar o currículo em inglês');
+};
+
+/**
+ * Gera currículo profissional em inglês (texto)
+ */
+export const generateEnglishResume = async (originalText, analysis = null, siteId = null) => {
+  let siteInfo = '';
+  if (siteId) {
+    try {
+      const site = await getJobSiteById(siteId);
+      if (site) {
+        siteInfo = `\nTarget job board context: ${site.nome}\n`;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let analysisBlock = '';
+  if (analysis) {
+    const pontosFortes = Array.isArray(analysis.pontosFortes) ? analysis.pontosFortes.join(', ') : (analysis.pontosFortes || '');
+    const pontosMelhorar = Array.isArray(analysis.pontosMelhorar) ? analysis.pontosMelhorar.join(', ') : (analysis.pontosMelhorar || '');
+    const recomendacoes = Array.isArray(analysis.recomendacoes) ? analysis.recomendacoes.join('; ') : (analysis.recomendacoes || '');
+    analysisBlock = `
+ANALYSIS CONTEXT:
+- Strengths: ${pontosFortes || 'Not specified'}
+- Areas to improve: ${pontosMelhorar || 'Not specified'}
+- Recommendations: ${recomendacoes || 'Not specified'}
+`;
+  }
+
+  const systemPrompt = `You are an expert in professional resume writing in English for international job markets and ATS systems.
+Translate and adapt the resume to fluent, professional English. Keep all factual information from the original.
+Do not invent experience, education, or skills not supported by the source text.
+Use clear section headers in English (CONTACT, PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS).`;
+
+  const userPrompt = `Create a complete professional resume in English.
+${siteInfo}
+${analysisBlock}
+
+SOURCE RESUME:
+${originalText}
+
+Return ONLY the resume text in English with section headers.`;
+
+  const raw = await generateTextWithAi(systemPrompt, userPrompt);
+  return cleanAiText(raw);
+};
+
+/**
+ * Planilha Excel (SpreadsheetML) — compatível com Excel/LibreOffice, sem dependências extras
+ */
+export const buildResumeExcelBuffer = (resumeText) => {
+  const escapeXml = (value) =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const rows = resumeText
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0);
+
+  const rowsXml = rows
+    .map(
+      (line) =>
+        `<Row><Cell><Data ss:Type="String">${escapeXml(line)}</Data></Cell></Row>`
+    )
+    .join('');
+
+  const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Resume EN">
+<Table>${rowsXml}</Table>
+</Worksheet>
+</Workbook>`;
+
+  return Buffer.from(xml, 'utf8');
+};
+

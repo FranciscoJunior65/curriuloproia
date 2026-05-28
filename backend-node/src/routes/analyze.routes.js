@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { analyzeResume } from '../controllers/analyze.controller.js';
-import { generateImprovedResumeAndPDF } from '../controllers/resume-generator.controller.js';
+import { generateImprovedResumeAndPDF, generateEnglishExcelResume } from '../controllers/resume-generator.controller.js';
 import { generateCoverLetterAndPDF } from '../controllers/cover-letter.controller.js';
 import { searchJobs } from '../controllers/job-search.controller.js';
 import { startInterview, evaluateInterviewAnswer, finishInterview, getInterview, listUserInterviews, downloadInterview } from '../controllers/interview-simulation.controller.js';
@@ -108,6 +108,7 @@ router.post('/upload', upload.single('file'), analyzeResume);
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/generate-improved', generateImprovedResumeAndPDF);
+router.post('/generate-english-excel', generateEnglishExcelResume);
 
 /**
  * @swagger

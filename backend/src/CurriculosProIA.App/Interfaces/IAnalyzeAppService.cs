@@ -8,6 +8,7 @@ public interface IAnalyzeAppService
 {
     Task<IActionResult> Upload(IFormFile? file, string? userId, string? siteId, string? curriculoId, CancellationToken cancellationToken = default);
     Task<IActionResult> GenerateImproved(GenerateImprovedSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GenerateEnglishExcel(GenerateEnglishExcelSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GenerateCoverLetter(GenerateCoverLetterSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> SearchJobs(SearchJobsSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> StartInterview(StartInterviewSignature body, CancellationToken cancellationToken = default);

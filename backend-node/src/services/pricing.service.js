@@ -120,6 +120,7 @@ export const PRICING_PLANS = {
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
       'Palavras-chave estratégicas',
+      'Pesquisa de vagas de emprego',
       'Análise única para um site específico'
     ]
   },
@@ -136,7 +137,8 @@ export const PRICING_PLANS = {
       'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
-      'Palavras-chave estratégicas'
+      'Palavras-chave estratégicas',
+      'Pesquisa de vagas de emprego'
     ]
   },
   pack5: {
@@ -152,7 +154,8 @@ export const PRICING_PLANS = {
       'Otimização para sites de vagas (Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed)',
       'Simulador de entrevista com IA',
       'Currículo melhorado em PDF ou WORD',
-      'Palavras-chave estratégicas'
+      'Palavras-chave estratégicas',
+      'Pesquisa de vagas de emprego'
     ]
   },
   english: {
