@@ -227,7 +227,7 @@
               [class.border-amber-300]="s.pendente"
               [class.text-amber-900]="s.pendente"
             >
-              {{ s.usado ? '✓' : '○' }} {{ s.label }}
+              {{ s.ilimitado ? '∞' : (s.usado ? '✓' : '○') }} {{ s.label }}
             </span>
           </div>
 
@@ -448,7 +448,7 @@
         <!-- Footer Actions -->
         <div class="bg-gray-50 border-t border-gray-200 p-6">
           <p class="text-sm text-gray-600 mb-4 text-center sm:text-left">
-            Pacote desta análise — <strong>sem gastar crédito extra</strong>. Conclua os itens pendentes quando quiser.
+            Pacote desta análise — <strong>sem gastar crédito extra</strong>. Busca de vagas ilimitada neste currículo; demais serviços, uma vez cada.
           </p>
           <div class="flex flex-col gap-2">
             <ng-container *ngFor="let s of selectedAnalysis.servicos?.itens">
@@ -462,7 +462,17 @@
                 <mat-icon>play_arrow</mat-icon>
                 <span class="ml-2">Fazer: {{ s.label }}</span>
               </button>
-              <p *ngIf="!s.pendente && s.key !== 'analise'" class="text-sm text-green-700 flex items-center gap-2 px-2">
+              <button
+                *ngIf="s.ilimitado"
+                mat-stroked-button
+                color="primary"
+                class="w-full justify-start"
+                (click)="openService(selectedAnalysis!, s.key)"
+              >
+                <mat-icon>search</mat-icon>
+                <span class="ml-2">{{ s.label }} — pesquisar de novo (ilimitado)</span>
+              </button>
+              <p *ngIf="!s.pendente && !s.ilimitado && s.key !== 'analise'" class="text-sm text-green-700 flex items-center gap-2 px-2">
                 <mat-icon class="text-base">check_circle</mat-icon>
                 {{ s.label }} — concluído
               </p>

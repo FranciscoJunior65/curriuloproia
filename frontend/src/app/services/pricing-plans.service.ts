@@ -46,7 +46,7 @@ const SHARED_ANALYSIS_FEATURES = [
   'Simulador de entrevista com IA',
   'Currículo melhorado em PDF ou WORD',
   'Palavras-chave estratégicas',
-  'Pesquisa de vagas de emprego'
+  'Pesquisa de vagas ilimitada por currículo analisado'
 ];
 
 /** Planos exibidos quando a API não responde */

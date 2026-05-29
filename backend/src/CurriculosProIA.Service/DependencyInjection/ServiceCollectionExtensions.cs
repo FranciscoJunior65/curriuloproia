@@ -25,6 +25,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJobSitesService, JobSitesService>();
         services.AddScoped<IResumeGeneratorService, ResumeGeneratorService>();
         services.AddScoped<ICoverLetterService, CoverLetterService>();
+        services.AddScoped<IJobBoardScraperService, JobBoardScraperService>();
+        services.AddScoped<IGoogleJobsSearchService, GoogleJobsSearchService>();
         services.AddScoped<IJobSearchService, JobSearchService>();
         services.AddScoped<IInterviewSimulationService, InterviewSimulationService>();
         services.AddScoped<IVoiceInterviewService, VoiceInterviewService>();

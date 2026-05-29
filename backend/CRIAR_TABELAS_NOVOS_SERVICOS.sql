@@ -301,6 +301,13 @@ VALUES
     TRUE,
     '["skills", "experience", "education", "achievements", "keywords"]'::JSONB,
     '{"foco": "palavras-chave", "formato": "ATS-friendly", "destaque": "keywords relevantes"}'::JSONB
+  ),
+  (
+    'Google Vagas',
+    'https://www.google.com/search?ibp=htl;jobs',
+    TRUE,
+    '["vagas", "emprego", "oportunidades", "carreira", "trabalho"]'::JSONB,
+    '{"foco": "agregador multi-portais", "formato": "google jobs", "destaque": "vagas de diversos sites em um só lugar"}'::JSONB
   )
 ON CONFLICT (nome) DO NOTHING;
 

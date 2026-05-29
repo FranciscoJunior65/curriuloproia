@@ -5,7 +5,10 @@ param(
     [string]$PublishDir = (Join-Path $PSScriptRoot "..\publish")
 )
 
-$source = Join-Path $PSScriptRoot "..\.env"
+$source = Join-Path $PSScriptRoot "..\app.env"
+if (-not (Test-Path $source)) {
+    $source = Join-Path $PSScriptRoot "..\.env"
+}
 if (-not (Test-Path $source)) {
     $source = Join-Path $PSScriptRoot "..\..\backend-node\.env"
 }

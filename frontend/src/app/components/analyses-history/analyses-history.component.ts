@@ -16,6 +16,7 @@ interface AnalysisServiceItem {
   label: string;
   usado: boolean;
   pendente: boolean;
+  ilimitado?: boolean;
 }
 
 interface AnalysisServices {

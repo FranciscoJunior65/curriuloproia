@@ -9,8 +9,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
+import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
 import { AuthService, User } from '../../services/auth.service';
 import {
   PricingPlansService,
@@ -34,7 +36,8 @@ import { VoiceInterviewComponent } from '../voice-interview/voice-interview.comp
     MatProgressSpinnerModule,
     MatIconModule,
     MatChipsModule,
-    MatMenuModule
+    MatMenuModule,
+    MatSnackBarModule
   ],
   templateUrl: './analyzer.component.html',
   styleUrl: './analyzer.component.scss'
@@ -91,7 +94,22 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   resumeChanges: any = null; // Armazena mudanças após geração
   showInterviewChat = false; // Controla exibição do chat (legado texto)
   showVoiceInterview = false; // Entrevista por voz com persona
-  foundJobs: Array<{ title?: string; company?: string; url?: string; location?: string; description?: string }> = [];
+  foundJobs: Array<{
+    title?: string;
+    company?: string;
+    url?: string;
+    location?: string;
+    description?: string;
+    site?: string;
+    compatibilityScore?: number;
+    salary?: string;
+    requirements?: string[];
+    applyChannels?: Array<{ portal: string; link?: string }>;
+    contactHints?: string[];
+    postedAt?: string;
+    matchedKeywords?: string[];
+  }> = [];
+  jobSearchMessage: string | null = null;
   searchingJobs = false;
   interviewStarted = false; // Controla se a entrevista foi iniciada
   interviewQuestions: string[] = []; // Perguntas da entrevista
@@ -131,6 +149,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.resumeChanges = null;
     this.showVoiceInterview = false;
     this.foundJobs = [];
+    this.jobSearchMessage = null;
     this.searchingJobs = false;
     this.generatingEnglishExcel = false;
     this.updateShowPlans();
@@ -153,8 +172,26 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private route: ActivatedRoute,
-    private pricingPlansService: PricingPlansService
+    private pricingPlansService: PricingPlansService,
+    private snackBar: MatSnackBar
   ) {}
+
+  copyApplyLink(link: string | undefined): void {
+    if (!link) {
+      return;
+    }
+    navigator.clipboard.writeText(link).then(() => {
+      this.snackBar.open('Link copiado', 'OK', { duration: 3000 });
+    });
+  }
+
+  /** Reduz quebras de linha excessivas vindas dos portais de vagas. */
+  normalizeJobText(text: string | undefined): string {
+    if (!text) {
+      return '';
+    }
+    return text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+  }
 
   englishBundleSavingsText(): string {
     return this.pricingPlansService.englishBundleSavings(
@@ -337,27 +374,38 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         this.loading = false;
         if (response.success && response.analysis) {
           const analysis = response.analysis;
-          
-          // Preenche os dados da análise
+          const mapped = mapPersistedAnalysisToResult({
+            ...analysis,
+            originalText: response.originalText,
+            curriculos_importados: analysis.curriculos_importados
+          });
+
+          if (response.analysisForServices) {
+            mapped.analysis = {
+              pontosFortes: response.analysisForServices.pontosFortes ?? mapped.analysis.pontosFortes,
+              pontosMelhorar: response.analysisForServices.pontosMelhorar ?? mapped.analysis.pontosMelhorar,
+              experiencia: response.analysisForServices.experiencia ?? mapped.analysis.experiencia,
+              formacao: response.analysisForServices.formacao ?? mapped.analysis.formacao,
+              habilidades: response.analysisForServices.habilidades ?? mapped.analysis.habilidades,
+              recomendacoes: response.analysisForServices.recomendacoes ?? mapped.analysis.recomendacoes,
+              score: response.analysisForServices.score ?? mapped.analysis.score,
+              areaAtuacao: response.analysisForServices.areaAtuacao
+            };
+          }
+          if (response.originalText) {
+            mapped.originalText = response.originalText;
+          }
+
           this.result = {
             success: true,
-            originalText: analysis.curriculos_importados?.conteudo_extraido || '',
-            analysis: {
-              pontosFortes: analysis.pontos_fortes || [],
-              pontosMelhorar: analysis.pontos_melhorar || [],
-              experiencia: analysis.resultado_completo?.experiencia || '',
-              formacao: analysis.resultado_completo?.formacao || '',
-              habilidades: analysis.resultado_completo?.habilidades || [],
-              recomendacoes: analysis.recomendacoes || [],
-              score: analysis.score_geral || 0
-            },
-            resumeId: analysis.id_curriculo,
-            analysisId: analysis.id,
+            originalText: mapped.originalText,
+            analysis: mapped.analysis,
+            resumeId: mapped.resumeId ?? analysis.id_curriculo,
+            analysisId: mapped.analysisId ?? analysis.id,
             creditsRemaining: this.userCredits
           };
-          
-          // Define o site selecionado
-          this.selectedSiteId = analysis.id_site_vagas;
+
+          this.selectedSiteId = response.siteId ?? analysis.id_site_vagas;
           this.analysisCompleted = true;
           this.updateShowPlans();
           
@@ -408,7 +456,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.loadingSites = true;
     this.analyzerService.getJobSites().subscribe({
       next: (response: any) => {
-        this.jobSites = response.sites || [];
+        const sites = response.sites || [];
+        this.jobSites = [...sites].sort((a, b) => {
+          const aGoogle = /google/i.test(a?.nome || '');
+          const bGoogle = /google/i.test(b?.nome || '');
+          if (aGoogle && !bGoogle) return -1;
+          if (!aGoogle && bGoogle) return 1;
+          return (a?.nome || '').localeCompare(b?.nome || '', 'pt-BR');
+        });
         this.loadingSites = false;
       },
       error: (err) => {
@@ -1028,6 +1083,12 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (!this.result.analysisId) {
+      this.error =
+        'A busca de vagas exige uma análise paga deste currículo. Conclua a importação e análise ou abra pelo histórico.';
+      return;
+    }
+
     if (!this.selectedSiteId) {
       this.error = 'Por favor, selecione um site de vagas para buscar oportunidades';
       return;
@@ -1036,6 +1097,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.searchingJobs = true;
     this.error = null;
     this.foundJobs = [];
+    this.jobSearchMessage = null;
 
     this.analyzerService
       .searchJobs(
@@ -1057,21 +1119,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
           const totalFound = response.totalFound ?? response.jobs?.length ?? 0;
           this.foundJobs = response.jobs || [];
+          this.jobSearchMessage = response.message || null;
 
           if (totalFound > 0) {
-            if (response.url) {
-              window.open(response.url, '_blank');
-            }
+            this.scrollToResults();
             return;
           }
 
-          if (response.url) {
-            window.open(response.url, '_blank');
-            this.error = response.message || 'Nenhuma vaga encontrada automaticamente. A busca foi aberta em nova aba.';
-            return;
-          }
-
-          this.error = response.message || 'Nenhuma vaga encontrada';
+          this.error = response.message || 'Nenhuma vaga encontrada para o seu perfil.';
         },
         error: (err) => {
           this.searchingJobs = false;
@@ -1112,7 +1167,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.result.originalText,
       this.result.analysis,
       this.selectedSiteId || undefined,
-      this.result.resumeId || undefined
+      this.result.resumeId || undefined,
+      this.result.analysisId || undefined
     ).subscribe({
       next: (response: any) => {
         this.loading = false;

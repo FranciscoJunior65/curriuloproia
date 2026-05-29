@@ -264,13 +264,22 @@ export class AnalyzerService {
     );
   }
 
-  startInterview(resumeText: string, analysis: any, siteId?: string, resumeId?: string): Observable<any> {
+  startInterview(
+    resumeText: string,
+    analysis: any,
+    siteId?: string,
+    resumeId?: string,
+    analysisId?: string
+  ): Observable<any> {
     const body: any = { resumeText, analysis };
     if (siteId) {
       body.siteId = siteId;
     }
     if (resumeId) {
       body.resumeId = resumeId;
+    }
+    if (analysisId) {
+      body.analysisId = analysisId;
     }
     
     return this.http.post(

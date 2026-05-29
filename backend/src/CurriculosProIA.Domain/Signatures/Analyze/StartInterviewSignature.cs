@@ -8,4 +8,6 @@ public class StartInterviewSignature
     public AnalysisInput? Analysis { get; set; }
     public string? SiteId { get; set; }
     public string? ResumeId { get; set; }
+
+    public string? AnalysisId { get; set; }
 }

@@ -115,6 +115,15 @@ public class JobListing
 
     [JsonPropertyName("matchedKeywords")]
     public List<string>? MatchedKeywords { get; set; }
+
+    [JsonPropertyName("applyChannels")]
+    public List<JobApplyChannelDto>? ApplyChannels { get; set; }
+
+    [JsonPropertyName("contactHints")]
+    public List<string>? ContactHints { get; set; }
+
+    [JsonPropertyName("postedAt")]
+    public string? PostedAt { get; set; }
 }
 
 public class AnaliseCurriculoListItemDto

@@ -266,30 +266,42 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.OriginalText) || body.Analysis == null)
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.OriginalText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário fornecer originalText e analysis"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico. Faça uma nova análise."
                 });
             }
 
-            if (body.Analysis.PontosFortes == null || body.Analysis.Recomendacoes == null)
+            if (ctx.Analysis.PontosFortes == null || ctx.Analysis.PontosFortes.Count == 0)
             {
                 return BadRequest(new
                 {
                     success = false,
                     error = "Análise inválida",
-                    message = "A análise deve conter pontosFortes e recomendacoes"
+                    message = "A análise deve conter pontos fortes para gerar o currículo melhorado"
                 });
             }
 
             var improvedResume = await _resumeGenerator.GenerateImprovedResumeAsync(
-                body.OriginalText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 cancellationToken);
 
             var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume);
@@ -327,20 +339,32 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.OriginalText))
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.OriginalText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário fornecer originalText"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico. Faça uma nova análise."
                 });
             }
 
             var englishResume = await _resumeGenerator.GenerateEnglishResumeAsync(
-                body.OriginalText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 cancellationToken);
 
             var excelBuffer = _resumeGenerator.GenerateResumeExcel(englishResume);
@@ -381,30 +405,42 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário fornecer resumeText e analysis"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico. Faça uma nova análise."
                 });
             }
 
-            if (body.Analysis.PontosFortes == null || string.IsNullOrWhiteSpace(body.Analysis.Experiencia))
+            if (ctx.Analysis.PontosFortes == null || ctx.Analysis.PontosFortes.Count == 0)
             {
                 return BadRequest(new
                 {
                     success = false,
                     error = "Análise inválida",
-                    message = "A análise deve conter pontosFortes e experiencia"
+                    message = "A análise deve conter pontos fortes para gerar a carta"
                 });
             }
 
             var coverLetterText = await _coverLetter.GenerateCoverLetterAsync(
-                body.ResumeText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 cancellationToken);
 
             var pdfBuffer = _coverLetter.GenerateCoverLetterPdf(coverLetterText);
@@ -439,43 +475,66 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         try
         {
             var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (string.IsNullOrWhiteSpace(body.AnalysisId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Análise obrigatória",
+                    message =
+                        "A busca de vagas está incluída no currículo analisado. Importe e analise um currículo (ou abra pelo histórico) para pesquisar. Um novo currículo requer novo crédito."
+                });
+            }
+
             var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
             if (accessError != null)
             {
                 return accessError;
             }
 
-            if (body.Analysis == null || string.IsNullOrWhiteSpace(body.SiteId))
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                body.ResumeId,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            var siteId = ctx!.SiteId ?? body.SiteId;
+            if (string.IsNullOrWhiteSpace(siteId))
             {
                 return BadRequest(new
                 {
                     success = false,
                     error = "Dados incompletos",
-                    message = "É necessário fornecer analysis e siteId"
+                    message = "É necessário informar o site de vagas"
                 });
             }
 
-            if ((body.Analysis.Habilidades == null || body.Analysis.Habilidades.Count == 0) &&
-                string.IsNullOrWhiteSpace(body.Analysis.Experiencia))
+            if ((ctx.Analysis.Habilidades == null || ctx.Analysis.Habilidades.Count == 0) &&
+                string.IsNullOrWhiteSpace(ctx.Analysis.Experiencia) &&
+                string.IsNullOrWhiteSpace(ctx.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
                     error = "Análise inválida",
-                    message = "A análise deve conter habilidades ou experiencia para buscar vagas"
+                    message = "Não há dados suficientes do currículo para buscar vagas. Faça uma nova análise."
                 });
             }
 
             var results = await _jobSearch.SearchJobsBySiteAsync(
-                body.SiteId,
-                body.Analysis,
+                siteId,
+                ctx.Analysis,
                 body.Location ?? "Brasil",
-                body.ResumeText,
+                ctx.ResumeText,
                 userId,
-                body.ResumeId,
+                ctx.ResumeId ?? body.ResumeId,
                 cancellationToken);
-
-            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.BuscaVagas, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds.ToString("F2", CultureInfo.InvariantCulture) + "s";
 
@@ -512,23 +571,41 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                body.ResumeId,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário fornecer resumeText e analysis"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico. Faça uma nova análise."
                 });
             }
 
             var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
             var (simulationId, questions) = await _interviewSimulation.StartInterviewAsync(
-                body.ResumeText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 userId,
-                body.ResumeId,
+                ctx.ResumeId ?? body.ResumeId,
                 cancellationToken);
 
             return Ok(new
@@ -813,23 +890,35 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                body.ResumeId,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário fornecer resumeText e analysis"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico. Faça uma nova análise."
                 });
             }
 
             var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
             var result = await _voiceInterview.StartAsync(
-                body.ResumeText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 userId,
-                body.ResumeId,
+                ctx.ResumeId ?? body.ResumeId,
                 cancellationToken);
 
             return Ok(new
@@ -866,23 +955,34 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.ResumeText) ||
-                body.Analysis == null ||
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText) ||
                 string.IsNullOrWhiteSpace(body.CandidateMessage))
             {
                 return BadRequest(new
                 {
                     success = false,
                     error = "Dados incompletos",
-                    message = "É necessário resumeText, analysis e candidateMessage"
+                    message = "É necessário resumeText e candidateMessage"
                 });
             }
 
             var history = body.History ?? [];
             var turn = await _voiceInterview.ProcessTurnAsync(
-                body.ResumeText,
-                body.Analysis,
-                body.SiteId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
                 body.CandidateMessage.Trim(),
                 history,
                 body.TurnNumber > 0 ? body.TurnNumber : history.Count(m => m.Role == "candidate") + 1,
@@ -921,21 +1021,33 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return accessError;
             }
 
-            if (string.IsNullOrWhiteSpace(body.ResumeText) || body.Analysis == null)
+            var (finishCtx, finishResolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                resumeId: null,
+                siteId: null,
+                cancellationToken);
+            if (finishResolveError != null)
+            {
+                return finishResolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(finishCtx!.ResumeText))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    error = "Dados incompletos",
-                    message = "É necessário resumeText e analysis"
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível no histórico."
                 });
             }
 
             var history = body.History ?? [];
             var summary = await _voiceInterview.FinishAsync(
                 body.SimulationId,
-                body.ResumeText,
-                body.Analysis,
+                finishCtx.ResumeText!,
+                finishCtx.Analysis,
                 history,
                 cancellationToken);
 
@@ -1373,10 +1485,17 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
+            var analysisInput = PersistedAnalysisMapper.ToAnalysisInput(analysis);
+            var resumeText = PersistedAnalysisMapper.GetResumeText(analysis);
+
             return Ok(new
             {
                 success = true,
-                analysis
+                analysis,
+                analysisForServices = analysisInput,
+                originalText = resumeText ?? string.Empty,
+                resumeId = analysis.IdCurriculo,
+                siteId = analysis.IdSiteVagas
             });
         }
         catch (Exception ex)
@@ -1536,6 +1655,64 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Carrega análise e texto do currículo do banco quando analysisId é informado (histórico).
+    /// </summary>
+    private async Task<(ResolvedAnalysisContext? Context, IActionResult? Error)> ResolveAnalysisContextAsync(
+        string? analysisId,
+        AnalysisInput? clientAnalysis,
+        string? clientResumeText,
+        string? resumeId,
+        string? siteId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(analysisId))
+        {
+            var persisted = await _analysis.GetAnalysisByIdAsync(analysisId, cancellationToken);
+            if (persisted == null)
+            {
+                return (null, NotFound(new
+                {
+                    success = false,
+                    error = "Análise não encontrada",
+                    message = "Análise não encontrada no histórico"
+                }));
+            }
+
+            var resumeText = PersistedAnalysisMapper.GetResumeText(persisted);
+            if (string.IsNullOrWhiteSpace(resumeText) && !string.IsNullOrWhiteSpace(clientResumeText))
+            {
+                resumeText = clientResumeText.Trim();
+            }
+
+            return (new ResolvedAnalysisContext
+            {
+                Analysis = PersistedAnalysisMapper.ToAnalysisInput(persisted),
+                ResumeText = resumeText,
+                ResumeId = PersistedAnalysisMapper.GetResumeId(persisted) ?? resumeId,
+                SiteId = PersistedAnalysisMapper.GetSiteId(persisted) ?? siteId
+            }, null);
+        }
+
+        if (clientAnalysis == null)
+        {
+            return (null, BadRequest(new
+            {
+                success = false,
+                error = "Dados incompletos",
+                message = "É necessário fornecer analysis ou analysisId"
+            }));
+        }
+
+        return (new ResolvedAnalysisContext
+        {
+            Analysis = clientAnalysis,
+            ResumeText = clientResumeText?.Trim(),
+            ResumeId = resumeId,
+            SiteId = siteId
+        }, null);
     }
 
     private static string MapAiErrorMessage(Exception ex)

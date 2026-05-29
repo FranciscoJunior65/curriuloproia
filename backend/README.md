@@ -34,15 +34,26 @@ Porta padrão: **http://localhost:3000**
 
 ## Publicar no IIS / Plesk (Windows)
 
-1. `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`
-2. Copie a pasta `publish` para o site `api.curriculoproia.com.br` (deve conter `CurriculosProIA.Api.dll` e `web.config`)
-3. No Plesk: site ASP.NET Core, runtime **.NET 8**, pool **Sem código gerenciado** (ou integrado, conforme o módulo)
-4. **Supabase no servidor** — copie o `.env` para a pasta do site (obrigatório):
+1. Mantenha suas chaves em `backend/app.env` (ou `backend/.env`) — **não vão para o Git** (`.gitignore`).
+2. `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`  
+   O publish **copia automaticamente** `backend/app.env` (ou `.env`) para a pasta `publish/` como `app.env`.
+3. Copie a pasta `publish` inteira para o site `api.curriculoproia.com.br` (deve conter `CurriculosProIA.Api.dll`, `web.config` e **`app.env`**).
+4. No Plesk: site ASP.NET Core, runtime **.NET 8**, pool **Sem código gerenciado** (ou integrado, conforme o módulo)
+5. **Variáveis no servidor** — confira `app.env` na mesma pasta do `.dll` (FTP costuma preferir `app.env` em vez de `.env`):
+
+   ```bash
+   # macOS/Linux (opcional, se o publish não trouxe o arquivo)
+   dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish
+   ./scripts/copy-env-to-publish.sh ./publish
+   ```
+
    ```powershell
+   # Windows
    dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish
    .\scripts\copy-env-to-publish.ps1 -PublishDir ".\publish"
    ```
-   No servidor, o arquivo deve ficar na **mesma pasta** do `CurriculosProIA.Api.dll` como `.env` ou `app.env` (FTP às vezes não envia arquivos que começam com ponto — use `app.env`).
+
+   Inclua `SERPAPI_KEY=...` no `backend/app.env` junto com Supabase, Gemini, etc.
 
    Alternativa: variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no painel Plesk → ASP.NET Core → Variáveis de ambiente.
 

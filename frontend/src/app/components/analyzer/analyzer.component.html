@@ -181,7 +181,7 @@
             </span>
           </div>
           <p class="pending-card__desc">
-            Carta, entrevista, currículo melhorado e busca de vagas — use quando quiser, sem novo crédito.
+            Carta, entrevista e currículo melhorado — use quando quiser. Busca de vagas <strong>ilimitada</strong> neste currículo; novo arquivo exige novo crédito.
           </p>
         </div>
       </div>
@@ -925,7 +925,7 @@
               </div>
               <h3 class="text-lg font-bold text-gray-800 mb-2">Buscar Vagas</h3>
               <p class="text-gray-600 text-sm mb-4">
-                Encontre oportunidades no {{ getSelectedSiteName() || 'site selecionado' }} com base na sua análise
+                Busca vagas relacionadas ao seu currículo em vários portais. Incluída na análise paga — pesquise quantas vezes quiser neste currículo; importar outro arquivo exige novo crédito.
               </p>
               <button
                 mat-raised-button
@@ -968,34 +968,134 @@
         </div>
 
         <!-- Resultados da busca de vagas -->
-        <mat-card *ngIf="foundJobs.length" class="shadow-xl border-l-4 border-green-500">
-          <mat-card-content class="p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <mat-icon class="text-green-600">work</mat-icon>
-              Vagas encontradas ({{ foundJobs.length }})
-            </h3>
-            <ul class="space-y-3 max-h-96 overflow-y-auto">
-              <li
-                *ngFor="let job of foundJobs"
-                class="p-4 rounded-lg border border-gray-200 bg-gray-50 hover:bg-green-50 transition-colors"
+        <section *ngIf="foundJobs.length" id="jobs-results" class="jobs-results">
+          <header class="jobs-results__header">
+            <div class="jobs-results__title-row">
+              <span class="jobs-results__icon" aria-hidden="true">
+                <mat-icon>work</mat-icon>
+              </span>
+              <div>
+                <h3 class="jobs-results__title">Vagas para o seu perfil</h3>
+                <p *ngIf="jobSearchMessage" class="jobs-results__subtitle">{{ jobSearchMessage }}</p>
+              </div>
+            </div>
+            <span class="jobs-results__count">{{ foundJobs.length }}</span>
+          </header>
+
+          <div class="jobs-results__list">
+            <article *ngFor="let job of foundJobs; let i = index" class="job-card">
+              <div class="job-card__top">
+                <div class="job-card__identity">
+                  <h4 class="job-card__title">{{ job.title || 'Vaga' }}</h4>
+                  <p class="job-card__company">{{ job.company || 'Empresa não informada' }}</p>
+                </div>
+                <div class="job-card__badges">
+                  <span
+                    *ngIf="job.compatibilityScore != null && job.compatibilityScore > 0"
+                    class="job-badge job-badge--match"
+                  >
+                    {{ job.compatibilityScore }}% match
+                  </span>
+                  <span *ngIf="job.site" class="job-badge job-badge--portal">{{ job.site }}</span>
+                </div>
+              </div>
+
+              <div
+                *ngIf="job.location || job.salary || job.postedAt"
+                class="job-card__meta"
               >
-                <p class="font-semibold text-gray-800">{{ job.title || 'Vaga' }}</p>
-                <p *ngIf="job.company" class="text-sm text-gray-600">{{ job.company }}</p>
-                <p *ngIf="job.location" class="text-xs text-gray-500 mt-1">{{ job.location }}</p>
-                <a
-                  *ngIf="job.url"
-                  [href]="job.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline mt-2"
-                >
-                  <mat-icon class="text-base">open_in_new</mat-icon>
-                  Ver vaga
-                </a>
-              </li>
-            </ul>
-          </mat-card-content>
-        </mat-card>
+                <span *ngIf="job.location" class="job-meta-chip">
+                  <mat-icon>place</mat-icon>{{ job.location }}
+                </span>
+                <span *ngIf="job.salary" class="job-meta-chip job-meta-chip--salary">
+                  <mat-icon>payments</mat-icon>{{ job.salary }}
+                </span>
+                <span *ngIf="job.postedAt" class="job-meta-chip">
+                  <mat-icon>schedule</mat-icon>{{ job.postedAt }}
+                </span>
+              </div>
+
+              <details class="job-card__details">
+                <summary class="job-card__summary">Ver detalhes da vaga</summary>
+                <div class="job-card__body">
+                  <div *ngIf="job.description" class="job-block">
+                    <h5 class="job-block__label">Descrição</h5>
+                    <p class="job-block__text">{{ normalizeJobText(job.description) }}</p>
+                  </div>
+
+                  <div *ngIf="job.requirements?.length" class="job-block">
+                    <h5 class="job-block__label">Requisitos</h5>
+                    <ul class="job-list">
+                      <li *ngFor="let req of job.requirements">{{ req }}</li>
+                    </ul>
+                  </div>
+
+                  <div *ngIf="job.contactHints?.length" class="job-block">
+                    <h5 class="job-block__label">Contato</h5>
+                    <ul class="job-list job-list--compact">
+                      <li *ngFor="let hint of job.contactHints">{{ hint }}</li>
+                    </ul>
+                  </div>
+
+                  <div *ngIf="job.matchedKeywords?.length" class="job-block">
+                    <h5 class="job-block__label">Palavras-chave em comum</h5>
+                    <div class="job-keywords">
+                      <span *ngFor="let kw of job.matchedKeywords" class="job-keyword">{{ kw }}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    *ngIf="job.applyChannels?.length || job.url"
+                    class="job-block job-block--actions"
+                  >
+                    <h5 class="job-block__label">Candidatura</h5>
+                    <div class="job-apply-buttons">
+                      <ng-container *ngIf="job.applyChannels?.length; else singleJobUrl">
+                        <div *ngFor="let ch of job.applyChannels" class="job-apply-row">
+                          <a
+                            *ngIf="ch.link"
+                            mat-stroked-button
+                            class="job-apply-btn job-apply-btn--primary"
+                            [href]="ch.link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <mat-icon>open_in_new</mat-icon>
+                            Abrir no {{ ch.portal }}
+                          </a>
+                          <button
+                            *ngIf="ch.link"
+                            mat-icon-button
+                            type="button"
+                            class="job-apply-copy"
+                            title="Copiar link"
+                            (click)="copyApplyLink(ch.link); $event.stopPropagation()"
+                          >
+                            <mat-icon>content_copy</mat-icon>
+                          </button>
+                        </div>
+                      </ng-container>
+                      <ng-template #singleJobUrl>
+                        <a
+                          *ngIf="job.url"
+                          mat-raised-button
+                          color="primary"
+                          class="job-apply-btn job-apply-btn--primary"
+                          [href]="job.url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <mat-icon>open_in_new</mat-icon>
+                          Abrir vaga
+                        </a>
+                      </ng-template>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </article>
+          </div>
+        </section>
 
         <!-- Entrevista por voz (persona + conversa) -->
         <mat-card *ngIf="showVoiceInterview" class="shadow-xl">

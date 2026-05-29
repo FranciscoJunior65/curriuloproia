@@ -18,8 +18,10 @@ public class JobSearchService : IJobSearchService
     private readonly IJobSitesService _jobSites;
     private readonly IAiService _aiService;
     private readonly IInterviewRepository _interviews;
+    private readonly IGoogleJobsSearchService _googleJobs;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<JobSearchService> _logger;
+    private readonly IConfiguration _configuration;
 
     private static readonly string[] TechPatterns =
     [
@@ -32,13 +34,17 @@ public class JobSearchService : IJobSearchService
         IJobSitesService jobSites,
         IAiService aiService,
         IInterviewRepository interviews,
+        IGoogleJobsSearchService googleJobs,
         IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
         ILogger<JobSearchService> logger)
     {
         _jobSites = jobSites;
         _aiService = aiService;
         _interviews = interviews;
+        _googleJobs = googleJobs;
         _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -60,24 +66,7 @@ public class JobSearchService : IJobSearchService
             ?? throw new InvalidOperationException("Site de vagas não encontrado");
 
         var searchTerms = ExtractSearchTerms(analysis);
-        var siteName = (site.Nome ?? "").ToLowerInvariant();
-
-        if (siteName.Contains("linkedin"))
-        {
-            return await SearchLinkedInJobsAsync(searchTerms, location, cancellationToken);
-        }
-
-        if (siteName.Contains("catho"))
-        {
-            return await SearchCathoJobsAsync(searchTerms, location, cancellationToken);
-        }
-
-        if (siteName.Contains("indeed"))
-        {
-            return await SearchIndeedJobsAsync(searchTerms, location, cancellationToken);
-        }
-
-        return SearchGenericJobs(site.Nome ?? siteId, searchTerms, location);
+        return await _googleJobs.SearchAsync(searchTerms, location, 20, cancellationToken);
     }
 
     private async Task<JobSearchResult> SearchJobsAdvancedAsync(
@@ -95,29 +84,13 @@ public class JobSearchService : IJobSearchService
         var keywords = await GenerateSearchKeywordsWithAiAsync(resumeText, analysis, site, cancellationToken);
         var combinations = GenerateSearchCombinations(keywords, 8);
         var allJobs = new List<JobListing>();
-        var siteName = (site.Nome ?? "").ToLowerInvariant();
+        var combinationsToRun = combinations.Take(3).ToList();
 
-        foreach (var combination in combinations)
+        foreach (var combination in combinationsToRun)
         {
             try
             {
-                JobSearchResult searchResults;
-                if (siteName.Contains("catho"))
-                {
-                    searchResults = await SearchCathoJobsAsync(combination, location, cancellationToken);
-                }
-                else if (siteName.Contains("indeed"))
-                {
-                    searchResults = await SearchIndeedJobsAsync(combination, location, cancellationToken);
-                }
-                else if (siteName.Contains("linkedin"))
-                {
-                    searchResults = await SearchLinkedInJobsAsync(combination, location, cancellationToken);
-                }
-                else
-                {
-                    searchResults = SearchGenericJobs(site.Nome ?? siteId, combination, location);
-                }
+                var searchResults = await _googleJobs.SearchAsync(combination, location, 15, cancellationToken);
 
                 foreach (var job in searchResults.Jobs)
                 {
@@ -128,27 +101,13 @@ public class JobSearchService : IJobSearchService
                         continue;
                     }
 
-                    try
-                    {
-                        var details = await ExtractJobDetailsAsync(job.Url, site.Nome ?? "", cancellationToken);
-                        job.Description = details.Description;
-                        job.Requirements = details.Requirements;
-                        job.Salary = details.Salary;
-                        job.ContractType = details.ContractType;
-                        job.ExperienceLevel = details.ExperienceLevel;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Erro ao extrair detalhes da vaga {Url}", job.Url);
-                    }
-
                     var compatibility = CalculateCompatibilityScore(job, analysis, keywords);
                     job.CompatibilityScore = compatibility.Score;
                     job.MatchedKeywords = compatibility.MatchedKeywords;
                     allJobs.Add(job);
                 }
 
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(800, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -176,13 +135,15 @@ public class JobSearchService : IJobSearchService
 
         return new JobSearchResult
         {
-            Site = site.Nome ?? "",
-            Url = site.UrlBase ?? "",
+            Site = "Vagas encontradas",
+            Url = string.Empty,
             Jobs = uniqueJobs.Take(50).ToList(),
             TotalFound = uniqueJobs.Count,
             SearchKeywords = keywords,
-            SearchCombinations = combinations.Count,
-            Message = $"{uniqueJobs.Count} vagas encontradas após {combinations.Count} buscas"
+            SearchCombinations = combinationsToRun.Count,
+            Message = uniqueJobs.Count > 0
+                ? $"{uniqueJobs.Count} vagas listadas com detalhes no seu painel"
+                : "Nenhuma vaga encontrada nesta busca. Tente novamente ou refine o currículo."
         };
     }
 

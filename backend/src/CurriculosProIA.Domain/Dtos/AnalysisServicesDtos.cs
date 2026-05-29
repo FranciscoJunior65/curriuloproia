@@ -10,11 +10,17 @@ public static class AnalysisBundledServiceKeys
     public const string Entrevista = "entrevista";
     public const string BuscaVagas = "busca_vagas";
 
+    /// <summary>Serviços de uso único por análise paga (carta, currículo melhorado, entrevista).</summary>
     public static readonly string[] Optional =
     [
         CartaApresentacao,
         CurriculoMelhorado,
-        Entrevista,
+        Entrevista
+    ];
+
+    /// <summary>Inclusos na análise paga, sem limite de uso no mesmo currículo.</summary>
+    public static readonly string[] Unlimited =
+    [
         BuscaVagas
     ];
 
@@ -50,6 +56,9 @@ public class AnalysisServiceItemDto
 
     [JsonPropertyName("pendente")]
     public bool Pendente { get; set; }
+
+    [JsonPropertyName("ilimitado")]
+    public bool Ilimitado { get; set; }
 }
 
 public class AnalysisServicesStatusDto

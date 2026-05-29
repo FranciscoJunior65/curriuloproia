@@ -35,12 +35,19 @@ public static class AnalysisServicesStatusHelper
             status[AnalysisBundledServiceKeys.Entrevista] = true;
         }
 
-        var itens = status.Select(kv => new AnalysisServiceItemDto
+        var itens = status.Select(kv =>
         {
-            Key = kv.Key,
-            Label = AnalysisBundledServiceKeys.Labels.TryGetValue(kv.Key, out var label) ? label : kv.Key,
-            Usado = kv.Value,
-            Pendente = AnalysisBundledServiceKeys.Optional.Contains(kv.Key) && !kv.Value
+            var isUnlimited = AnalysisBundledServiceKeys.Unlimited.Contains(kv.Key);
+            return new AnalysisServiceItemDto
+            {
+                Key = kv.Key,
+                Label = AnalysisBundledServiceKeys.Labels.TryGetValue(kv.Key, out var label) ? label : kv.Key,
+                Ilimitado = isUnlimited,
+                Usado = isUnlimited || kv.Value,
+                Pendente = !isUnlimited &&
+                           AnalysisBundledServiceKeys.Optional.Contains(kv.Key) &&
+                           !kv.Value
+            };
         }).ToList();
 
         var pendentes = AnalysisBundledServiceKeys.Optional.Count(k => !status.GetValueOrDefault(k));
