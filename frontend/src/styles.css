@@ -7,7 +7,14 @@ html, body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
   max-width: 100%;
+  overflow-x: hidden;
   overflow-x: clip;
+}
+
+/* Headers de subpáginas — safe area iPhone */
+.app-page-header {
+  overflow-x: clip;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* Header compartilhado (Meus Dados, Trocar Senha, Financeiro, etc.) */
@@ -35,6 +42,12 @@ html, body {
 
 .app-page-header__menu-btn {
   white-space: nowrap;
+}
+
+@media (max-width: 440px) {
+  .app-page-header__menu-btn {
+    gap: 0.25rem;
+  }
 }
 
 /* Botões globais (padrão visual premium) */

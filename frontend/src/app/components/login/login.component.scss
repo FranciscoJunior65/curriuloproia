@@ -635,6 +635,31 @@
   }
 }
 
+@media (max-width: 440px) {
+  .login-form__code-container {
+    gap: 0.45rem;
+  }
+
+  .login-form__code-digit {
+    width: 2.65rem;
+    height: 2.65rem;
+    font-size: 1.15rem;
+    border-radius: 0.5rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-form__code-container {
+    gap: 0.3rem;
+  }
+
+  .login-form__code-digit {
+    width: 2.35rem;
+    height: 2.35rem;
+    font-size: 1rem;
+  }
+}
+
 .login-form__resend-code {
   margin-top: 1rem;
   width: 100%;

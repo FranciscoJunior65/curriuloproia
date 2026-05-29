@@ -1,3 +1,14 @@
+:host {
+  display: block;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.hero-section__inner {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
 // Regra global para garantir que chips nunca cortem texto
 ::ng-deep {
   // Remove qualquer ellipsis ou truncamento do Material
@@ -300,6 +311,8 @@ mat-icon.text-lg {
   font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 
   mat-icon {
@@ -749,3 +762,41 @@ mat-icon.text-lg {
   }
 }
 
+.upload-dropzone {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+@media (max-width: 440px) {
+  ::ng-deep mat-card mat-card-content {
+    padding: 16px !important;
+  }
+
+  .resume-download-btn {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 1rem !important;
+    font-size: 0.9rem;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .hero-contacts__link {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+    max-width: 100%;
+
+    span {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+  }
+
+  .hero-contacts__items {
+    gap: 0.5rem;
+  }
+
+  .upload-dropzone {
+    padding: 1.25rem !important;
+  }
+}

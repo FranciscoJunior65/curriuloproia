@@ -631,3 +631,45 @@
 .w-full {
   width: 100%;
 }
+
+@media (max-width: 440px) {
+  .auth-modal-header {
+    padding: 1.75rem 1.25rem;
+    margin: -16px -16px 0 -16px;
+    width: calc(100% + 32px);
+  }
+
+  .auth-modal-content {
+    padding: 1rem 1.25rem 1.25rem;
+    margin: 0 -16px -16px -16px;
+    width: calc(100% + 32px);
+  }
+
+  .auth-header-icon {
+    font-size: 4rem !important;
+    width: 4rem !important;
+    height: 4rem !important;
+    line-height: 4rem !important;
+  }
+
+  ::ng-deep .auth-tabs .mat-mdc-tab-label {
+    min-width: 0;
+    flex: 1;
+    padding: 14px 12px;
+    font-size: 14px;
+  }
+
+  ::ng-deep .auth-modal-panel .mat-mdc-dialog-surface {
+    padding: 16px !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  ::ng-deep .auth-modal-panel .mat-mdc-dialog-container {
+    overflow-y: auto !important;
+    max-height: 92dvh !important;
+  }
+
+  ::ng-deep .auth-tabs .mat-mdc-tab-body-content {
+    max-height: none !important;
+  }
+}
