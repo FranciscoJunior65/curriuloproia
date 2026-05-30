@@ -1259,6 +1259,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             var creditos = Enumerable.Range(0, creditsAmount)
                 .Select(_ => new CreditoRow
                 {
+                    Id = Guid.NewGuid().ToString(),
                     IdCompra = purchaseId,
                     IdUsuario = userId,
                     Usado = false,
