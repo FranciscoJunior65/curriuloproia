@@ -57,7 +57,14 @@
         </button>
       </div>
       <div class="login-card__hero-overlay">
-        <p class="login-card__badge">CurriculoPro IA</p>
+        <img
+          class="login-card__hero-logo"
+          src="assets/imagens/logo-curriculoproia.jpeg"
+          alt="CurrículosPro IA"
+          width="72"
+          height="72"
+        />
+        <p class="login-card__badge">CurrículosPro IA</p>
         <h2 class="login-card__headline">
           Seu currículo profissional,
           <span>impulsionado por IA.</span>
@@ -70,7 +77,29 @@
 
     <div class="login-card__content">
       <div class="login-card__inner">
-        <p class="login-card__brand">CurriculoPro IA</p>
+        <div class="login-card__brand">
+          <img
+            class="login-card__brand-logo"
+            src="assets/imagens/logo-curriculoproia.jpeg"
+            alt=""
+            width="44"
+            height="44"
+            aria-hidden="true"
+          />
+          <span class="login-card__brand-name">CurrículosPro IA</span>
+        </div>
+
+        <div *ngIf="partnerCouponCode && !showVerificationStep && !showForgotPassword && !showResetPassword && !showLoginCodeStep" class="login-partner-banner">
+          <div *ngIf="partnerCouponLoading" class="login-partner-banner__loading">Validando cupom...</div>
+          <div *ngIf="!partnerCouponLoading && partnerCouponDiscount != null" class="login-partner-banner__success">
+            <strong>Cupom {{ partnerCouponCode }}</strong> — {{ partnerCouponDiscount }}% de desconto na primeira compra.
+            <span *ngIf="!isLogin">Crie sua conta abaixo para vincular o benefício.</span>
+            <span *ngIf="isLogin">Faça login para usar o desconto.</span>
+          </div>
+          <div *ngIf="!partnerCouponLoading && partnerCouponError" class="login-partner-banner__error">
+            {{ partnerCouponError }}
+          </div>
+        </div>
         
         <!-- Tela de verificação de email -->
         <div *ngIf="showVerificationStep">
@@ -618,7 +647,7 @@
       </article>
     </div>
 
-    <article *ngIf="!loadingPricing && englishPlan" class="login-pricing__english">
+    <article *ngIf="false && !loadingPricing && englishPlan" class="login-pricing__english">
       <div class="login-pricing__english-inner">
         <div class="login-pricing__english-info">
           <span class="login-pricing__english-label">Serviço Especial</span>

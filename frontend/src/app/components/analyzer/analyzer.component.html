@@ -398,7 +398,7 @@
               <span class="flex items-center justify-center gap-2">
                 <mat-spinner *ngIf="adminFreePlanId === plan.id" diameter="16" class="inline-block"></mat-spinner>
                 <mat-icon *ngIf="adminFreePlanId !== plan.id" class="text-lg">science</mat-icon>
-                <span>{{ adminFreePlanId === plan.id ? 'Adicionando...' : 'Obter grátis (teste)' }}</span>
+                <span>{{ adminFreePlanId === plan.id ? 'Aplicando...' : 'Compra grátis (admin)' }}</span>
               </span>
             </button>
             
@@ -427,8 +427,15 @@
               <mat-icon class="text-green-600">account_balance_wallet</mat-icon>
               <div>
                 <p class="font-semibold text-gray-800">Créditos Disponíveis</p>
-                <p class="text-sm text-gray-600">
-                  {{ userCredits }} análise(ões) restante(s)
+                <p class="text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span class="inline-flex items-center gap-1">
+                    <mat-icon class="text-green-600 text-base">stars</mat-icon>
+                    {{ userCredits }} análise(ões) restante(s)
+                  </span>
+                  <span class="inline-flex items-center gap-1 text-sky-700 font-medium">
+                    <mat-icon class="text-base">language</mat-icon>
+                    {{ englishCredits }} inglês
+                  </span>
                 </p>
               </div>
             </div>
@@ -832,7 +839,7 @@
               <button
                 mat-raised-button
                 (click)="generateImprovedResume('pdf')"
-                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
+                [disabled]="generatingPDF || generatingWord"
                 class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
               >
                 <mat-spinner *ngIf="generatingPDF" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
@@ -843,29 +850,90 @@
               <button
                 mat-raised-button
                 (click)="generateImprovedResume('word')"
-                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
+                [disabled]="generatingPDF || generatingWord"
                 class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
               >
                 <mat-spinner *ngIf="generatingWord" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
                 <mat-icon *ngIf="!generatingWord" class="mr-2">description</mat-icon>
                 <span>{{ generatingWord ? "Gerando Word..." : "Baixar Word" }}</span>
               </button>
-
-              <button
-                mat-raised-button
-                (click)="generateEnglishExcel()"
-                [disabled]="generatingPDF || generatingWord || generatingEnglishExcel"
-                class="resume-download-btn bg-white text-indigo-600 px-8 py-4 text-lg font-semibold hover:bg-gray-100 shadow-xl hover:shadow-2xl transition-all flex items-center justify-center"
-              >
-                <mat-spinner *ngIf="generatingEnglishExcel" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
-                <mat-icon *ngIf="!generatingEnglishExcel" class="mr-2">table_chart</mat-icon>
-                <span>{{ generatingEnglishExcel ? 'Gerando Excel...' : 'Excel em Inglês' }}</span>
-              </button>
             </div>
             
             <p class="text-sm text-indigo-200 text-center">
               ✨ Formatado profissionalmente • Palavras-chave otimizadas para {{ getSelectedSiteName() || 'o site selecionado' }} • ATS-friendly
             </p>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Currículo em inglês (add-on por análise) -->
+        <mat-card *ngIf="result?.analysisId" class="shadow-2xl bg-gradient-to-r from-slate-700 via-blue-800 to-indigo-800 text-white">
+          <mat-card-content class="p-8">
+            <div class="text-center mb-6">
+              <mat-icon class="text-5xl text-sky-200 mb-3">language</mat-icon>
+              <h2 class="text-2xl font-bold mb-2">Currículo em Inglês</h2>
+              <p class="text-blue-100 max-w-2xl mx-auto text-sm md:text-base">
+                Mesmo layout profissional do currículo melhorado, traduzido e adaptado para vagas internacionais.
+                Vinculado a esta análise — compre no checkout do plano ou aqui depois.
+              </p>
+              <p *ngIf="hasEnglishPaid() && !hasEnglishGenerated()" class="mt-3 text-amber-200 text-sm font-medium">
+                Você já adquiriu este serviço. Gere PDF ou Word quando quiser.
+              </p>
+              <p *ngIf="hasEnglishGenerated()" class="mt-3 text-green-200 text-sm font-medium flex items-center justify-center gap-1">
+                <mat-icon class="text-base">check_circle</mat-icon>
+                Arquivo já gerado — pode baixar novamente.
+              </p>
+            </div>
+
+            <div *ngIf="!hasEnglishPaid()" class="flex flex-col items-center gap-3">
+              <button
+                mat-raised-button
+                (click)="purchaseEnglishForAnalysis()"
+                [disabled]="purchasingEnglish || adminFreeLoading"
+                class="resume-download-btn bg-white text-indigo-800 px-8 py-3 font-semibold"
+              >
+                <mat-spinner *ngIf="purchasingEnglish" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
+                <mat-icon *ngIf="!purchasingEnglish" class="mr-2">shopping_cart</mat-icon>
+                <span>
+                  {{ purchasingEnglish ? 'Abrindo pagamento...' : ('Comprar por R$ ' + englishStandalonePriceBRL.toFixed(2).replace('.', ',')) }}
+                </span>
+              </button>
+              <button
+                *ngIf="isAdmin"
+                type="button"
+                (click)="adminGrantEnglishFree()"
+                [disabled]="adminFreeLoading"
+                class="py-2 px-5 text-sm font-medium rounded-lg border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 disabled:opacity-50"
+              >
+                <span class="flex items-center gap-2">
+                  <mat-spinner *ngIf="adminFreePlanId === 'english'" diameter="16"></mat-spinner>
+                  <mat-icon *ngIf="adminFreePlanId !== 'english'" class="text-base">science</mat-icon>
+                  {{ adminFreePlanId === 'english' ? 'Liberando...' : 'Compra grátis (admin)' }}
+                </span>
+              </button>
+            </div>
+
+            <div *ngIf="hasEnglishPaid()" class="flex flex-col md:flex-row gap-4 justify-center">
+              <button
+                mat-raised-button
+                (click)="generateEnglishResume('pdf')"
+                [disabled]="generatingEnglishPdf || generatingEnglishWord"
+                class="resume-download-btn bg-white text-indigo-800 px-8 py-3 font-semibold"
+              >
+                <mat-spinner *ngIf="generatingEnglishPdf" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
+                <mat-icon *ngIf="!generatingEnglishPdf" class="mr-2">picture_as_pdf</mat-icon>
+                <span>{{ generatingEnglishPdf ? 'Gerando PDF...' : 'Baixar PDF em inglês' }}</span>
+              </button>
+              <button
+                mat-raised-button
+                (click)="generateEnglishResume('word')"
+                [disabled]="generatingEnglishPdf || generatingEnglishWord"
+                class="resume-download-btn bg-white text-indigo-800 px-8 py-3 font-semibold"
+              >
+                <mat-spinner *ngIf="generatingEnglishWord" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
+                <mat-icon *ngIf="!generatingEnglishWord" class="mr-2">description</mat-icon>
+                <span>{{ generatingEnglishWord ? 'Gerando Word...' : 'Baixar Word em inglês' }}</span>
+              </button>
+            </div>
           </mat-card-content>
         </mat-card>
 
@@ -1670,38 +1738,62 @@
 </div>
 
 <!-- Footer -->
-<footer class="bg-gray-900 text-gray-300 py-12 mt-20">
+<footer class="app-footer bg-gray-900 text-gray-300 py-8 mt-12">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid md:grid-cols-3 gap-8">
+    <div class="grid md:grid-cols-3 gap-6 md:gap-8">
       <div>
-        <h3 class="text-white text-lg font-bold mb-4">CurriculosPro IA</h3>
-        <p class="text-sm">
+        <div class="app-footer__brand mb-3">
+          <img
+            src="assets/imagens/logo-curriculoproia.jpeg"
+            alt="CurrículosPro IA"
+            class="app-footer__logo"
+            width="48"
+            height="48"
+          />
+          <h3 class="text-white text-base font-bold">CurrículosPro IA</h3>
+        </div>
+        <p class="text-xs sm:text-sm leading-relaxed">
           Transformando carreiras com inteligência artificial. Análise
           profissional e geração de currículos otimizados.
         </p>
       </div>
       <div>
-        <h4 class="text-white font-semibold mb-4">Recursos</h4>
-        <ul class="space-y-2 text-sm">
-          <li>Análise com IA GPT-4</li>
+        <h4 class="text-white font-semibold text-sm mb-3">Recursos</h4>
+        <ul class="space-y-1.5 text-xs sm:text-sm">
+          <li>Análise com IA</li>
           <li>Otimização para sites de vagas</li>
           <li>Geração de PDF ou WORD</li>
-          <li>Recomendações Personalizadas</li>
-          <li>Palavras-chave estratégicas</li>
+          <li>Recomendações personalizadas</li>
+          <li>Simulador de entrevista</li>
         </ul>
       </div>
       <div>
-        <h4 class="text-white font-semibold mb-4">Suporte</h4>
-        <ul class="space-y-2 text-sm">
+        <h4 class="text-white font-semibold text-sm mb-3">Suporte</h4>
+        <ul class="space-y-1.5 text-xs sm:text-sm">
           <li>Formatos: PDF, DOC, DOCX, TXT</li>
           <li>Análise em segundos</li>
-          <li>Sites: Gupy, LinkedIn, Vagas.com, Trabalhar Brasil, Empregos.com.br, InfoJobs, Catho, Indeed</li>
-          <li>100% Seguro e Privado</li>
+          <li>Gupy, LinkedIn, Catho, Indeed e mais</li>
+          <li>100% seguro e privado</li>
         </ul>
       </div>
     </div>
-    <div class="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-      <p>&copy; 2025 CurriculosPro IA. Todos os direitos reservados.</p>
+
+    <div class="app-footer__partners border-t border-gray-800 mt-6 pt-5">
+      <div class="app-footer__partner">
+        <img
+          src="assets/imagens/logo-getpush.jpeg"
+          alt="Getpush Tecnologia"
+          class="app-footer__logo-getpush"
+          width="120"
+          height="40"
+        />
+        <p class="text-xs text-gray-400">
+          Desenvolvido por <span class="text-gray-300 font-medium">Getpush Tecnologia</span>
+        </p>
+      </div>
+      <p class="app-footer__copy text-xs text-gray-500">
+        &copy; {{ currentYear }} CurrículosPro IA. Todos os direitos reservados.
+      </p>
     </div>
   </div>
 </footer>

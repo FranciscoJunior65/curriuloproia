@@ -58,6 +58,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   selectedPlan: PublicPlan | null = null;
   userId: string = '';
   userCredits: number = 0;
+  englishCredits = 0;
   showPlans = true;
   processingPayment = false;
   adminFreeLoading = false;
@@ -84,13 +85,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   analysisCompleted = false; // Flag para travar após análise
   generatingWord = false;
   generatingPDF = false;
-  generatingEnglishExcel = false;
+  generatingEnglishPdf = false;
+  generatingEnglishWord = false;
+  purchasingEnglish = false;
   generatingCoverLetter = false;
   readonly personaImageUrl = 'assets/imagens/persona.jpeg';
   readonly founderImageUrl = 'assets/imagens/david-oliveira.jpeg';
   readonly supportWhatsapp = '(71) 98309-6865';
   readonly supportWhatsappUrl = 'https://wa.me/5571983096865';
   readonly supportEmail = 'curriculoproia@gmail.com';
+  readonly currentYear = new Date().getFullYear();
   resumeChanges: any = null; // Armazena mudanças após geração
   showInterviewChat = false; // Controla exibição do chat (legado texto)
   showVoiceInterview = false; // Entrevista por voz com persona
@@ -151,7 +155,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.foundJobs = [];
     this.jobSearchMessage = null;
     this.searchingJobs = false;
-    this.generatingEnglishExcel = false;
+    this.generatingEnglishPdf = false;
+    this.generatingEnglishWord = false;
+    this.purchasingEnglish = false;
     this.updateShowPlans();
     this.showInterviewChat = false;
     this.interviewStarted = false;
@@ -198,6 +204,39 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.englishStandalonePriceBRL,
       this.englishBundlePriceBRL
     );
+  }
+
+  hasEnglishPaid(): boolean {
+    return !!this.result?.servicos?.curriculo_ingles_pago;
+  }
+
+  hasEnglishGenerated(): boolean {
+    return !!this.result?.servicos?.curriculo_ingles_gerado;
+  }
+
+  private applyServicos(servicos: any): void {
+    if (!this.result || !servicos) {
+      return;
+    }
+    this.result = {
+      ...this.result,
+      servicos: {
+        curriculo_ingles_pago: servicos.curriculo_ingles_pago ?? servicos.CurriculoInglesPago,
+        curriculo_ingles_gerado: servicos.curriculo_ingles_gerado ?? servicos.CurriculoInglesGerado,
+        itens: servicos.itens ?? servicos.Itens
+      }
+    };
+  }
+
+  private refreshAnalysisServicos(analysisId: string): void {
+    this.analyzerService.getAnalysisById(analysisId).subscribe({
+      next: (res: any) => {
+        if (res?.servicos) {
+          this.applyServicos(res.servicos);
+        }
+      },
+      error: () => {}
+    });
   }
 
   formatPriceParts(priceBRL: number): PriceParts {
@@ -279,6 +318,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           this.creditsLoadedForUserId = user.id;
           this.checkCredits();
         }
+        this.loadLinkedReferralCoupon();
       } else {
         this.userId = '';
         this.userCredits = 0;
@@ -307,6 +347,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       }
       console.log('Usuário inicial:', currentUser);
       console.log('isAdmin inicial:', this.isAdmin);
+      this.loadLinkedReferralCoupon();
     }
 
     this.loadPlans();
@@ -329,6 +370,29 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       error: () => {
         this.paymentProvider = 'stripe';
       }
+    });
+  }
+
+  loadLinkedReferralCoupon(): void {
+    if (!this.isAuthenticated) return;
+
+    this.authService.getReferralCoupon().subscribe({
+      next: (res) => {
+        if (!res.success || !res.referralCoupon) return;
+
+        const referral = res.referralCoupon;
+        this.couponCode = referral.couponCode;
+        this.validatedCoupon = {
+          nome: referral.couponCode,
+          porcentagem_desconto: referral.discountPercent
+        };
+        this.couponError = '';
+
+        if (this.currentUser?.cpf) {
+          this.cpf = this.currentUser.cpf;
+        }
+      },
+      error: () => {}
     });
   }
 
@@ -402,7 +466,20 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             analysis: mapped.analysis,
             resumeId: mapped.resumeId ?? analysis.id_curriculo,
             analysisId: mapped.analysisId ?? analysis.id,
-            creditsRemaining: this.userCredits
+            creditsRemaining: this.userCredits,
+            servicos: response.servicos
+              ? {
+                  curriculo_ingles_pago: response.servicos.curriculo_ingles_pago,
+                  curriculo_ingles_gerado: response.servicos.curriculo_ingles_gerado,
+                  itens: response.servicos.itens
+                }
+              : analysis.servicos
+                ? {
+                    curriculo_ingles_pago: analysis.servicos.curriculo_ingles_pago,
+                    curriculo_ingles_gerado: analysis.servicos.curriculo_ingles_gerado,
+                    itens: analysis.servicos.itens
+                  }
+                : undefined
           };
 
           this.selectedSiteId = response.siteId ?? analysis.id_site_vagas;
@@ -429,6 +506,13 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             setTimeout(() => {
               this.searchJobs();
               this.scrollToResults();
+            }, 500);
+          } else if (action === 'english' || action === 'buy-english') {
+            setTimeout(() => {
+              this.scrollToResults();
+              if (action === 'english' && this.hasEnglishPaid()) {
+                this.generateEnglishResume('pdf');
+              }
             }, 500);
           } else {
             this.scrollToResults();
@@ -527,6 +611,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       next: (response: any) => {
         this.creditsFetchInFlight = false;
         const credits = response?.credits ?? 0;
+        this.englishCredits = response?.englishCredits ?? 0;
         if (this.userCredits !== credits) {
           this.userCredits = credits;
           this.syncUserCredits();
@@ -554,25 +639,69 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.adminFreeLoading = true;
     this.adminFreePlanId = plan.id;
     this.error = null;
-    this.analyzerService.adminFreeCredits(plan.id).subscribe({
-      next: (response: any) => {
-        this.adminFreeLoading = false;
-        this.adminFreePlanId = null;
-        if (response.success) {
-          this.userCredits = response.credits ?? this.userCredits + (plan.analyses || 0);
-          if (this.currentUser) this.currentUser.credits = this.userCredits;
-          this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
-          this.updateShowPlans();
-        } else {
-          this.error = response.error || 'Erro ao adicionar créditos';
+    const includeEnglish =
+      plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
+    this.analyzerService
+      .adminFreeCredits(plan.id, { includeEnglish })
+      .subscribe({
+        next: (response: any) => {
+          this.adminFreeLoading = false;
+          this.adminFreePlanId = null;
+          if (response.success) {
+            this.userCredits = response.credits ?? this.userCredits + (plan.analyses || 0);
+            if (this.currentUser) this.currentUser.credits = this.userCredits;
+            this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
+            this.updateShowPlans();
+            this.snackBar.open(
+              response.message || 'Compra gratuita aplicada (admin).',
+              'OK',
+              { duration: 4000 }
+            );
+          } else {
+            this.error = response.error || 'Erro ao adicionar créditos';
+          }
+        },
+        error: (err) => {
+          this.adminFreeLoading = false;
+          this.adminFreePlanId = null;
+          this.error = err.error?.error || err.error?.message || 'Erro ao adicionar créditos';
         }
-      },
-      error: (err) => {
-        this.adminFreeLoading = false;
-        this.adminFreePlanId = null;
-        this.error = err.error?.error || err.error?.message || 'Erro ao adicionar créditos';
-      }
-    });
+      });
+  }
+
+  adminGrantEnglishFree(): void {
+    if (!this.isAdmin || !this.result?.analysisId) {
+      return;
+    }
+    this.adminFreeLoading = true;
+    this.adminFreePlanId = 'english';
+    this.error = null;
+    this.analyzerService
+      .adminFreeCredits('english', { analysisId: this.result.analysisId })
+      .subscribe({
+        next: (response: any) => {
+          this.adminFreeLoading = false;
+          this.adminFreePlanId = null;
+          if (response.success) {
+            this.applyServicos({
+              ...this.result?.servicos,
+              curriculo_ingles_pago: true
+            });
+            this.snackBar.open(
+              response.message || 'Inglês liberado gratuitamente (admin).',
+              'OK',
+              { duration: 4000 }
+            );
+          } else {
+            this.error = response.error || 'Erro ao liberar inglês';
+          }
+        },
+        error: (err) => {
+          this.adminFreeLoading = false;
+          this.adminFreePlanId = null;
+          this.error = err.error?.error || err.error?.message || 'Erro ao liberar inglês';
+        }
+      });
   }
 
   purchasePlan(plan: PublicPlan): void {
@@ -627,12 +756,17 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
     const userEmail = this.currentUser?.email || '';
     
+    const includeEnglish =
+      plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
+
     this.analyzerService.createPaymentSession(
       plan.id,
       this.userId,
       userEmail,
       this.couponCode?.trim() || null,
-      this.cpf?.trim() || null
+      this.cpf?.trim() || null,
+      includeEnglish,
+      plan.id === 'english' ? this.result?.analysisId ?? undefined : undefined
     ).subscribe({
       next: (response: any) => {
         console.log('📦 Resposta da sessão de pagamento:', response);
@@ -753,68 +887,40 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     return site ? site.nome : null;
   }
 
-  // Verifica pagamento após retorno do Stripe, Mercado Pago ou compra grátis
+  /** Redireciona retornos antigos da home para a tela de confirmação de compra. */
   checkPaymentStatus(): void {
     const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    const paymentId = urlParams.get('payment_id') || urlParams.get('collection_id');
-    const userId = urlParams.get('userId');
-    const free = urlParams.get('free');
-    const provider = urlParams.get('provider') || (paymentId && !sessionId ? 'mercadopago' : 'stripe');
-    const mpStatus = urlParams.get('status') || urlParams.get('collection_status');
-
-    if (free === '1' && userId) {
-      this.userId = userId;
-      this.analyzerService.getCredits(userId).subscribe({
-        next: (r: any) => {
-          if (r.success && r.credits != null) this.userCredits = r.credits;
-          this.showPlans = false;
-          this.checkCredits();
-        },
-        error: () => {
-          this.creditsFetchInFlight = false;
-          this.userCredits = (this.userCredits || 0) + 1;
-          this.showPlans = false;
-          this.syncUserCredits();
-        }
-      });
-      window.history.replaceState({}, document.title, window.location.pathname);
+    if (!urlParams.toString()) {
       return;
     }
 
-    const paymentRef = provider === 'mercadopago' ? paymentId : sessionId;
+    const hasLegacyReturn =
+      urlParams.get('free') === '1' ||
+      urlParams.get('session_id') ||
+      urlParams.get('payment_id') ||
+      urlParams.get('collection_id') ||
+      urlParams.get('provider') === 'mercadopago' ||
+      urlParams.get('status') === 'failure' ||
+      urlParams.get('status') === 'pending';
 
-    if (provider === 'mercadopago' && mpStatus && mpStatus !== 'approved' && !paymentRef) {
-      if (mpStatus === 'pending') {
-        this.error = 'Pagamento pendente. Assim que for aprovado, seus créditos serão liberados.';
-      } else if (mpStatus === 'failure') {
-        this.error = 'Pagamento não concluído. Tente novamente.';
-      }
-      window.history.replaceState({}, document.title, window.location.pathname);
+    if (!hasLegacyReturn) {
       return;
     }
 
-    if (paymentRef && (userId || provider === 'mercadopago')) {
-      if (userId) this.userId = userId;
-      this.analyzerService.verifyPayment(paymentRef, provider).subscribe({
-        next: (response: any) => {
-          if (response.success && response.paid) {
-            this.userCredits = response.user.credits;
-            this.showPlans = false;
-            this.checkCredits();
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } else if (response.success && !response.paid && provider === 'mercadopago') {
-            this.error = mpStatus === 'pending'
-              ? 'Pagamento pendente. Você receberá os créditos quando for aprovado.'
-              : 'Pagamento ainda não confirmado.';
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        },
-        error: (err) => {
-          console.error('Erro ao verificar pagamento:', err);
-        }
-      });
+    let path = '/compra/sucesso';
+    const status = urlParams.get('status') || urlParams.get('collection_status');
+    if (status === 'failure' || status === 'rejected') {
+      path = '/compra/falha';
+    } else if (status === 'pending') {
+      path = '/compra/pendente';
     }
+
+    const queryParams: Record<string, string> = {};
+    urlParams.forEach((value, key) => {
+      queryParams[key] = value;
+    });
+
+    this.router.navigate([path], { queryParams, replaceUrl: true });
   }
 
   onFileSelected(event: Event): void {
@@ -853,8 +959,11 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.result = null;
 
     this.analyzerService.analyzeResume(this.selectedFile, this.selectedSiteId || undefined).subscribe({
-      next: (result) => {
+      next: (result: any) => {
         this.result = result;
+        if (result.servicos) {
+          this.applyServicos(result.servicos);
+        }
         this.analysisCompleted = true; // Trava após análise completa
         this.loading = false;
         // Atualiza créditos após análise
@@ -972,37 +1081,118 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
-  generateEnglishExcel(): void {
+  purchaseEnglishForAnalysis(): void {
+    if (!this.result?.analysisId) {
+      this.error = 'É necessário ter uma análise salva para comprar o currículo em inglês.';
+      return;
+    }
+    if (!this.isAuthenticated || !this.userId) {
+      this.openAuthModal();
+      return;
+    }
+
+    this.purchasingEnglish = true;
+    this.error = null;
+
+    this.analyzerService
+      .createPaymentSession(
+        'english',
+        this.userId,
+        this.currentUser?.email || '',
+        null,
+        null,
+        false,
+        this.result.analysisId
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.purchasingEnglish = false;
+          if (response.success && response.freeCheckout && response.redirectUrl) {
+            window.location.href = response.redirectUrl;
+            return;
+          }
+          if (response.success && response.checkoutUrl) {
+            window.location.href = response.checkoutUrl;
+          } else {
+            this.error = response.error || response.message || 'Erro ao iniciar pagamento';
+          }
+        },
+        error: (err: any) => {
+          this.purchasingEnglish = false;
+          this.error =
+            err.error?.message || err.error?.error || 'Erro ao comprar currículo em inglês';
+        }
+      });
+  }
+
+  generateEnglishResume(format: 'pdf' | 'word' = 'pdf'): void {
     if (!this.result) {
       this.error = 'Nenhuma análise disponível';
       return;
     }
 
-    this.generatingEnglishExcel = true;
+    if (!this.hasEnglishPaid()) {
+      this.purchaseEnglishForAnalysis();
+      return;
+    }
+
+    if (format === 'pdf') {
+      this.generatingEnglishPdf = true;
+    } else {
+      this.generatingEnglishWord = true;
+    }
     this.error = null;
 
     this.analyzerService
-      .generateEnglishExcel(
+      .generateEnglishResume(
         this.result.originalText,
         this.result.analysis,
+        format,
         this.selectedSiteId || undefined,
         this.result.analysisId || undefined
       )
       .subscribe({
         next: (blob: Blob) => {
+          const ext = format === 'pdf' ? 'pdf' : 'docx';
           const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = 'curriculo-ingles.xlsx';
+          link.download = `curriculo-ingles.${ext}`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
-          this.generatingEnglishExcel = false;
+          if (format === 'pdf') {
+            this.generatingEnglishPdf = false;
+          } else {
+            this.generatingEnglishWord = false;
+          }
+          if (this.result?.analysisId) {
+            this.refreshAnalysisServicos(this.result.analysisId);
+            this.applyServicos({
+              ...this.result.servicos,
+              curriculo_ingles_pago: true,
+              curriculo_ingles_gerado: true
+            });
+          }
         },
         error: (err: any) => {
-          this.generatingEnglishExcel = false;
-          this.error = err?.error?.message || 'Erro ao gerar Excel em inglês';
+          if (format === 'pdf') {
+            this.generatingEnglishPdf = false;
+          } else {
+            this.generatingEnglishWord = false;
+          }
+          if (err.status === 402) {
+            this.error =
+              err.error?.message ||
+              'Compre o currículo em inglês para esta análise antes de gerar.';
+            this.applyServicos({
+              ...this.result?.servicos,
+              curriculo_ingles_pago: false
+            });
+          } else {
+            this.error = err?.error?.message || 'Erro ao gerar currículo em inglês';
+          }
         }
       });
   }

@@ -267,6 +267,24 @@
   }
 }
 
+.login-card__hero-logo {
+  display: block;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 0.5rem;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+
+  .login-card--wide & {
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 0.65rem;
+  }
+}
+
 .login-card__badge {
   font-size: 0.6rem;
   font-weight: 600;
@@ -348,11 +366,26 @@
 }
 
 .login-card__brand {
-  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.login-card__brand-logo {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.35);
+}
+
+.login-card__brand-name {
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.38em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: #d1d5db;
 }
 
 .login-card__title {
@@ -983,4 +1016,32 @@
 .login-pricing__guarantee-text {
   font-size: 0.8rem;
   color: #9ca3af;
+}
+
+.login-partner-banner {
+  margin-bottom: 1rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+
+  &__loading {
+    color: #9ca3af;
+  }
+
+  &__success {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #bbf7d0;
+
+    strong {
+      color: #86efac;
+    }
+  }
+
+  &__error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fecaca;
+  }
 }

@@ -2,10 +2,17 @@
   <div class="site-header__inner">
     <div class="site-header__brand">
       <a routerLink="/" class="site-header__logo" aria-label="CurrículosPro IA - Início">
-        <mat-icon aria-hidden="true">description</mat-icon>
+        <img
+          class="site-header__logo-img"
+          src="assets/imagens/logo-curriculoproia.jpeg"
+          alt=""
+          width="40"
+          height="40"
+          aria-hidden="true"
+        />
         <span class="site-header__logo-text">
           <span class="site-header__logo-short">Pro IA</span>
-          <span class="site-header__logo-full">CurriculosPro IA</span>
+          <span class="site-header__logo-full">CurrículosPro IA</span>
         </span>
       </a>
       <a
@@ -28,7 +35,11 @@
         </p>
         <p class="site-header__user-meta">
           <mat-icon aria-hidden="true">stars</mat-icon>
-          <span>{{ userCredits }} crédito(s)</span>
+          <span>{{ userCredits }} análise(s)</span>
+          <span class="site-header__user-english">
+            · <mat-icon aria-hidden="true">language</mat-icon>
+            {{ englishCredits }} inglês
+          </span>
           <span *ngIf="pendingServicesCount > 0" class="site-header__user-pending">
             · {{ pendingServicesCount }} pendente(s)
           </span>
@@ -36,9 +47,16 @@
       </div>
 
       <div class="site-header__mobile-badges" aria-label="Resumo da conta">
-        <span class="site-header__badge site-header__badge--credits" title="Créditos disponíveis">
+        <span class="site-header__badge site-header__badge--credits" title="Créditos de análise">
           <mat-icon aria-hidden="true">stars</mat-icon>
           {{ userCredits }}
+        </span>
+        <span
+          class="site-header__badge site-header__badge--english"
+          title="Add-ons de currículo em inglês (aplicam na próxima análise)"
+        >
+          <mat-icon aria-hidden="true">language</mat-icon>
+          {{ englishCredits }}
         </span>
         <span
           *ngIf="pendingServicesCount > 0"
@@ -91,7 +109,14 @@
         <div class="site-header__profile-chips">
           <span class="site-header__chip site-header__chip--credit">
             <mat-icon aria-hidden="true">stars</mat-icon>
-            {{ userCredits }} crédito{{ userCredits === 1 ? '' : 's' }}
+            {{ userCredits }} análise{{ userCredits === 1 ? '' : 's' }}
+          </span>
+          <span
+            class="site-header__chip site-header__chip--english"
+            title="Inglês incluído na próxima análise"
+          >
+            <mat-icon aria-hidden="true">language</mat-icon>
+            {{ englishCredits }} inglês
           </span>
           <span *ngIf="pendingServicesCount > 0" class="site-header__chip site-header__chip--pending">
             {{ pendingServicesCount }} pendente{{ pendingServicesCount === 1 ? '' : 's' }}
