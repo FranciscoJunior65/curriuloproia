@@ -14,7 +14,14 @@ public interface IPurchaseRepository
         string? couponId = null, string? couponName = null,
         decimal? discountPercent = null, decimal? originalPrice = null,
         string? partnerId = null, decimal? partnerPercent = null, decimal? partnerAmount = null,
+        string? analysisId = null,
         CancellationToken cancellationToken = default);
+    Task<CompraRow?> FindPendingBundledEnglishPurchaseAsync(
+        string parentPurchaseId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Compras de inglês (bundle) ainda não vinculadas a uma análise.</summary>
+    Task<int> GetPendingEnglishCreditsAsync(string userId, CancellationToken cancellationToken = default);
     Task<Purchase?> GetPurchaseByPaymentIdAsync(string paymentId, CancellationToken cancellationToken = default);
     Task<List<PurchaseWithCredits>> GetUserPurchasesAsync(string userId, int limit = 50, CancellationToken cancellationToken = default);
     Task<List<Purchase>> GetAllPurchasesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);

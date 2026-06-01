@@ -12,6 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
+import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
 
 @Component({
   selector: 'app-change-password',
@@ -26,7 +27,8 @@ import { environment } from '../../../environments/environment';
     MatInputModule,
     MatFormFieldModule,
     MatProgressSpinnerModule,
-    MatMenuModule
+    MatMenuModule,
+    AccountCreditsInlineComponent
   ],
   templateUrl: './change-password.component.html',
   styleUrl: './change-password.component.scss'

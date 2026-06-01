@@ -727,6 +727,24 @@
   align-self: flex-start;
 }
 
+.coupon-link-cell {
+  min-width: 220px;
+}
+
+.coupon-link-preview {
+  display: block;
+  font-size: 0.72rem;
+  word-break: break-all;
+  margin-bottom: 0.35rem;
+  color: #64748b;
+}
+
+.coupon-copy-link-btn {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  min-height: 32px;
+}
+
 .coupon-partner-box {
   margin-top: 0.75rem;
   padding: 1rem;

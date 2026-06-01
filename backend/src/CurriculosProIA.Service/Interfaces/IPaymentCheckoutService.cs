@@ -12,5 +12,7 @@ public interface IPaymentCheckoutService
         string userId,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default);
 }

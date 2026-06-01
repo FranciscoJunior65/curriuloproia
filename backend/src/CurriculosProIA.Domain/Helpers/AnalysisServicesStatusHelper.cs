@@ -52,11 +52,32 @@ public static class AnalysisServicesStatusHelper
 
         var pendentes = AnalysisBundledServiceKeys.Optional.Count(k => !status.GetValueOrDefault(k));
 
+        var inglesPago = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoInglesPago);
+        var inglesGerado = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoIngles);
+        itens.Add(new AnalysisServiceItemDto
+        {
+            Key = AnalysisBundledServiceKeys.CurriculoInglesPago,
+            Label = AnalysisBundledServiceKeys.Labels[AnalysisBundledServiceKeys.CurriculoInglesPago],
+            Usado = inglesPago,
+            Pendente = false,
+            Ilimitado = false
+        });
+        itens.Add(new AnalysisServiceItemDto
+        {
+            Key = AnalysisBundledServiceKeys.CurriculoIngles,
+            Label = AnalysisBundledServiceKeys.Labels[AnalysisBundledServiceKeys.CurriculoIngles],
+            Usado = inglesGerado,
+            Pendente = inglesPago && !inglesGerado,
+            Ilimitado = false
+        });
+
         return new AnalysisServicesStatusDto
         {
             Itens = itens,
             ServicosPendentes = pendentes,
-            PacoteConcluido = pendentes == 0
+            PacoteConcluido = pendentes == 0,
+            CurriculoInglesPago = inglesPago,
+            CurriculoInglesGerado = inglesGerado
         };
     }
 

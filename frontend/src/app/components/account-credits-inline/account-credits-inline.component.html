@@ -1,0 +1,24 @@
+<ng-container [ngSwitch]="layout">
+  <p *ngSwitchCase="'stacked'" class="account-credits-inline account-credits-inline--stacked">
+    <span class="account-credits-inline__row">
+      <mat-icon aria-hidden="true">stars</mat-icon>
+      <span>{{ userCredits }} {{ analysisLabel }}</span>
+    </span>
+    <span class="account-credits-inline__row account-credits-inline__row--english">
+      <mat-icon aria-hidden="true">language</mat-icon>
+      <span>{{ englishCredits }} inglês</span>
+    </span>
+  </p>
+
+  <span *ngSwitchDefault class="account-credits-inline account-credits-inline--inline">
+    <span class="account-credits-inline__row">
+      <mat-icon aria-hidden="true">stars</mat-icon>
+      <span>{{ userCredits }} {{ analysisLabel }}</span>
+    </span>
+    <span class="account-credits-inline__sep" aria-hidden="true">·</span>
+    <span class="account-credits-inline__row account-credits-inline__row--english">
+      <mat-icon aria-hidden="true">language</mat-icon>
+      <span>{{ englishCredits }} inglês</span>
+    </span>
+  </span>
+</ng-container>

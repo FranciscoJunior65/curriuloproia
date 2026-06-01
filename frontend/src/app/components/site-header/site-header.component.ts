@@ -18,6 +18,7 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   isAuthenticated = false;
   isAdmin = false;
   userCredits = 0;
+  englishCredits = 0;
   pendingServicesCount = 0;
   userMenuOpen = false;
 
@@ -38,8 +39,9 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       if (!user) {
         this.closeUserMenu();
         this.pendingServicesCount = 0;
+        this.englishCredits = 0;
       } else {
-        this.loadPendingServices();
+        this.loadAccountSummary();
       }
     });
 
@@ -49,7 +51,7 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
       this.isAuthenticated = true;
       this.isAdmin = this.authService.isAdmin();
       this.userCredits = user.credits ?? 0;
-      this.loadPendingServices();
+      this.loadAccountSummary();
     }
 
     this.router.events
@@ -57,10 +59,25 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
         takeUntil(this.destroy$)
       )
-      .subscribe(() => this.closeUserMenu());
+      .subscribe(() => {
+        this.closeUserMenu();
+        if (this.isAuthenticated) {
+          this.loadAccountSummary();
+        }
+      });
   }
 
-  loadPendingServices(): void {
+  loadAccountSummary(): void {
+    this.analyzerService.getCredits().subscribe({
+      next: (res: any) => {
+        if (res?.success) {
+          this.userCredits = res.credits ?? this.userCredits;
+          this.englishCredits = res.englishCredits ?? 0;
+        }
+      },
+      error: () => {}
+    });
+
     this.analyzerService.getPendingServices().subscribe({
       next: (res: any) => {
         if (res?.success) {

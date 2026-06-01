@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, BehaviorSubject, of } from 'rxjs';
+import { tap, map, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface User {
@@ -24,6 +24,16 @@ export interface AuthResponse {
   message?: string;
   error?: string;
   requiresVerification?: boolean;
+  referralCoupon?: ReferralCoupon | null;
+}
+
+export interface ReferralCoupon {
+  couponId: string;
+  couponCode: string;
+  discountPercent: number;
+  partnerId?: string;
+  partnerName?: string;
+  linkedAt?: string;
 }
 
 @Injectable({
@@ -33,6 +43,7 @@ export class AuthService {
   private apiUrl = environment.apiUrl;
   private tokenKey = 'curriculospro_token';
   private userKey = 'curriculospro_user';
+  static readonly partnerCouponKey = 'curriculospro_partner_cupom';
   
   private currentUserSubject = new BehaviorSubject<User | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
@@ -65,13 +76,12 @@ export class AuthService {
     }
   }
 
-  register(email: string, password: string, name?: string, cpf?: string): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, {
-      email,
-      password,
-      name,
-      cpf
-    });
+  register(email: string, password: string, name?: string, cpf?: string, cupomCodigo?: string): Observable<AuthResponse> {
+    const body: Record<string, string> = { email, password };
+    if (name) body['name'] = name;
+    if (cpf) body['cpf'] = cpf;
+    if (cupomCodigo?.trim()) body['cupomCodigo'] = cupomCodigo.trim().toUpperCase();
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, body);
   }
 
   verifyEmail(email: string, code: string): Observable<AuthResponse> {
@@ -241,6 +251,64 @@ export class AuthService {
           this.setUser(response.user);
         }
       })
+    );
+  }
+
+  getReferralCoupon(): Observable<{ success: boolean; referralCoupon?: ReferralCoupon | null }> {
+    const token = this.getToken();
+    if (!token) {
+      return new Observable(observer => {
+        observer.next({ success: false });
+        observer.complete();
+      });
+    }
+    return this.http.get<{ success: boolean; referralCoupon?: ReferralCoupon | null }>(
+      `${this.apiUrl}/auth/referral-coupon`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  linkPartnerCoupon(cupomCodigo: string): Observable<{ success: boolean; message?: string; error?: string; referralCoupon?: ReferralCoupon | null; alreadyLinked?: boolean }> {
+    const token = this.getToken();
+    if (!token) {
+      return new Observable(observer => {
+        observer.next({ success: false, error: 'Não autenticado' });
+        observer.complete();
+      });
+    }
+    return this.http.post<{ success: boolean; message?: string; error?: string; referralCoupon?: ReferralCoupon | null; alreadyLinked?: boolean }>(
+      `${this.apiUrl}/auth/link-partner-coupon`,
+      { cupomCodigo: cupomCodigo.trim().toUpperCase() },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  getPendingPartnerCoupon(): string | null {
+    return localStorage.getItem(AuthService.partnerCouponKey);
+  }
+
+  setPendingPartnerCoupon(code: string): void {
+    localStorage.setItem(AuthService.partnerCouponKey, code.trim().toUpperCase());
+  }
+
+  clearPendingPartnerCoupon(): void {
+    localStorage.removeItem(AuthService.partnerCouponKey);
+  }
+
+  tryLinkPendingPartnerCoupon(): Observable<{ success: boolean; linked?: boolean }> {
+    const pending = this.getPendingPartnerCoupon();
+    if (!pending || !this.getToken()) {
+      return of({ success: true, linked: false });
+    }
+
+    return this.linkPartnerCoupon(pending).pipe(
+      tap(response => {
+        if (response.success) {
+          this.clearPendingPartnerCoupon();
+        }
+      }),
+      map(response => ({ success: response.success, linked: response.success && !response.alreadyLinked })),
+      catchError(() => of({ success: false, linked: false }))
     );
   }
 }

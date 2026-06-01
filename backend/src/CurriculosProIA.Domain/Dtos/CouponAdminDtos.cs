@@ -22,9 +22,38 @@ public class AdminCouponDto
     public decimal? PorcentagemParceiro { get; set; }
     public int TotalCompras { get; set; }
     public int TotalUsosCpf { get; set; }
+    public int TotalCadastrosViaLink { get; set; }
     public decimal ReceitaTotal { get; set; }
     public decimal TotalParceiro { get; set; }
+    public string? LinkParceiro { get; set; }
     public DateTimeOffset? CriadoEm { get; set; }
+}
+
+public class PartnerReferralDto
+{
+    public string CouponId { get; set; } = string.Empty;
+    public string CouponCode { get; set; } = string.Empty;
+    public decimal DiscountPercent { get; set; }
+    public string? PartnerId { get; set; }
+    public string? PartnerName { get; set; }
+    public DateTimeOffset? LinkedAt { get; set; }
+}
+
+public class PartnerReferralAdminDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string? UserEmail { get; set; }
+    public string? UserCpf { get; set; }
+    public DateTimeOffset? UserCreatedAt { get; set; }
+    public string CouponId { get; set; } = string.Empty;
+    public string CouponCode { get; set; } = string.Empty;
+    public decimal DiscountPercent { get; set; }
+    public string? PartnerId { get; set; }
+    public string? PartnerName { get; set; }
+    public string? PartnerLink { get; set; }
+    public DateTimeOffset? LinkedAt { get; set; }
 }
 
 public class CouponMetricItemDto

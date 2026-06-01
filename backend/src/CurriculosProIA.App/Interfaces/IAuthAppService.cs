@@ -17,4 +17,6 @@ public interface IAuthAppService
     Task<IActionResult> ResetPassword(ResetPasswordSignature request, CancellationToken cancellationToken = default);
     Task<IActionResult> RequestLoginCode(EmailOnlySignature request, CancellationToken cancellationToken = default);
     Task<IActionResult> VerifyLoginCode(EmailCodeSignature request, CancellationToken cancellationToken = default);
+    Task<IActionResult> LinkPartnerCoupon(LinkPartnerCouponSignature request, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetReferralCoupon(CancellationToken cancellationToken = default);
 }

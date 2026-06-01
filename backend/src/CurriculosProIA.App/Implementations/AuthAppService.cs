@@ -134,6 +134,18 @@ public class AuthAppService : AppControllerBase, IAuthAppService
                 cpf: cpfNorm,
                 cancellationToken: cancellationToken);
 
+            if (!string.IsNullOrWhiteSpace(request.CupomCodigo))
+            {
+                try
+                {
+                    await _data.RegisterPartnerReferralAsync(user.Id, request.CupomCodigo.Trim(), cancellationToken);
+                }
+                catch (Exception referralError)
+                {
+                    _logger.LogWarning(referralError, "Não foi possível vincular cupom de parceiro no cadastro");
+                }
+            }
+
             try
             {
                 await _email.SendVerificationEmailAsync(request.Email, verificationCode, request.Name ?? string.Empty, cancellationToken);
@@ -361,7 +373,8 @@ public class AuthAppService : AppControllerBase, IAuthAppService
             return Ok(new
             {
                 success = true,
-                user = MapUser(profile, includePlan: true)
+                user = MapUser(profile, includePlan: true),
+                referralCoupon = await GetReferralCouponForUserAsync(userId, cancellationToken)
             });
         }
         catch (Exception ex)
@@ -373,6 +386,94 @@ public class AuthAppService : AppControllerBase, IAuthAppService
                 message = ex.Message
             });
         }
+    }
+
+    public async Task<IActionResult> LinkPartnerCoupon(
+        LinkPartnerCouponSignature request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetAuthenticatedUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Não autenticado" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.CupomCodigo))
+            {
+                return BadRequest(new { success = false, error = "Código do cupom é obrigatório" });
+            }
+
+            if (await _data.UserHasPartnerReferralAsync(userId, cancellationToken))
+            {
+                var existing = await _data.GetPartnerReferralByUserIdAsync(userId, cancellationToken);
+                return Ok(new
+                {
+                    success = true,
+                    alreadyLinked = true,
+                    message = "Sua conta já possui um cupom vinculado.",
+                    referralCoupon = existing
+                });
+            }
+
+            await _data.RegisterPartnerReferralAsync(userId, request.CupomCodigo.Trim(), cancellationToken);
+            var referral = await _data.GetPartnerReferralByUserIdAsync(userId, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Cupom vinculado à sua conta.",
+                referralCoupon = referral
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao vincular cupom de parceiro");
+            return StatusCode(500, new { success = false, error = "Erro ao vincular cupom", message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> GetReferralCoupon(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetAuthenticatedUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Não autenticado" });
+            }
+
+            var referral = await GetReferralCouponForUserAsync(userId, cancellationToken);
+            return Ok(new { success = true, referralCoupon = referral });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao obter cupom vinculado", message = ex.Message });
+        }
+    }
+
+    private async Task<object?> GetReferralCouponForUserAsync(string userId, CancellationToken cancellationToken)
+    {
+        var referral = await _data.GetPartnerReferralByUserIdAsync(userId, cancellationToken);
+        if (referral == null)
+        {
+            return null;
+        }
+
+        return new
+        {
+            couponId = referral.CouponId,
+            couponCode = referral.CouponCode,
+            discountPercent = referral.DiscountPercent,
+            partnerId = referral.PartnerId,
+            partnerName = referral.PartnerName,
+            linkedAt = referral.LinkedAt
+        };
     }
 
         public async Task<IActionResult> VerifyEmailLink(

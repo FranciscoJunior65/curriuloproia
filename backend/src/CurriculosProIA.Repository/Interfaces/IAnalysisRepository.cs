@@ -18,4 +18,11 @@ public interface IAnalysisRepository
     Task<AnalysisServicesStatusDto> GetServicesStatusAsync(string analysisId, CancellationToken cancellationToken = default);
     Task<bool> HasInterviewForResumeAsync(string resumeId, CancellationToken cancellationToken = default);
     Task<PendingServicesSummaryDto> GetPendingServicesSummaryAsync(string userId, CancellationToken cancellationToken = default);
+    Task<bool> GrantEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default);
+    Task<bool> HasEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default);
+    Task TryGrantBundledEnglishFromCreditAsync(
+        string userId,
+        string creditId,
+        string analysisId,
+        CancellationToken cancellationToken = default);
 }

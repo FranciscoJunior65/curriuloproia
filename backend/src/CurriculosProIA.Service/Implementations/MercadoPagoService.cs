@@ -7,6 +7,7 @@ using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Domain.Dtos;
 
+using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Repository.Interfaces;
 using Microsoft.Extensions.Configuration;
@@ -43,9 +44,12 @@ public class MercadoPagoService : IMercadoPagoService
         string? frontendUrl = null,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
-        var ctx = await _checkout.BuildCheckoutContextAsync(planId, userId, couponCode, cpf, cancellationToken);
+        var ctx = await _checkout.BuildCheckoutContextAsync(
+            planId, userId, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
 
         if (ctx.FreeCheckout)
         {
@@ -80,7 +84,14 @@ public class MercadoPagoService : IMercadoPagoService
                 ? decimal.Parse(ctx.Metadata["originalPrice"], System.Globalization.CultureInfo.InvariantCulture)
                 : (decimal?)null,
             cpfNormalized = ctx.Metadata.GetValueOrDefault("cpfNormalized"),
-            amountBRL = ctx.AmountBRL
+            amountBRL = ctx.AmountBRL,
+            includeEnglish = ctx.Metadata.GetValueOrDefault("includeEnglish") == "true",
+            englishPriceBRL = ctx.Metadata.TryGetValue("englishPriceBRL", out var ep) &&
+                decimal.TryParse(ep, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var epv)
+                ? epv
+                : 0m,
+            analysisId = ctx.Metadata.GetValueOrDefault("analysisId")
         });
 
         var body = new
@@ -104,9 +115,16 @@ public class MercadoPagoService : IMercadoPagoService
             metadata = ctx.Metadata,
             back_urls = new
             {
-                success = $"{baseUrl}?provider=mercadopago&userId={userId}",
-                failure = $"{baseUrl}?provider=mercadopago&status=failure&userId={userId}",
-                pending = $"{baseUrl}?provider=mercadopago&status=pending&userId={userId}"
+                success = PaymentReturnUrls.Build(
+                    baseUrl, PaymentReturnUrls.SuccessPath, "mercadopago", userId,
+                    ctx.Metadata.GetValueOrDefault("analysisId"),
+                    englishPaid: planId == "english"),
+                failure = PaymentReturnUrls.Build(
+                    baseUrl, PaymentReturnUrls.FailurePath, "mercadopago", userId,
+                    ctx.Metadata.GetValueOrDefault("analysisId")),
+                pending = PaymentReturnUrls.Build(
+                    baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
+                    ctx.Metadata.GetValueOrDefault("analysisId"))
             },
             auto_return = "approved",
             notification_url = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook"
@@ -190,7 +208,10 @@ public class MercadoPagoService : IMercadoPagoService
             CouponName = meta?.CouponName,
             DiscountPercent = meta?.DiscountPercent,
             OriginalPrice = meta?.OriginalPrice,
-            CpfNormalized = meta?.CpfNormalized
+            CpfNormalized = meta?.CpfNormalized,
+            IncludeEnglish = meta?.IncludeEnglish ?? false,
+            EnglishPriceBRL = meta?.EnglishPriceBRL ?? 0,
+            AnalysisId = meta?.AnalysisId
         }, cancellationToken);
 
         return new PaymentVerificationResult
@@ -324,5 +345,8 @@ public class MercadoPagoService : IMercadoPagoService
         public decimal? OriginalPrice { get; set; }
         public string? CpfNormalized { get; set; }
         public decimal AmountBRL { get; set; }
+        public bool IncludeEnglish { get; set; }
+        public decimal EnglishPriceBRL { get; set; }
+        public string? AnalysisId { get; set; }
     }
 }

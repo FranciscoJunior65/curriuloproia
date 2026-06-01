@@ -36,17 +36,21 @@ public class PaymentProviderService : IPaymentProviderService
         string? frontendUrl = null,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
         var provider = await _settings.GetPaymentProviderAsync(cancellationToken);
 
         if (provider == "mercadopago")
         {
-            var mp = await _mercadoPago.CreateCheckoutAsync(planId, userId, email, frontendUrl, couponCode, cpf, cancellationToken);
+            var mp = await _mercadoPago.CreateCheckoutAsync(
+                planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
             return MapResult(provider, mp);
         }
 
-        var stripe = await _stripe.CreateCheckoutSessionAsync(planId, userId, email, frontendUrl, couponCode, cpf, cancellationToken);
+        var stripe = await _stripe.CreateCheckoutSessionAsync(
+            planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
         return MapResult(provider, stripe);
     }
 
@@ -81,9 +85,14 @@ public class PaymentProviderService : IPaymentProviderService
         session.Metadata.TryGetValue("discountPercent", out var discountPercentStr);
         session.Metadata.TryGetValue("originalPrice", out var originalPriceStr);
         session.Metadata.TryGetValue("cpfNormalized", out var cpfNormalized);
+        session.Metadata.TryGetValue("includeEnglish", out var includeEnglishStr);
+        session.Metadata.TryGetValue("englishPriceBRL", out var englishPriceStr);
+        session.Metadata.TryGetValue("analysisId", out var analysisIdMeta);
 
         decimal? discountPercent = decimal.TryParse(discountPercentStr, out var dp) ? dp : null;
         decimal? originalPrice = decimal.TryParse(originalPriceStr, out var op) ? op : null;
+        var includeEnglishFlag = string.Equals(includeEnglishStr, "true", StringComparison.OrdinalIgnoreCase);
+        decimal englishPrice = decimal.TryParse(englishPriceStr, out var ep) ? ep : 0;
 
         var result = await _fulfillment.FulfillPaidOrderAsync(new FulfillOrderRequest
         {
@@ -99,7 +108,10 @@ public class PaymentProviderService : IPaymentProviderService
             CouponName = string.IsNullOrEmpty(couponName) ? null : couponName,
             DiscountPercent = discountPercent,
             OriginalPrice = originalPrice,
-            CpfNormalized = string.IsNullOrEmpty(cpfNormalized) ? null : cpfNormalized
+            CpfNormalized = string.IsNullOrEmpty(cpfNormalized) ? null : cpfNormalized,
+            IncludeEnglish = includeEnglishFlag,
+            EnglishPriceBRL = englishPrice,
+            AnalysisId = string.IsNullOrEmpty(analysisIdMeta) ? null : analysisIdMeta
         }, cancellationToken);
 
         return new PaymentVerificationResult

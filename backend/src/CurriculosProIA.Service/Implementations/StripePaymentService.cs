@@ -5,6 +5,7 @@ using CurriculosProIA.Domain.Dtos;
 using Stripe;
 using Stripe.Checkout;
 
+using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Repository.Interfaces;
 using Microsoft.Extensions.Configuration;
@@ -39,9 +40,12 @@ public class StripePaymentService : IStripePaymentService
         string? frontendUrl = null,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
-        var ctx = await _checkout.BuildCheckoutContextAsync(planId, userId, couponCode, cpf, cancellationToken);
+        var ctx = await _checkout.BuildCheckoutContextAsync(
+            planId, userId, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
 
         if (ctx.FreeCheckout)
         {
@@ -62,13 +66,26 @@ public class StripePaymentService : IStripePaymentService
 
         var statementDescriptor = (_configuration["STRIPE_STATEMENT_DESCRIPTOR"] ?? "CurriculosPro IA")[..Math.Min(22, (_configuration["STRIPE_STATEMENT_DESCRIPTOR"] ?? "CurriculosPro IA").Length)];
         var baseUrl = (frontendUrl ?? _configuration["FRONTEND_URL"] ?? "http://localhost:4200").TrimEnd('/');
+        var analysisIdMeta = ctx.Metadata.GetValueOrDefault("analysisId");
+        var successUrl = PaymentReturnUrls.Build(
+            baseUrl,
+            PaymentReturnUrls.SuccessPath,
+            "stripe",
+            userId,
+            analysisIdMeta,
+            englishPaid: planId == "english");
+        successUrl = successUrl.Replace(
+            "?",
+            $"?session_id={{CHECKOUT_SESSION_ID}}&",
+            StringComparison.Ordinal);
 
         var options = new SessionCreateOptions
         {
             PaymentMethodTypes = ["card"],
             Mode = "payment",
-            SuccessUrl = $"{baseUrl}?session_id={{CHECKOUT_SESSION_ID}}&userId={userId}&provider=stripe",
-            CancelUrl = $"{baseUrl}/payment/cancel",
+            SuccessUrl = successUrl,
+            CancelUrl = PaymentReturnUrls.Build(
+                baseUrl, PaymentReturnUrls.CancelledPath, "stripe", userId, analysisIdMeta),
             Metadata = ctx.Metadata,
             LineItems =
             [
@@ -152,9 +169,14 @@ public class StripePaymentService : IStripePaymentService
                 session.Metadata.TryGetValue("discountPercent", out var discountPercentStr);
                 session.Metadata.TryGetValue("originalPrice", out var originalPriceStr);
                 session.Metadata.TryGetValue("cpfNormalized", out var cpfNormalized);
+                session.Metadata.TryGetValue("includeEnglish", out var includeEnglishStr);
+                session.Metadata.TryGetValue("englishPriceBRL", out var englishPriceStr);
+                session.Metadata.TryGetValue("analysisId", out var analysisId);
 
                 decimal? discountPercent = decimal.TryParse(discountPercentStr, out var dp) ? dp : null;
                 decimal? originalPrice = decimal.TryParse(originalPriceStr, out var op) ? op : null;
+                var includeEnglish = string.Equals(includeEnglishStr, "true", StringComparison.OrdinalIgnoreCase);
+                decimal englishPrice = decimal.TryParse(englishPriceStr, out var ep) ? ep : 0;
 
                 await _fulfillment.FulfillPaidOrderAsync(new FulfillOrderRequest
                 {
@@ -170,7 +192,10 @@ public class StripePaymentService : IStripePaymentService
                     CouponName = string.IsNullOrEmpty(couponName) ? null : couponName,
                     DiscountPercent = discountPercent,
                     OriginalPrice = originalPrice,
-                    CpfNormalized = string.IsNullOrEmpty(cpfNormalized) ? null : cpfNormalized
+                    CpfNormalized = string.IsNullOrEmpty(cpfNormalized) ? null : cpfNormalized,
+                    IncludeEnglish = includeEnglish,
+                    EnglishPriceBRL = englishPrice,
+                    AnalysisId = string.IsNullOrEmpty(analysisId) ? null : analysisId
                 }, cancellationToken);
             }
             catch (Exception ex)

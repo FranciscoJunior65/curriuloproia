@@ -108,6 +108,9 @@ public class FulfillOrderRequest
     public decimal? OriginalPrice { get; set; }
     public string? CpfNormalized { get; set; }
     public string ExtraInfo { get; set; } = string.Empty;
+    public bool IncludeEnglish { get; set; }
+    public decimal EnglishPriceBRL { get; set; }
+    public string? AnalysisId { get; set; }
 }
 
 public class FulfillOrderResult

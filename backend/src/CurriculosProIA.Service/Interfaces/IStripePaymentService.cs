@@ -13,6 +13,8 @@ public interface IStripePaymentService
         string? frontendUrl = null,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default);
 
     Task<Stripe.Checkout.Session> GetCheckoutSessionAsync(string sessionId, CancellationToken cancellationToken = default);

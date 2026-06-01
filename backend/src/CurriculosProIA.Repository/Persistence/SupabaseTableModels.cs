@@ -102,6 +102,9 @@ public class CompraRow : BaseModel
     [Column("tipo_servico")]
     public string? TipoServico { get; set; }
 
+    [Column("id_analise")]
+    public string? IdAnalise { get; set; }
+
     [Column("id_cupom")]
     public string? IdCupom { get; set; }
 
@@ -283,6 +286,48 @@ public class CupomUsoInsert : BaseModel
 
     [Column("cpf_normalizado")]
     public string CpfNormalizado { get; set; } = string.Empty;
+}
+
+[Table("indicacoes_parceiro")]
+public class IndicacaoParceiroRow : BaseModel
+{
+    [PrimaryKey("id", false)]
+    [Column("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [Column("id_usuario")]
+    public string? IdUsuario { get; set; }
+
+    [Column("id_cupom")]
+    public string? IdCupom { get; set; }
+
+    [Column("codigo_cupom")]
+    public string? CodigoCupom { get; set; }
+
+    [Column("id_parceiro")]
+    public string? IdParceiro { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset? CriadoEm { get; set; }
+}
+
+[Table("indicacoes_parceiro")]
+public class IndicacaoParceiroInsert : BaseModel
+{
+    [Column("id_usuario")]
+    public string IdUsuario { get; set; } = string.Empty;
+
+    [Column("id_cupom")]
+    public string IdCupom { get; set; } = string.Empty;
+
+    [Column("codigo_cupom")]
+    public string CodigoCupom { get; set; } = string.Empty;
+
+    [Column("id_parceiro")]
+    public string? IdParceiro { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset CriadoEm { get; set; }
 }
 
 [Table("app_configuracoes")]

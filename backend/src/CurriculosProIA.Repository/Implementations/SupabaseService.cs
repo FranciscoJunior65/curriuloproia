@@ -570,6 +570,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
     public async Task<List<AdminCouponDto>> ListCouponsAdminAsync(CancellationToken cancellationToken = default)
     {
         var metrics = await GetCouponMetricsAsync(cancellationToken);
+        var referralCounts = await CountReferralsByCouponAsync(cancellationToken);
         return metrics.ByCoupon.Select(c => new AdminCouponDto
         {
             Id = c.CouponId,
@@ -581,6 +582,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             PorcentagemParceiro = c.ParceiroPercent,
             TotalCompras = c.PurchasesCount,
             TotalUsosCpf = c.UniqueCpfUses,
+            TotalCadastrosViaLink = referralCounts.GetValueOrDefault(c.CouponId),
             ReceitaTotal = c.RevenueTotal,
             TotalParceiro = c.PartnerTotal
         }).ToList();
@@ -1214,6 +1216,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         string? partnerId = null,
         decimal? partnerPercent = null,
         decimal? partnerAmount = null,
+        string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
@@ -1238,6 +1241,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             AtualizadoEm = now,
             IdCompraPai = parentPurchaseId,
             TipoServico = serviceType,
+            IdAnalise = analysisId,
             IdCupom = couponId,
             NomeCupom = string.IsNullOrEmpty(couponName) ? null : couponName,
             PorcentagemDescontoAplicado = discountPercent,
@@ -1263,6 +1267,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
                     IdCompra = purchaseId,
                     IdUsuario = userId,
                     Usado = false,
+                    TipoAcao = "analise",
                     CriadoEm = now
                 })
                 .ToList();
@@ -1386,7 +1391,9 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             .Limit(creditsUsed)
             .Get();
 
-        var credits = creditsResponse.Models;
+        var credits = creditsResponse.Models
+            .Where(c => !string.Equals(c.TipoAcao, "curriculo_ingles", StringComparison.OrdinalIgnoreCase))
+            .ToList();
         if (credits.Count < creditsUsed)
         {
             throw new InvalidOperationException("Créditos insuficientes");
@@ -2033,6 +2040,135 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         return response.Models.Count > 0;
     }
 
+    public async Task<bool> GrantEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default)
+    {
+        return await MarkServiceUsedAsync(analysisId, AnalysisBundledServiceKeys.CurriculoInglesPago, cancellationToken);
+    }
+
+    public async Task<bool> HasEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(analysisId))
+        {
+            return false;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<AnaliseCurriculoRow>()
+            .Select("servicos_utilizados")
+            .Filter("id", Operator.Equals, analysisId)
+            .Get();
+
+        var row = response.Models.FirstOrDefault();
+        if (row == null)
+        {
+            return false;
+        }
+
+        var status = AnalysisServicesStatusHelper.ParseStatus(row.ServicosUtilizados);
+        return status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoInglesPago);
+    }
+
+    public async Task TryGrantBundledEnglishFromCreditAsync(
+        string userId,
+        string creditId,
+        string analysisId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null ||
+            string.IsNullOrEmpty(userId) ||
+            string.IsNullOrEmpty(creditId) ||
+            string.IsNullOrEmpty(analysisId))
+        {
+            return;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var creditResponse = await _client
+                .From<CreditoRow>()
+                .Select("id_compra")
+                .Filter("id", Operator.Equals, creditId)
+                .Filter("id_usuario", Operator.Equals, userId)
+                .Get();
+
+            var credit = creditResponse.Models.FirstOrDefault();
+            if (string.IsNullOrEmpty(credit?.IdCompra))
+            {
+                return;
+            }
+
+            var pendingEnglish = await FindPendingBundledEnglishPurchaseAsync(credit.IdCompra, cancellationToken);
+            if (pendingEnglish == null)
+            {
+                return;
+            }
+
+            await GrantEnglishPaidAsync(analysisId, cancellationToken);
+            await _client
+                .From<CompraRow>()
+                .Filter("id", Operator.Equals, pendingEnglish.Id)
+                .Set(x => x.IdAnalise, analysisId)
+                .Update();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Não foi possível aplicar inglês do bundle na análise {AnalysisId}", analysisId);
+        }
+    }
+
+    public async Task<CompraRow?> FindPendingBundledEnglishPurchaseAsync(
+        string parentPurchaseId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(parentPurchaseId))
+        {
+            return null;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        var response = await _client
+            .From<CompraRow>()
+            .Select("*")
+            .Filter("id_compra_pai", Operator.Equals, parentPurchaseId)
+            .Filter("id_plano", Operator.Equals, "english")
+            .Filter("tipo_servico", Operator.Equals, "curriculo_ingles")
+            .Get();
+
+        return response.Models.FirstOrDefault(p => string.IsNullOrEmpty(p.IdAnalise));
+    }
+
+    public async Task<int> GetPendingEnglishCreditsAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrEmpty(userId))
+        {
+            return 0;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var response = await _client
+                .From<CompraRow>()
+                .Select("id,id_analise")
+                .Filter("id_usuario", Operator.Equals, userId)
+                .Filter("id_plano", Operator.Equals, "english")
+                .Filter("tipo_servico", Operator.Equals, "curriculo_ingles")
+                .Filter("status", Operator.Equals, "concluida")
+                .Get();
+
+            return response.Models.Count(p => string.IsNullOrEmpty(p.IdAnalise));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Erro ao contar créditos de inglês pendentes para usuário {UserId}", userId);
+            return 0;
+        }
+    }
+
     public async Task<AnalysisServicesStatusDto> GetServicesStatusAsync(
         string analysisId,
         CancellationToken cancellationToken = default)
@@ -2486,6 +2622,218 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             {
                 _logger.LogError(ex, "Erro ao salvar lote de vagas encontradas");
             }
+        }
+    }
+
+    public async Task<PartnerReferralDto?> GetPartnerReferralByUserIdAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+
+        try
+        {
+            var response = await _client
+                .From<IndicacaoParceiroRow>()
+                .Select("*")
+                .Filter("id_usuario", Operator.Equals, userId)
+                .Get();
+
+            var row = response.Models.FirstOrDefault();
+            if (row == null || string.IsNullOrEmpty(row.IdCupom))
+            {
+                return null;
+            }
+
+            var coupon = await GetCouponByIdAsync(row.IdCupom, cancellationToken);
+            string? partnerName = null;
+            if (!string.IsNullOrEmpty(row.IdParceiro))
+            {
+                var partnerResponse = await _client
+                    .From<ParceiroRow>()
+                    .Select("nome")
+                    .Filter("id", Operator.Equals, row.IdParceiro)
+                    .Get();
+                partnerName = partnerResponse.Models.FirstOrDefault()?.Nome;
+            }
+
+            return new PartnerReferralDto
+            {
+                CouponId = row.IdCupom,
+                CouponCode = row.CodigoCupom ?? coupon?.Nome ?? string.Empty,
+                DiscountPercent = coupon?.PorcentagemDesconto ?? 0,
+                PartnerId = row.IdParceiro,
+                PartnerName = partnerName,
+                LinkedAt = row.CriadoEm
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar indicação de parceiro do usuário {UserId}", userId);
+            return null;
+        }
+    }
+
+    public async Task<bool> UserHasPartnerReferralAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        var referral = await GetPartnerReferralByUserIdAsync(userId, cancellationToken);
+        return referral != null;
+    }
+
+    public async Task RegisterPartnerReferralAsync(
+        string userId,
+        string couponCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(couponCode))
+        {
+            return;
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+
+        if (await UserHasPartnerReferralAsync(userId, cancellationToken))
+        {
+            return;
+        }
+
+        var coupon = await GetCouponByCodeAsync(couponCode, cancellationToken);
+        if (coupon == null)
+        {
+            throw new InvalidOperationException("Cupom inválido ou inativo.");
+        }
+
+        var insert = new IndicacaoParceiroInsert
+        {
+            IdUsuario = userId,
+            IdCupom = coupon.Id,
+            CodigoCupom = coupon.Nome ?? couponCode.Trim().ToUpperInvariant(),
+            IdParceiro = coupon.IdParceiro,
+            CriadoEm = DateTimeOffset.UtcNow
+        };
+
+        try
+        {
+            await _client.From<IndicacaoParceiroInsert>().Insert(insert);
+        }
+        catch (PostgrestException ex) when (ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("unique", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Usuário {UserId} já possui indicação de parceiro", userId);
+        }
+    }
+
+    public async Task<List<PartnerReferralAdminDto>> ListPartnerReferralsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return new List<PartnerReferralAdminDto>();
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+
+        try
+        {
+            var referralsResponse = await _client
+                .From<IndicacaoParceiroRow>()
+                .Select("*")
+                .Order("criado_em", Postgrest.Constants.Ordering.Descending)
+                .Get();
+
+            if (referralsResponse.Models.Count == 0)
+            {
+                return new List<PartnerReferralAdminDto>();
+            }
+
+            var userIds = referralsResponse.Models
+                .Select(r => r.IdUsuario)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct()
+                .ToList();
+
+            var usersById = new Dictionary<string, PerfilUsuarioRow>();
+            foreach (var userId in userIds)
+            {
+                var userResponse = await _client
+                    .From<PerfilUsuarioRow>()
+                    .Select("id, nome, email, cpf, criado_em")
+                    .Filter("id", Operator.Equals, userId)
+                    .Get();
+                var user = userResponse.Models.FirstOrDefault();
+                if (user != null)
+                {
+                    usersById[user.Id] = user;
+                }
+            }
+
+            var parceirosResponse = await _client.From<ParceiroRow>().Select("id, nome").Get();
+            var parceirosById = parceirosResponse.Models.ToDictionary(p => p.Id, p => p.Nome ?? string.Empty);
+
+            var cuponsResponse = await _client.From<CupomRow>().Select("id, nome, porcentagem_desconto").Get();
+            var cuponsById = cuponsResponse.Models.ToDictionary(c => c.Id, c => c);
+
+            return referralsResponse.Models.Select(row =>
+            {
+                usersById.TryGetValue(row.IdUsuario ?? string.Empty, out var user);
+                cuponsById.TryGetValue(row.IdCupom ?? string.Empty, out var cupom);
+                var partnerName = row.IdParceiro != null && parceirosById.TryGetValue(row.IdParceiro, out var pn)
+                    ? pn
+                    : null;
+
+                return new PartnerReferralAdminDto
+                {
+                    Id = row.Id,
+                    UserId = row.IdUsuario ?? string.Empty,
+                    UserName = user?.Nome ?? "—",
+                    UserEmail = user?.Email,
+                    UserCpf = user?.Cpf,
+                    UserCreatedAt = user?.CriadoEm,
+                    CouponId = row.IdCupom ?? string.Empty,
+                    CouponCode = row.CodigoCupom ?? cupom?.Nome ?? string.Empty,
+                    DiscountPercent = cupom?.PorcentagemDesconto ?? 0,
+                    PartnerId = row.IdParceiro,
+                    PartnerName = partnerName,
+                    LinkedAt = row.CriadoEm
+                };
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao listar indicações de parceiro");
+            return new List<PartnerReferralAdminDto>();
+        }
+    }
+
+    public async Task<Dictionary<string, int>> CountReferralsByCouponAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return new Dictionary<string, int>();
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+
+        try
+        {
+            var response = await _client.From<IndicacaoParceiroRow>().Select("id_cupom").Get();
+            return response.Models
+                .Where(r => !string.IsNullOrEmpty(r.IdCupom))
+                .GroupBy(r => r.IdCupom!)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao contar indicações por cupom");
+            return new Dictionary<string, int>();
         }
     }
 }

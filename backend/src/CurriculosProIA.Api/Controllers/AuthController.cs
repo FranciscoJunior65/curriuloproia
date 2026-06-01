@@ -84,6 +84,16 @@ public class AuthController : ControllerBase
     public Task<IActionResult> VerifyLoginCode([FromBody] EmailCodeSignature request, CancellationToken ct) =>
         _auth.VerifyLoginCode(request, ct);
 
+    [HttpPost("link-partner-coupon")]
+    [Authorize]
+    public Task<IActionResult> LinkPartnerCoupon([FromBody] LinkPartnerCouponSignature request, CancellationToken ct) =>
+        _auth.LinkPartnerCoupon(request, ct);
+
+    [HttpGet("referral-coupon")]
+    [Authorize]
+    public Task<IActionResult> GetReferralCoupon(CancellationToken ct) =>
+        _auth.GetReferralCoupon(ct);
+
     [HttpGet("google")]
     public IActionResult GoogleLogin()
     {

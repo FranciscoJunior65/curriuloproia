@@ -73,8 +73,26 @@ export interface AdminCoupon {
   porcentagemParceiro?: number;
   totalCompras: number;
   totalUsosCpf: number;
+  totalCadastrosViaLink: number;
   receitaTotal: number;
   totalParceiro: number;
+  linkParceiro?: string;
+}
+
+export interface PartnerReferral {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  userCpf?: string;
+  userCreatedAt?: string;
+  couponId: string;
+  couponCode: string;
+  discountPercent: number;
+  partnerId?: string;
+  partnerName?: string;
+  partnerLink?: string;
+  linkedAt?: string;
 }
 
 export interface CouponMetricRow {
@@ -273,6 +291,13 @@ export class AdminService {
   getCouponMetrics(): Observable<{ success: boolean; metrics: CouponMetrics }> {
     return this.http.get<{ success: boolean; metrics: CouponMetrics }>(
       `${this.apiUrl}/admin/coupons/metrics`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getPartnerReferrals(): Observable<{ success: boolean; referrals: PartnerReferral[] }> {
+    return this.http.get<{ success: boolean; referrals: PartnerReferral[] }>(
+      `${this.apiUrl}/admin/partner-referrals`,
       { headers: this.getAuthHeaders() }
     );
   }

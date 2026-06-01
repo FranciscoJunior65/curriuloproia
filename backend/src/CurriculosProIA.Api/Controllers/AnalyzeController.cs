@@ -24,7 +24,11 @@ public class AnalyzeController : ControllerBase
 
     [HttpPost("generate-english-excel")]
     public Task<IActionResult> GenerateEnglishExcel([FromBody] GenerateEnglishExcelSignature body, CancellationToken ct) =>
-        _analyze.GenerateEnglishExcel(body, ct);
+        _analyze.GenerateEnglishResume(body, ct);
+
+    [HttpPost("generate-english")]
+    public Task<IActionResult> GenerateEnglish([FromBody] GenerateEnglishExcelSignature body, CancellationToken ct) =>
+        _analyze.GenerateEnglishResume(body, ct);
 
     [HttpPost("generate-cover-letter")]
     public Task<IActionResult> GenerateCoverLetter([FromBody] GenerateCoverLetterSignature body, CancellationToken ct) =>

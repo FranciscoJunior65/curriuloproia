@@ -82,9 +82,9 @@ export const createMercadoPagoCheckout = async (planId, userId, email, frontendU
     external_reference: externalReference,
     metadata: ctx.metadata,
     back_urls: {
-      success: `${baseUrl}?provider=mercadopago&userId=${userId}`,
-      failure: `${baseUrl}?provider=mercadopago&status=failure&userId=${userId}`,
-      pending: `${baseUrl}?provider=mercadopago&status=pending&userId=${userId}`
+      success: `${baseUrl}/compra/sucesso?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
+      failure: `${baseUrl}/compra/falha?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
+      pending: `${baseUrl}/compra/pendente?provider=mercadopago&userId=${encodeURIComponent(userId)}`
     },
     auto_return: 'approved',
     notification_url: `${getApiBaseUrl()}/api/analyze/payment/mercadopago/webhook`

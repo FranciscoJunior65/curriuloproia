@@ -20,10 +20,10 @@
             <p class="text-sm font-semibold text-gray-800 leading-tight">
               {{ getUserDisplayName() }}
             </p>
-            <p class="text-xs text-gray-500 flex items-center justify-end gap-1 leading-tight mt-0.5">
-              <mat-icon class="app-page-header__icon-sm">stars</mat-icon>
-              <span>{{ userCredits }} crédito(s)</span>
-            </p>
+            <app-account-credits-inline
+              class="block mt-0.5 text-right"
+              analysisLabel="crédito(s)"
+            ></app-account-credits-inline>
           </div>
           <div class="relative">
             <button
@@ -44,9 +44,10 @@
                   <p class="text-sm font-semibold text-gray-800">
                     {{ getUserDisplayName() }}
                   </p>
-                  <p class="text-xs text-gray-500">
-                    {{ userCredits }} crédito(s) disponível(is)
-                  </p>
+                  <app-account-credits-inline
+                    layout="stacked"
+                    analysisLabel="crédito(s) disponível(is)"
+                  ></app-account-credits-inline>
                 </div>
                 <button
                   mat-menu-item
@@ -481,6 +482,44 @@
               <mat-icon>visibility</mat-icon>
               <span class="ml-2">Ver análise completa no início</span>
             </button>
+
+            <div class="border-t border-gray-200 pt-4 mt-2">
+              <p class="text-xs text-gray-500 mb-2 uppercase tracking-wide">Currículo em inglês</p>
+              <button
+                *ngIf="!hasEnglishPaid(selectedAnalysis!)"
+                mat-raised-button
+                color="accent"
+                class="w-full justify-start"
+                (click)="openEnglish(selectedAnalysis!, true)"
+              >
+                <mat-icon>shopping_cart</mat-icon>
+                <span class="ml-2">Comprar currículo em inglês</span>
+              </button>
+              <button
+                *ngIf="isAdmin && !hasEnglishPaid(selectedAnalysis!)"
+                mat-stroked-button
+                class="w-full justify-start mt-2 border-amber-400 text-amber-900"
+                [disabled]="adminEnglishLoading"
+                (click)="adminGrantEnglishFree(selectedAnalysis!, $event)"
+              >
+                <mat-icon>science</mat-icon>
+                <span class="ml-2">
+                  {{ adminEnglishLoading ? 'Liberando...' : 'Compra grátis (admin)' }}
+                </span>
+              </button>
+              <button
+                *ngIf="hasEnglishPaid(selectedAnalysis!)"
+                mat-raised-button
+                color="primary"
+                class="w-full justify-start"
+                (click)="openEnglish(selectedAnalysis!, false)"
+              >
+                <mat-icon>language</mat-icon>
+                <span class="ml-2">
+                  {{ hasEnglishGenerated(selectedAnalysis!) ? 'Baixar novamente (PDF/Word)' : 'Gerar currículo em inglês' }}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </mat-card>

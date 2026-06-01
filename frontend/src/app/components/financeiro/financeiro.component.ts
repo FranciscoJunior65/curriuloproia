@@ -10,6 +10,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
+import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
 
 /** Garante número finito para cálculos e exibição (evita NaN). */
 function toSafeNumber(value: unknown, fallback = 0): number {
@@ -56,7 +57,8 @@ interface Purchase {
     MatIconModule,
     MatTableModule,
     MatProgressSpinnerModule,
-    MatMenuModule
+    MatMenuModule,
+    AccountCreditsInlineComponent
   ],
   templateUrl: './financeiro.component.html',
   styleUrl: './financeiro.component.scss'

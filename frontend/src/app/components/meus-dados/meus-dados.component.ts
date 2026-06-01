@@ -11,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
 import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
+import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
 
 @Component({
   selector: 'app-meus-dados',
@@ -25,7 +26,8 @@ import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
     MatInputModule,
     MatFormFieldModule,
     MatProgressSpinnerModule,
-    MatMenuModule
+    MatMenuModule,
+    AccountCreditsInlineComponent
   ],
   templateUrl: './meus-dados.component.html',
   styleUrl: './meus-dados.component.scss'

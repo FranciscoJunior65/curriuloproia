@@ -115,18 +115,21 @@ public class ResumeGeneratorService : IResumeGeneratorService
             You are an expert in professional resume writing in English for international job markets and ATS systems.
             Translate and adapt the resume to fluent, professional English. Keep all factual information from the original.
             Do not invent experience, education, or skills that are not supported by the source text.
-            Use clear section headers in English (e.g. CONTACT, PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS).
+            Use the same professional structure as an improved resume: CONTACT, PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS (and others as needed).
+            Section headers must be in English, one per line, in UPPERCASE.
+            Use bullet lines starting with "- " for achievements and responsibilities.
             """;
 
         var userPrompt = $"""
             Create a complete professional resume in English based on the source below.
+            Apply analysis recommendations when translating (highlight strengths, address weaknesses).
             {siteInfo}
             {analysisBlock}
 
             SOURCE RESUME:
             {originalText}
 
-            Return ONLY the resume text in English with section headers, ready to be placed in a spreadsheet (one line per row).
+            Return ONLY the resume text in English, line by line, with section headers and bullets — ready for PDF/Word export (not a table or spreadsheet).
             """;
 
         var englishResume = await _aiService.GenerateTextAsync($"{systemPrompt}\n\n{userPrompt}", 0.7, 3000, cancellationToken);
@@ -204,6 +207,9 @@ public class ResumeGeneratorService : IResumeGeneratorService
         }).GeneratePdf();
     }
 
+    public byte[] GenerateResumeDocx(string resumeText) =>
+        ResumeDocxBuilder.BuildFromText(resumeText);
+
     private static List<string> NormalizeResumeLines(string resumeText)
     {
         return (resumeText ?? string.Empty)
@@ -263,7 +269,13 @@ public class ResumeGeneratorService : IResumeGeneratorService
                normalized.Contains("HABIL") ||
                normalized.Contains("IDIOMA") ||
                normalized.Contains("OBJETIVO") ||
-               normalized.Contains("INFORMA");
+               normalized.Contains("INFORMA") ||
+               normalized.Contains("SUMMARY") ||
+               normalized.Contains("EXPERIENCE") ||
+               normalized.Contains("EDUCATION") ||
+               normalized.Contains("SKILLS") ||
+               normalized.Contains("CONTACT") ||
+               normalized.Contains("PROFILE");
     }
 
     private static bool IsBullet(string line)

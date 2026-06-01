@@ -354,6 +354,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
 
         var coupons = await _data.ListCouponsAdminAsync(cancellationToken);
+        EnrichCouponsWithPartnerLinks(coupons);
         return Ok(new { success = true, coupons });
     }
 
@@ -379,6 +380,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 body.ParceiroId,
                 body.PorcentagemParceiro,
                 cancellationToken);
+
+            EnrichCouponsWithPartnerLinks(new List<AdminCouponDto> { coupon });
 
             return Ok(new { success = true, message = "Cupom criado.", coupon });
         }
@@ -411,6 +414,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 return NotFound(new { success = false, error = "Cupom não encontrado." });
             }
 
+            EnrichCouponsWithPartnerLinks(new List<AdminCouponDto> { coupon });
+
             return Ok(new { success = true, message = "Cupom atualizado.", coupon });
         }
         catch (Exception ex)
@@ -436,6 +441,35 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 totalPartnerPayout = metrics.TotalPartnerPayout
             }
         });
+    }
+
+    public async Task<IActionResult> ListPartnerReferrals(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var referrals = await _data.ListPartnerReferralsAsync(cancellationToken);
+        var frontendUrl = GetFrontendUrl();
+        foreach (var referral in referrals)
+        {
+            referral.PartnerLink = BuildPartnerLink(frontendUrl, referral.CouponCode);
+        }
+
+        return Ok(new { success = true, referrals });
+    }
+
+    private string GetFrontendUrl() =>
+        _configuration["FRONTEND_URL"]?.Trim().TrimEnd('/') ?? "http://localhost:4200";
+
+    private static string BuildPartnerLink(string frontendUrl, string couponCode) =>
+        $"{frontendUrl}/login?cupom={Uri.EscapeDataString(couponCode.Trim().ToUpperInvariant())}";
+
+    private void EnrichCouponsWithPartnerLinks(IEnumerable<AdminCouponDto> coupons)
+    {
+        var frontendUrl = GetFrontendUrl();
+        foreach (var coupon in coupons)
+        {
+            coupon.LinkParceiro = BuildPartnerLink(frontendUrl, coupon.Nome);
+        }
     }
 
 }

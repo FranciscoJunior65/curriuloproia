@@ -216,6 +216,15 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                         siteId,
                         analysis,
                         cancellationToken);
+
+                    if (!string.IsNullOrEmpty(analysisId) && !string.IsNullOrEmpty(creditUsage.Id))
+                    {
+                        await _analysis.TryGrantBundledEnglishFromCreditAsync(
+                            resolvedUserId,
+                            creditUsage.Id,
+                            analysisId,
+                            cancellationToken);
+                    }
                 }
             }
             catch (Exception ex)
@@ -325,15 +334,16 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
     }
 
-        public async Task<IActionResult> GenerateEnglishExcel(
+        public async Task<IActionResult> GenerateEnglishResume(
         GenerateEnglishExcelSignature body,
         CancellationToken cancellationToken)
     {
         var startTime = DateTime.UtcNow;
+        var format = (body.Format ?? "pdf").Trim().ToLowerInvariant();
 
         try
         {
-            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            var accessError = await EnsureEnglishResumeAccessAsync(body.AnalysisId, cancellationToken);
             if (accessError != null)
             {
                 return accessError;
@@ -367,25 +377,32 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 ctx.SiteId ?? body.SiteId,
                 cancellationToken);
 
-            var excelBuffer = _resumeGenerator.GenerateResumeExcel(englishResume);
-            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
+            if (format == "word")
+            {
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume);
+                await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoIngles, cancellationToken);
+                return File(
+                    docxBuffer,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "curriculo-ingles.docx");
+            }
+
+            var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume);
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoIngles, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
-            _logger.LogInformation("Currículo em inglês (Excel) gerado em {Seconds:F2}s", processingTime);
+            _logger.LogInformation("Currículo em inglês (PDF) gerado em {Seconds:F2}s", processingTime);
 
-            return File(
-                excelBuffer,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "curriculo-ingles.xlsx");
+            return File(pdfBuffer, "application/pdf", "curriculo-ingles.pdf");
         }
         catch (Exception ex)
         {
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
-            _logger.LogError(ex, "Erro ao gerar Excel em inglês ({Seconds:F2}s)", processingTime);
+            _logger.LogError(ex, "Erro ao gerar currículo em inglês ({Seconds:F2}s)", processingTime);
             return StatusCode(500, new
             {
                 success = false,
-                error = "Erro ao gerar Excel em inglês",
+                error = "Erro ao gerar currículo em inglês",
                 message = ex.Message
             });
         }
@@ -1205,7 +1222,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     {
         try
         {
-            if (string.IsNullOrEmpty(body.PlanId) || await _pricing.GetPlanAsync(body.PlanId, cancellationToken) == null)
+            if (string.IsNullOrEmpty(body.PlanId))
             {
                 return BadRequest(new { success = false, error = "Plano inválido" });
             }
@@ -1216,10 +1233,43 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return Unauthorized(new { success = false, error = "É necessário estar autenticado para realizar a compra" });
             }
 
+            if (body.PlanId == "english")
+            {
+                if (string.IsNullOrWhiteSpace(body.AnalysisId))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error = "Análise obrigatória",
+                        message = "O currículo em inglês deve ser comprado para uma análise existente."
+                    });
+                }
+
+                if (!await _analysis.UserOwnsAnalysisAsync(userId, body.AnalysisId, cancellationToken))
+                {
+                    return StatusCode(403, new { success = false, error = "Análise não encontrada" });
+                }
+
+                if (await _analysis.HasEnglishPaidAsync(body.AnalysisId, cancellationToken))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error = "Já adquirido",
+                        message = "Esta análise já possui o currículo em inglês."
+                    });
+                }
+            }
+            else if (await _pricing.GetPlanAsync(body.PlanId, cancellationToken) == null)
+            {
+                return BadRequest(new { success = false, error = "Plano inválido" });
+            }
+
             var frontendUrl = _http.HttpContext!.Request.Headers.Origin.FirstOrDefault()
                 ?? _configuration["FRONTEND_URL"];
             var couponCode = string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim();
             var cpf = body.Cpf?.Trim();
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
 
             var result = await _paymentProvider.CreateProviderCheckoutAsync(
                 body.PlanId,
@@ -1228,10 +1278,13 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 frontendUrl,
                 couponCode,
                 cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
                 cancellationToken);
 
             if (result.FreeCheckout)
             {
+                var config = await _pricing.GetPricingConfigAsync(cancellationToken);
                 var fulfillment = await _fulfillment.FulfillFreeCheckoutAsync(new FulfillOrderRequest
                 {
                     UserId = userId,
@@ -1242,7 +1295,10 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                     CouponName = result.CouponName,
                     DiscountPercent = result.DiscountPercent,
                     OriginalPrice = result.OriginalPrice,
-                    CpfNormalized = result.CpfNormalized
+                    CpfNormalized = result.CpfNormalized,
+                    IncludeEnglish = includeEnglish,
+                    EnglishPriceBRL = config.EnglishBundlePriceBRL,
+                    AnalysisId = body.AnalysisId?.Trim()
                 }, cancellationToken);
 
                 var baseUrl = (frontendUrl ?? _configuration["FRONTEND_URL"] ?? string.Empty).TrimEnd('/');
@@ -1251,7 +1307,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                     success = true,
                     freeCheckout = true,
                     provider = result.Provider,
-                    redirectUrl = $"{baseUrl}?free=1&userId={userId}",
+                    redirectUrl = BuildPaymentRedirectUrl(baseUrl, userId, body.PlanId, body.AnalysisId?.Trim()),
                     user = fulfillment.User
                 });
             }
@@ -1285,28 +1341,106 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             return StatusCode(403, new { success = false, error = "Acesso negado" });
         }
 
-        var plan = await _pricing.GetPlanAsync(body.PlanId ?? string.Empty, cancellationToken);
-        if (plan == null)
+        var planId = body.PlanId?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(planId))
         {
-            return BadRequest(new { success = false, error = "planId inválido. Use: single, pack3 ou pack5." });
+            return BadRequest(new { success = false, error = "planId é obrigatório" });
         }
 
-        await _data.CreatePurchaseAsync(
+        var config = await _pricing.GetPricingConfigAsync(cancellationToken);
+        var paymentIdBase = $"admin_free_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{userId}";
+
+        if (planId == "english")
+        {
+            if (string.IsNullOrWhiteSpace(body.AnalysisId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "analysisId é obrigatório para conceder inglês grátis"
+                });
+            }
+
+            if (!await _analysis.UserOwnsAnalysisAsync(userId, body.AnalysisId, cancellationToken))
+            {
+                return StatusCode(403, new { success = false, error = "Análise não encontrada" });
+            }
+
+            if (await _analysis.HasEnglishPaidAsync(body.AnalysisId, cancellationToken))
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = "Esta análise já possui currículo em inglês.",
+                    analysisId = body.AnalysisId,
+                    curriculo_ingles_pago = true
+                });
+            }
+
+            await _data.CreatePurchaseAsync(
+                userId,
+                "english",
+                "Currículo em Inglês (admin grátis)",
+                0,
+                0,
+                paymentMethod: "admin_free",
+                paymentId: $"{paymentIdBase}_english",
+                serviceType: "curriculo_ingles",
+                analysisId: body.AnalysisId.Trim(),
+                cancellationToken: cancellationToken);
+
+            await _analysis.GrantEnglishPaidAsync(body.AnalysisId.Trim(), cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Currículo em inglês liberado gratuitamente para esta análise.",
+                analysisId = body.AnalysisId,
+                curriculo_ingles_pago = true
+            });
+        }
+
+        var plan = await _pricing.GetPlanAsync(planId, cancellationToken);
+        if (plan == null)
+        {
+            return BadRequest(new { success = false, error = "planId inválido. Use: single, pack3, pack5 ou english." });
+        }
+
+        var purchase = await _data.CreatePurchaseAsync(
             userId,
             plan.Id,
             plan.Name,
             plan.Analyses,
             0,
-            paymentMethod: "admin_test",
-            paymentId: $"admin_free_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{userId}",
+            paymentMethod: "admin_free",
+            paymentId: paymentIdBase,
+            serviceType: "analysis_plan",
             cancellationToken: cancellationToken);
+
+        if (body.IncludeEnglish == true)
+        {
+            await _data.CreatePurchaseAsync(
+                userId,
+                "english",
+                "Currículo em Inglês (admin grátis — bundle)",
+                0,
+                0,
+                paymentMethod: "admin_free",
+                paymentId: $"{paymentIdBase}_english_bundle",
+                parentPurchaseId: purchase.Id,
+                serviceType: "curriculo_ingles",
+                cancellationToken: cancellationToken);
+        }
 
         var credits = await _data.GetAvailableCreditsAsync(userId, cancellationToken);
         return Ok(new
         {
             success = true,
-            message = $"{plan.Analyses} crédito(s) adicionado(s) para testes.",
-            credits
+            message = body.IncludeEnglish == true
+                ? $"{plan.Analyses} crédito(s) + add-on de inglês no próximo uso de crédito."
+                : $"{plan.Analyses} crédito(s) adicionado(s) gratuitamente.",
+            credits,
+            includeEnglish = body.IncludeEnglish == true
         });
     }
 
@@ -1367,10 +1501,13 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             return NotFound(new { success = false, error = "Usuário não encontrado" });
         }
 
+        var englishCredits = await _data.GetPendingEnglishCreditsAsync(resolvedUserId, cancellationToken);
+
         return Ok(new
         {
             success = true,
             credits = user.Credits,
+            englishCredits,
             plan = user.Plan,
             lastAnalysis = user.LastAnalysis
         });
@@ -1488,6 +1625,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var analysisInput = PersistedAnalysisMapper.ToAnalysisInput(analysis);
             var resumeText = PersistedAnalysisMapper.GetResumeText(analysis);
 
+            var servicos = await _analysis.GetServicesStatusAsync(analysisId, cancellationToken);
+
             return Ok(new
             {
                 success = true,
@@ -1495,7 +1634,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 analysisForServices = analysisInput,
                 originalText = resumeText ?? string.Empty,
                 resumeId = analysis.IdCurriculo,
-                siteId = analysis.IdSiteVagas
+                siteId = analysis.IdSiteVagas,
+                servicos
             });
         }
         catch (Exception ex)
@@ -1657,6 +1797,40 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         return null;
     }
 
+    private async Task<IActionResult?> EnsureEnglishResumeAccessAsync(
+        string? analysisId,
+        CancellationToken cancellationToken)
+    {
+        var authError = await EnsureBundledServiceAccessAsync(analysisId, cancellationToken);
+        if (authError != null)
+        {
+            return authError;
+        }
+
+        if (string.IsNullOrWhiteSpace(analysisId))
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = "Análise obrigatória",
+                message = "Informe a análise para gerar o currículo em inglês."
+            });
+        }
+
+        if (!await _analysis.HasEnglishPaidAsync(analysisId, cancellationToken))
+        {
+            return StatusCode(402, new
+            {
+                success = false,
+                error = "Ingles_nao_adquirido",
+                code = "ENGLISH_NOT_PURCHASED",
+                message = "Compre o currículo em inglês para esta análise antes de gerar o arquivo."
+            });
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Carrega análise e texto do currículo do banco quando analysisId é informado (histórico).
     /// </summary>
@@ -1729,6 +1903,22 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return msg;
+    }
+
+    private static string BuildPaymentRedirectUrl(
+        string baseUrl,
+        string userId,
+        string planId,
+        string? analysisId)
+    {
+        return CurriculosProIA.Service.Helpers.PaymentReturnUrls.Build(
+            baseUrl,
+            CurriculosProIA.Service.Helpers.PaymentReturnUrls.SuccessPath,
+            "free",
+            userId,
+            analysisId,
+            englishPaid: planId == "english",
+            freeCheckout: true);
     }
 
 }

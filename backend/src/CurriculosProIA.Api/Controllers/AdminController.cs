@@ -78,4 +78,7 @@ public class AdminController : ControllerBase
 
     [HttpGet("coupons/metrics")]
     public Task<IActionResult> GetCouponMetrics(CancellationToken ct) => _admin.GetCouponMetrics(ct);
+
+    [HttpGet("partner-referrals")]
+    public Task<IActionResult> ListPartnerReferrals(CancellationToken ct) => _admin.ListPartnerReferrals(ct);
 }

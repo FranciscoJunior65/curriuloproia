@@ -58,7 +58,43 @@ public class PurchaseAppService : AppControllerBase, IPurchaseAppService
         }
 
         if (string.IsNullOrEmpty(body.PlanId) || string.IsNullOrEmpty(body.PlanName) ||
-            body.CreditsAmount == null || body.Price == null)
+            body.Price == null)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = "Dados do plano são obrigatórios"
+            });
+        }
+
+        if (body.PlanId == "english")
+        {
+            if (string.IsNullOrWhiteSpace(body.AnalysisId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Análise obrigatória",
+                    message = "Informe analysisId para comprar o currículo em inglês."
+                });
+            }
+
+            if (!await _data.UserOwnsAnalysisAsync(userId, body.AnalysisId, cancellationToken))
+            {
+                return StatusCode(403, new { success = false, error = "Análise não encontrada" });
+            }
+
+            if (await _data.HasEnglishPaidAsync(body.AnalysisId, cancellationToken))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Já adquirido",
+                    message = "Esta análise já possui o currículo em inglês."
+                });
+            }
+        }
+        else if (body.CreditsAmount == null)
         {
             return BadRequest(new
             {
@@ -114,11 +150,39 @@ public class PurchaseAppService : AppControllerBase, IPurchaseAppService
             }
         }
 
+        if (body.PlanId == "english")
+        {
+            await _data.CreatePurchaseAsync(
+                userId,
+                "english",
+                body.PlanName,
+                0,
+                finalPrice,
+                paymentMethod: "mock",
+                paymentId: $"mock_english_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{userId}",
+                serviceType: "curriculo_ingles",
+                analysisId: body.AnalysisId,
+                couponId: couponId,
+                couponName: couponName,
+                discountPercent: discountPercent,
+                originalPrice: originalPrice,
+                cancellationToken: cancellationToken);
+
+            await _data.GrantEnglishPaidAsync(body.AnalysisId!, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Currículo em inglês adquirido para esta análise.",
+                analysisId = body.AnalysisId
+            });
+        }
+
         var purchase = await _data.CreatePurchaseAsync(
             userId,
             body.PlanId,
             body.PlanName,
-            body.CreditsAmount.Value,
+            body.CreditsAmount!.Value,
             finalPrice,
             couponId: couponId,
             couponName: couponName,
@@ -126,17 +190,19 @@ public class PurchaseAppService : AppControllerBase, IPurchaseAppService
             originalPrice: originalPrice,
             cancellationToken: cancellationToken);
 
-        if (body.IncludeEnglish == true && body.PlanId != "english")
+        if (body.IncludeEnglish == true)
         {
             var englishPrice = body.EnglishPrice ?? 5.90m;
             await _data.CreatePurchaseAsync(
                 userId,
                 "english",
-                "Currículo em Inglês (Venda Casada)",
+                "Currículo em Inglês (bundle)",
                 0,
                 englishPrice,
                 paymentMethod: "mock",
                 paymentId: $"mock_english_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{userId}",
+                parentPurchaseId: purchase.Id,
+                serviceType: "curriculo_ingles",
                 cancellationToken: cancellationToken);
         }
 

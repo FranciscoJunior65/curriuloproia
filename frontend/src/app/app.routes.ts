@@ -8,10 +8,12 @@ import { MeusDadosComponent } from './components/meus-dados/meus-dados.component
 import { PrivacyPolicyComponent } from './components/privacy-policy/privacy-policy.component';
 import { TermsOfUseComponent } from './components/terms-of-use/terms-of-use.component';
 import { AnalysesHistoryComponent } from './components/analyses-history/analyses-history.component';
+import { PurchaseConfirmationComponent } from './components/purchase-confirmation/purchase-confirmation.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  { path: 'parceiro/:codigo', component: LoginComponent },
   { path: 'politica-de-privacidade', component: PrivacyPolicyComponent },
   { path: 'termos-de-uso', component: TermsOfUseComponent },
   { path: '', component: AnalyzerComponent, canActivate: [authGuard] },
@@ -20,6 +22,11 @@ export const routes: Routes = [
   { path: 'historico-analises', component: AnalysesHistoryComponent, canActivate: [authGuard] },
   { path: 'trocar-senha', component: ChangePasswordComponent, canActivate: [authGuard] },
   { path: 'meus-dados', component: MeusDadosComponent, canActivate: [authGuard] },
+  { path: 'compra/sucesso', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
+  { path: 'compra/pendente', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
+  { path: 'compra/falha', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
+  { path: 'compra/cancelada', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
+  { path: 'payment/cancel', redirectTo: 'compra/cancelada', pathMatch: 'full' },
   { path: '**', redirectTo: '/login' }
 ];
 

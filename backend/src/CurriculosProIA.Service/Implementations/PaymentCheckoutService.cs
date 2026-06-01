@@ -1,12 +1,7 @@
+using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Domain.Entities;
-using CurriculosProIA.Domain.Dtos;
-using CurriculosProIA.Repository.Persistence;
-using CurriculosProIA.Domain.Dtos;
-
-using CurriculosProIA.Service.Interfaces;
 using CurriculosProIA.Repository.Interfaces;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using CurriculosProIA.Service.Interfaces;
 
 namespace CurriculosProIA.Service.Implementations;
 
@@ -26,23 +21,71 @@ public class PaymentCheckoutService : IPaymentCheckoutService
         string userId,
         string? couponCode = null,
         string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
-        var plan = await _pricing.GetPlanAsync(planId, cancellationToken)
-            ?? throw new InvalidOperationException("Plano não encontrado");
+        var config = await _pricing.GetPricingConfigAsync(cancellationToken);
+        PricingPlan plan;
+
+        if (planId == "english")
+        {
+            if (string.IsNullOrWhiteSpace(analysisId))
+            {
+                throw new InvalidOperationException(
+                    "É necessário informar a análise para comprar o currículo em inglês.");
+            }
+
+            plan = await _pricing.GetPlanAsync("english", cancellationToken)
+                ?? new PricingPlan
+                {
+                    Id = "english",
+                    Name = "Currículo em Inglês",
+                    Analyses = 0,
+                    PriceBRL = config.EnglishPriceBRL
+                };
+            plan.PriceBRL = config.EnglishPriceBRL;
+        }
+        else
+        {
+            plan = await _pricing.GetPlanAsync(planId, cancellationToken)
+                ?? throw new InvalidOperationException("Plano não encontrado");
+        }
 
         var amountBrl = plan.PriceBRL;
+        var planName = plan.Name;
+        var analyses = plan.Analyses;
+        var englishAddOn = 0m;
+
+        if (planId != "english" && includeEnglish)
+        {
+            englishAddOn = config.EnglishBundlePriceBRL;
+            amountBrl += englishAddOn;
+            planName += " + Currículo em Inglês";
+        }
+
         var metadata = new Dictionary<string, string>
         {
             ["userId"] = userId,
             ["planId"] = planId,
-            ["planName"] = plan.Name,
-            ["analyses"] = plan.Analyses.ToString()
+            ["planName"] = planName,
+            ["analyses"] = analyses.ToString()
         };
+
+        if (includeEnglish && planId != "english")
+        {
+            metadata["includeEnglish"] = "true";
+            metadata["englishPriceBRL"] = englishAddOn.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysisId))
+        {
+            metadata["analysisId"] = analysisId.Trim();
+        }
 
         CheckoutCouponInfo? couponInfo = null;
 
-        if (!string.IsNullOrWhiteSpace(couponCode))
+        if (!string.IsNullOrWhiteSpace(couponCode) && planId != "english")
         {
             var cpfNorm = cpf != null ? _coupons.NormalizeCpf(cpf) : string.Empty;
             if (cpfNorm.Length != 11)
@@ -57,7 +100,7 @@ public class PaymentCheckoutService : IPaymentCheckoutService
             }
 
             var pct = (decimal)result.Coupon.PorcentagemDesconto;
-            var original = plan.PriceBRL;
+            var original = amountBrl;
             amountBrl = Math.Max(0, original * (1 - pct / 100));
             couponInfo = new CheckoutCouponInfo
             {
@@ -83,8 +126,8 @@ public class PaymentCheckoutService : IPaymentCheckoutService
                 FreeCheckout = true,
                 UserId = userId,
                 PlanId = planId,
-                PlanName = plan.Name,
-                Analyses = plan.Analyses,
+                PlanName = planName,
+                Analyses = analyses,
                 AmountBRL = 0,
                 Plan = plan,
                 Metadata = metadata,
@@ -98,8 +141,8 @@ public class PaymentCheckoutService : IPaymentCheckoutService
             FreeCheckout = false,
             UserId = userId,
             PlanId = planId,
-            PlanName = plan.Name,
-            Analyses = plan.Analyses,
+            PlanName = planName,
+            Analyses = analyses,
             AmountBRL = amountBrl,
             AmountInCents = amountInCents,
             Plan = plan,

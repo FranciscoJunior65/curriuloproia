@@ -9,6 +9,7 @@ public class MockPurchaseSignature
     public decimal? Price { get; set; }
     public bool? IncludeEnglish { get; set; }
     public decimal? EnglishPrice { get; set; }
+    public string? AnalysisId { get; set; }
     public string? CouponCode { get; set; }
     public string? Cpf { get; set; }
 }

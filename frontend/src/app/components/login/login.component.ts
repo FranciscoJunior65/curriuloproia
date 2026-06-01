@@ -8,10 +8,11 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import { AnalyzerService } from '../../services/analyzer.service';
 import {
   PriceParts,
   PricingPlansService,
@@ -73,6 +74,14 @@ export class LoginComponent implements OnInit, AfterViewInit {
   // Proteção de dados
   acceptPrivacyPolicy = false;
 
+  // Cupom de parceiro via link (?cupom= ou /parceiro/:codigo)
+  partnerCouponCode = '';
+  partnerCouponDiscount: number | null = null;
+  partnerCouponPartnerName = '';
+  partnerCouponLoading = false;
+  partnerCouponError = '';
+  partnerCouponCopied = false;
+
   @ViewChild('loginVideo') loginVideoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('loginVideoMedia') loginVideoMediaRef?: ElementRef<HTMLElement>;
   videoPlaying = false;
@@ -88,7 +97,9 @@ export class LoginComponent implements OnInit, AfterViewInit {
 
   constructor(
     private authService: AuthService,
+    private analyzerService: AnalyzerService,
     private router: Router,
+    private route: ActivatedRoute,
     private pricingPlansService: PricingPlansService
   ) {}
 
@@ -303,6 +314,51 @@ export class LoginComponent implements OnInit, AfterViewInit {
     }
   }
 
+  private navigateAfterAuth(): void {
+    this.authService.tryLinkPendingPartnerCoupon().subscribe({
+      complete: () => this.router.navigate(['/'])
+    });
+  }
+
+  copyPartnerLink(): void {
+    if (!this.partnerCouponCode) return;
+    const link = `${window.location.origin}/login?cupom=${encodeURIComponent(this.partnerCouponCode)}`;
+    navigator.clipboard.writeText(link).then(() => {
+      this.partnerCouponCopied = true;
+      setTimeout(() => (this.partnerCouponCopied = false), 2500);
+    });
+  }
+
+  private loadPartnerCouponFromUrl(): void {
+    const urlParams = new URLSearchParams(window.location.search);
+    const cupom = urlParams.get('cupom')?.trim().toUpperCase()
+      || this.route.snapshot.paramMap.get('codigo')?.trim().toUpperCase();
+
+    if (!cupom) return;
+
+    this.partnerCouponCode = cupom;
+    this.authService.setPendingPartnerCoupon(cupom);
+    this.isLogin = false;
+    this.partnerCouponLoading = true;
+    this.partnerCouponError = '';
+
+    this.analyzerService.validateCoupon(cupom).subscribe({
+      next: (res) => {
+        this.partnerCouponLoading = false;
+        if (res.valid && res.coupon) {
+          this.partnerCouponDiscount = res.coupon.porcentagem_desconto;
+          this.partnerCouponError = '';
+        } else {
+          this.partnerCouponError = res.message || 'Cupom inválido ou inativo.';
+        }
+      },
+      error: () => {
+        this.partnerCouponLoading = false;
+        this.partnerCouponError = 'Não foi possível validar o cupom.';
+      }
+    });
+  }
+
   submit() {
     this.error = '';
     this.loading = true;
@@ -312,8 +368,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
         next: (response) => {
           if (response.success) {
             this.loading = false;
-            // Redireciona para a página principal
-            this.router.navigate(['/']);
+            this.navigateAfterAuth();
           } else {
             this.error = response.error || 'Erro ao fazer login';
             this.loading = false;
@@ -372,7 +427,13 @@ export class LoginComponent implements OnInit, AfterViewInit {
         return;
       }
       
-      this.authService.register(this.email, this.senha, this.nome, cpfDigits).subscribe({
+      this.authService.register(
+        this.email,
+        this.senha,
+        this.nome,
+        cpfDigits,
+        this.partnerCouponCode || this.authService.getPendingPartnerCoupon() || undefined
+      ).subscribe({
         next: (response) => {
           if (response.success) {
             // Se precisar verificar email, mostra etapa de verificação
@@ -381,8 +442,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
               this.registeredEmail = this.email;
               this.error = '';
             } else {
-              // Se não precisar verificar, redireciona
-              this.router.navigate(['/']);
+              this.navigateAfterAuth();
             }
           } else {
             this.error = response.error || 'Erro ao registrar';
@@ -493,7 +553,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
         if (response.success) {
           this.success = 'Login realizado com sucesso!';
           setTimeout(() => {
-            this.router.navigate(['/']);
+            this.navigateAfterAuth();
           }, 1000);
         } else {
           this.error = response.error || 'Código inválido ou expirado';
@@ -550,7 +610,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
       next: (response) => {
         if (response.success) {
           this.verifyLoading = false;
-          this.router.navigate(['/']);
+          this.navigateAfterAuth();
         } else {
           this.error = response.error || 'Código inválido';
           this.verifyLoading = false;
@@ -895,6 +955,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
   ngOnInit() {
     this.updateWideLayout();
     this.loadPricingPlans();
+    this.loadPartnerCouponFromUrl();
 
     // Verifica se há token de reset ou OAuth na URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -909,7 +970,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
         next: (response) => {
           if (response.success && response.user) {
             this.authService.setUser(response.user);
-            this.router.navigate(['/']);
+            this.navigateAfterAuth();
           }
         },
         error: () => {

@@ -18,6 +18,11 @@ export interface AnalysisResult {
   creditsRemaining?: number | null;
   resumeId?: string | null; // ID do currículo no banco de dados
   analysisId?: string | null; // ID da análise paga — libera serviços inclusos sem novo crédito
+  servicos?: {
+    curriculo_ingles_pago?: boolean;
+    curriculo_ingles_gerado?: boolean;
+    itens?: Array<{ key: string; usado: boolean; pendente: boolean }>;
+  };
   metadata?: {
     fileName: string;
     fileSize: number;
@@ -45,13 +50,14 @@ export class AnalyzerService {
   }
 
 
-  generateEnglishExcel(
+  generateEnglishResume(
     originalText: string,
     analysis?: any,
+    format: 'pdf' | 'word' = 'pdf',
     siteId?: string,
     analysisId?: string
   ): Observable<Blob> {
-    const body: any = { originalText };
+    const body: any = { originalText, format };
     if (analysis) {
       body.analysis = analysis;
     }
@@ -63,7 +69,7 @@ export class AnalyzerService {
     }
 
     return this.http.post(
-      `${this.apiUrl}/analyze/generate-english-excel`,
+      `${this.apiUrl}/analyze/generate-english`,
       body,
       {
         headers: this.getAuthHeaders(),
@@ -120,10 +126,20 @@ export class AnalyzerService {
     );
   }
 
-  createPaymentSession(planId: string, userId: string, email?: string, couponCode?: string | null, cpf?: string | null): Observable<any> {
+  createPaymentSession(
+    planId: string,
+    userId: string,
+    email?: string,
+    couponCode?: string | null,
+    cpf?: string | null,
+    includeEnglish?: boolean,
+    analysisId?: string | null
+  ): Observable<any> {
     const body: any = { planId, userId, email: email || '' };
     if (couponCode && couponCode.trim()) body.couponCode = couponCode.trim();
     if (cpf != null && String(cpf).trim()) body.cpf = String(cpf).trim();
+    if (includeEnglish) body.includeEnglish = true;
+    if (analysisId?.trim()) body.analysisId = analysisId.trim();
     return this.http.post(`${this.apiUrl}/analyze/payment/create-session`, body, {
       headers: this.getAuthHeaders()
     });
@@ -132,12 +148,28 @@ export class AnalyzerService {
   /**
    * Admin: adiciona créditos grátis para testes (sem pagamento).
    */
-  adminFreeCredits(planId: string): Observable<{ success: boolean; credits?: number; error?: string }> {
-    return this.http.post<{ success: boolean; credits?: number; message?: string; error?: string }>(
-      `${this.apiUrl}/analyze/payment/admin-free-credits`,
-      { planId },
-      { headers: this.getAuthHeaders() }
-    );
+  adminFreeCredits(
+    planId: string,
+    options?: { includeEnglish?: boolean; analysisId?: string }
+  ): Observable<{
+    success: boolean;
+    credits?: number;
+    message?: string;
+    error?: string;
+    curriculo_ingles_pago?: boolean;
+  }> {
+    const body: Record<string, unknown> = { planId };
+    if (options?.includeEnglish) body['includeEnglish'] = true;
+    if (options?.analysisId?.trim()) body['analysisId'] = options.analysisId.trim();
+    return this.http.post<{
+      success: boolean;
+      credits?: number;
+      message?: string;
+      error?: string;
+      curriculo_ingles_pago?: boolean;
+    }>(`${this.apiUrl}/analyze/payment/admin-free-credits`, body, {
+      headers: this.getAuthHeaders()
+    });
   }
 
   /** Valida cupom por código e CPF (obrigatório para uso único por CPF). */
@@ -151,30 +183,35 @@ export class AnalyzerService {
    * Cria uma compra mockada (para testes - não usa Stripe)
    * @param userId - ID do usuário (obrigatório para testes sem token válido)
    */
-  createMockPurchase(planId: string, planName: string, creditsAmount: number, price: number, userId?: string, includeEnglish?: boolean): Observable<any> {
+  createMockPurchase(
+    planId: string,
+    planName: string,
+    creditsAmount: number,
+    price: number,
+    userId?: string,
+    includeEnglish?: boolean,
+    analysisId?: string
+  ): Observable<any> {
     const body: any = {
       planId,
       planName,
       creditsAmount,
       price
     };
-    
-    // SEMPRE adiciona userId ao body (permite testar mesmo com token expirado)
+
     if (userId) {
       body.userId = userId;
-      console.log('✅ userId adicionado ao body:', userId);
-    } else {
-      console.warn('⚠️ userId não fornecido - a compra pode falhar');
     }
-    
-    // Adiciona flag para incluir currículo em inglês (venda casada)
+
     if (includeEnglish) {
       body.includeEnglish = true;
-      body.englishPrice = 5.90; // Preço promocional quando comprado junto
+      body.englishPrice = 5.90;
     }
-    
-    // NÃO envia headers de autenticação para evitar problemas com token expirado
-    // A rota /mock aceita userId diretamente no body
+
+    if (analysisId?.trim()) {
+      body.analysisId = analysisId.trim();
+    }
+
     return this.http.post(`${this.apiUrl}/purchase/mock`, body);
   }
 

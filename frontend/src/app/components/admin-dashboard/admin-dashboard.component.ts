@@ -10,7 +10,8 @@ import {
   PricingConfig,
   AdminPartner,
   AdminCoupon,
-  CouponMetrics
+  CouponMetrics,
+  PartnerReferral
 } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
@@ -87,9 +88,12 @@ export class AdminDashboardComponent implements OnInit {
   savingCoupon = false;
   coupons: AdminCoupon[] = [];
   partners: AdminPartner[] = [];
+  partnerReferrals: PartnerReferral[] = [];
+  loadingPartnerReferrals = false;
   couponMetrics: CouponMetrics | null = null;
   couponSettingsMessage = '';
   couponSettingsError = '';
+  copiedCouponLinkId: string | null = null;
 
   newCouponCode = '';
   newCouponDiscount = 10;
@@ -411,6 +415,38 @@ export class AdminDashboardComponent implements OnInit {
       },
       error: () => {}
     });
+    this.loadPartnerReferrals();
+  }
+
+  loadPartnerReferrals(): void {
+    this.loadingPartnerReferrals = true;
+    this.adminService.getPartnerReferrals().subscribe({
+      next: (res) => {
+        this.loadingPartnerReferrals = false;
+        if (res.success) {
+          this.partnerReferrals = res.referrals || [];
+        }
+      },
+      error: () => {
+        this.loadingPartnerReferrals = false;
+      }
+    });
+  }
+
+  copyCouponLink(coupon: AdminCoupon): void {
+    const link = coupon.linkParceiro;
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() => {
+      this.copiedCouponLinkId = coupon.id;
+      setTimeout(() => (this.copiedCouponLinkId = null), 2500);
+    });
+  }
+
+  formatDateTime(value?: string): string {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('pt-BR');
   }
 
   formatDocument(doc?: string): string {
@@ -505,7 +541,8 @@ export class AdminDashboardComponent implements OnInit {
       next: (res) => {
         this.savingCoupon = false;
         if (res.success) {
-          this.couponSettingsMessage = res.message || 'Cupom criado.';
+          const linkMsg = res.coupon?.linkParceiro ? ` Link: ${res.coupon.linkParceiro}` : '';
+          this.couponSettingsMessage = (res.message || 'Cupom criado.') + linkMsg;
           this.newCouponCode = '';
           this.newCouponDiscount = 10;
           this.newCouponDiscountText = formatPercentDisplay(10);

@@ -1,0 +1,96 @@
+<app-site-header></app-site-header>
+
+<main class="purchase-confirmation">
+  <div class="purchase-confirmation__card">
+    <div
+      class="purchase-confirmation__icon-wrap"
+      [class.purchase-confirmation__icon-wrap--success]="outcome === 'success' && verified"
+      [class.purchase-confirmation__icon-wrap--pending]="outcome === 'pending'"
+      [class.purchase-confirmation__icon-wrap--failure]="outcome === 'failure' || outcome === 'cancelled'"
+    >
+      <mat-spinner *ngIf="loading" diameter="48"></mat-spinner>
+      <mat-icon *ngIf="!loading" class="purchase-confirmation__icon">{{ icon }}</mat-icon>
+    </div>
+
+    <h1 class="purchase-confirmation__title">{{ title }}</h1>
+    <p class="purchase-confirmation__subtitle">{{ subtitle }}</p>
+
+    <div
+      *ngIf="outcome === 'success' && verified && !loading"
+      class="purchase-confirmation__credits"
+    >
+      <div class="purchase-confirmation__credit-item">
+        <mat-icon>stars</mat-icon>
+        <span><strong>{{ userCredits }}</strong> crédito(s) de análise</span>
+      </div>
+      <div class="purchase-confirmation__credit-item purchase-confirmation__credit-item--english">
+        <mat-icon>language</mat-icon>
+        <span><strong>{{ englishCredits }}</strong> add-on(s) de inglês</span>
+      </div>
+    </div>
+
+    <p *ngIf="errorMessage && outcome !== 'failure'" class="purchase-confirmation__error">
+      {{ errorMessage }}
+    </p>
+
+    <div class="purchase-confirmation__actions">
+      <button
+        *ngIf="outcome === 'success' && verified"
+        mat-flat-button
+        color="primary"
+        type="button"
+        class="purchase-confirmation__btn"
+        (click)="goHome()"
+      >
+        <mat-icon>home</mat-icon>
+        {{ englishPaid && analysisId ? 'Ir para a análise' : 'Começar a usar' }}
+      </button>
+
+      <button
+        *ngIf="outcome === 'success' && verified"
+        mat-stroked-button
+        type="button"
+        class="purchase-confirmation__btn"
+        (click)="goFinanceiro()"
+      >
+        <mat-icon>receipt_long</mat-icon>
+        Ver no financeiro
+      </button>
+
+      <button
+        *ngIf="outcome === 'pending'"
+        mat-flat-button
+        color="primary"
+        type="button"
+        class="purchase-confirmation__btn"
+        (click)="goHome()"
+      >
+        <mat-icon>home</mat-icon>
+        Voltar ao início
+      </button>
+
+      <button
+        *ngIf="outcome === 'failure' || outcome === 'cancelled'"
+        mat-flat-button
+        color="primary"
+        type="button"
+        class="purchase-confirmation__btn"
+        (click)="retryPurchase()"
+      >
+        <mat-icon>shopping_cart</mat-icon>
+        Tentar novamente
+      </button>
+
+      <button
+        *ngIf="outcome === 'failure' || outcome === 'cancelled' || outcome === 'pending'"
+        mat-stroked-button
+        type="button"
+        class="purchase-confirmation__btn"
+        (click)="goHome()"
+      >
+        Início
+      </button>
+    </div>
+
+  </div>
+</main>

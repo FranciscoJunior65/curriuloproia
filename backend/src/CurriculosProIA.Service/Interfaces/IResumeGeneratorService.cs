@@ -14,6 +14,8 @@ public interface IResumeGeneratorService
 
     byte[] GenerateResumePdf(string resumeText);
 
+    byte[] GenerateResumeDocx(string resumeText);
+
     Task<string> GenerateEnglishResumeAsync(
         string originalText,
         AnalysisInput? analysis,

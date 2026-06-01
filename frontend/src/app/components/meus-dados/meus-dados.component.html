@@ -18,10 +18,10 @@
       <div *ngIf="authService.isAuthenticated()" class="flex items-center gap-4 flex-shrink-0">
           <div class="text-right hidden sm:block">
             <p class="text-sm font-semibold text-gray-800 leading-tight">{{ getUserDisplayName() }}</p>
-            <p class="text-xs text-gray-500 flex items-center justify-end gap-1 leading-tight mt-0.5">
-              <mat-icon class="app-page-header__icon-sm">stars</mat-icon>
-              <span>{{ userCredits }} crédito(s)</span>
-            </p>
+            <app-account-credits-inline
+              class="block mt-0.5 text-right"
+              analysisLabel="crédito(s)"
+            ></app-account-credits-inline>
           </div>
           <div class="relative">
             <button
@@ -36,7 +36,10 @@
             <mat-menu #userMenu="matMenu" class="user-panel-menu">
               <div class="user-panel-menu__header" mat-menu-item disabled>
                 <p class="text-sm font-semibold text-gray-800">{{ getUserDisplayName() }}</p>
-                <p class="text-xs text-gray-500">{{ userCredits }} crédito(s) disponível(is)</p>
+                <app-account-credits-inline
+                  layout="stacked"
+                  analysisLabel="crédito(s) disponível(is)"
+                ></app-account-credits-inline>
               </div>
               <button mat-menu-item type="button" (click)="navigateTo('/')">
                 <mat-icon>home</mat-icon>

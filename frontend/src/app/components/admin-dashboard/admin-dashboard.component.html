@@ -272,6 +272,10 @@
                 <!-- Criar cupom -->
                 <div class="coupon-section">
                   <h3>Criar cupom</h3>
+                  <p class="coupon-hint coupon-hint--inline">
+                    Ao criar o cupom, um <strong>link exclusivo</strong> será gerado para o parceiro compartilhar nas redes
+                    (<code>/login?cupom=CODIGO</code> ou <code>/parceiro/CODIGO</code>). Quem se cadastrar por esse link terá o cupom vinculado à conta.
+                  </p>
                   <div class="coupon-form-grid">
                     <div class="pricing-field">
                       <label>Código do cupom</label>
@@ -346,9 +350,11 @@
                       <thead>
                         <tr>
                           <th>Código</th>
+                          <th>Link parceiro</th>
                           <th>Desconto</th>
                           <th>Parceiro</th>
                           <th>% parceiro</th>
+                          <th>Cadastros</th>
                           <th>Compras</th>
                           <th>Receita</th>
                           <th>Repasse</th>
@@ -359,9 +365,23 @@
                       <tbody>
                         <tr *ngFor="let c of coupons">
                           <td data-label="Código"><strong>{{ c.nome }}</strong></td>
+                          <td data-label="Link parceiro" class="coupon-link-cell">
+                            <code class="coupon-link-preview" *ngIf="c.linkParceiro">{{ c.linkParceiro }}</code>
+                            <button
+                              mat-stroked-button
+                              type="button"
+                              class="coupon-copy-link-btn"
+                              *ngIf="c.linkParceiro"
+                              (click)="copyCouponLink(c)"
+                            >
+                              {{ copiedCouponLinkId === c.id ? 'Copiado!' : 'Copiar link' }}
+                            </button>
+                            <span *ngIf="!c.linkParceiro">—</span>
+                          </td>
                           <td data-label="Desconto">{{ c.porcentagemDesconto }}%</td>
                           <td data-label="Parceiro">{{ c.parceiroNome || '—' }}</td>
                           <td data-label="% parceiro">{{ c.porcentagemParceiro != null ? c.porcentagemParceiro + '%' : '—' }}</td>
+                          <td data-label="Cadastros">{{ c.totalCadastrosViaLink || 0 }}</td>
                           <td data-label="Compras">{{ c.totalCompras }}</td>
                           <td data-label="Receita">{{ formatCurrency(c.receitaTotal) }}</td>
                           <td data-label="Repasse">{{ formatCurrency(c.totalParceiro) }}</td>
@@ -375,6 +395,48 @@
                               {{ c.ativo ? 'Desativar' : 'Ativar' }}
                             </button>
                           </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Cadastros via link de parceiro -->
+                <div class="coupon-section">
+                  <h3>Cadastros via link de parceiro</h3>
+                  <p class="coupon-hint coupon-hint--inline">
+                    Clientes que criaram conta acessando o link <code>/login?cupom=CODIGO</code> ou <code>/parceiro/CODIGO</code>.
+                  </p>
+                  <div *ngIf="loadingPartnerReferrals" class="loading-container">
+                    <mat-spinner diameter="32"></mat-spinner>
+                  </div>
+                  <div *ngIf="!loadingPartnerReferrals && !partnerReferrals.length" class="coupon-empty">
+                    Nenhum cadastro via link de parceiro ainda.
+                  </div>
+                  <div class="coupon-table-wrap" *ngIf="!loadingPartnerReferrals && partnerReferrals.length">
+                    <table class="usage-table coupon-table">
+                      <thead>
+                        <tr>
+                          <th>Cliente</th>
+                          <th>Email</th>
+                          <th>CPF</th>
+                          <th>Cupom</th>
+                          <th>Parceiro</th>
+                          <th>Link usado</th>
+                          <th>Cadastro</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let r of partnerReferrals">
+                          <td data-label="Cliente"><strong>{{ r.userName }}</strong></td>
+                          <td data-label="Email">{{ r.userEmail || '—' }}</td>
+                          <td data-label="CPF">{{ formatDocument(r.userCpf) }}</td>
+                          <td data-label="Cupom">{{ r.couponCode }} ({{ r.discountPercent }}%)</td>
+                          <td data-label="Parceiro">{{ r.partnerName || '—' }}</td>
+                          <td data-label="Link usado">
+                            <code class="coupon-link-preview" *ngIf="r.partnerLink">{{ r.partnerLink }}</code>
+                          </td>
+                          <td data-label="Cadastro">{{ formatDateTime(r.linkedAt || r.userCreatedAt) }}</td>
                         </tr>
                       </tbody>
                     </table>
