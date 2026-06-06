@@ -1,363 +1,896 @@
-import { ChangeDetectorRef, Component, EventEmitter, Input, NgZone, OnDestroy, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AnalyzerService } from '../../services/analyzer.service';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  Output,
+  SimpleChanges,
+  ViewChild,
+} from "@angular/core";
+
+import { CommonModule } from "@angular/common";
+
+import { FormsModule } from "@angular/forms";
+
+import { MatButtonModule } from "@angular/material/button";
+
+import { MatIconModule } from "@angular/material/icon";
+
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+
+import { AnalyzerService } from "../../services/analyzer.service";
+
+import { SimliAvatarService } from "../../services/simli-avatar.service";
+
 import {
   VoiceSpeechService,
-  VoiceUiState,
-  VoiceGender
-} from '../../services/voice-speech.service';
+  VoiceGender,
+} from "../../services/voice-speech.service";
 
-interface ConversationLine {
-  role: 'interviewer' | 'candidate';
-  content: string;
-}
+type InterviewStep =
+  | "idle"
+  | "loading"
+  | "already_done"
+  | "written_questions"
+  | "loading_intro"
+  | "intro_video"
+  | "phase1"
+  | "loading_feedback"
+  | "feedback_video"
+  | "complete";
 
 interface Persona {
   name: string;
+
   role: string;
+
   company: string;
+
   initials: string;
+
   avatarColor: string;
+
   avatarUrl?: string;
+
   voiceGender: VoiceGender;
 }
 
 const INTERVIEWER_AVATARS: Record<string, string> = {
-  AR: 'assets/interviewers/ana-ribeiro.png',
-  CM: 'assets/interviewers/carlos-mendes.png',
-  MC: 'assets/interviewers/marina-costa.png'
+  AR: "assets/interviewers/ana-ribeiro.png",
+
+  CM: "assets/interviewers/carlos-mendes.png",
+
+  MC: "assets/interviewers/marina-costa.png",
 };
 
 const PERSONA_GENDER: Record<string, VoiceGender> = {
-  AR: 'female',
-  MC: 'female',
-  CM: 'male'
+  AR: "female",
+
+  MC: "female",
+
+  CM: "male",
 };
 
 @Component({
-  selector: 'app-voice-interview',
+  selector: "app-voice-interview",
+
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
-  templateUrl: './voice-interview.component.html',
-  styleUrl: './voice-interview.component.scss'
+
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+  ],
+
+  templateUrl: "./voice-interview.component.html",
+
+  styleUrl: "./voice-interview.component.scss",
 })
-export class VoiceInterviewComponent implements OnDestroy {
-  @Input() resumeText = '';
+export class VoiceInterviewComponent
+  implements OnDestroy, AfterViewInit, OnChanges
+{
+  @Input() resumeText = "";
+
   @Input() analysis: any;
+
   @Input() siteId?: string;
+
   @Input() resumeId?: string;
+
   @Input() analysisId?: string;
+
+  @Input() autoStart = false;
+
   @Output() closed = new EventEmitter<void>();
 
+  @Output() completed = new EventEmitter<{ simulationId: string }>();
+
+  step: InterviewStep = "idle";
+
   persona: Persona | null = null;
+
   simulationId: string | null = null;
-  history: ConversationLine[] = [];
-  uiState: VoiceUiState = 'idle';
-  phase = '';
-  turnNumber = 0;
-  loading = false;
-  error: string | null = null;
-  started = false;
-  finished = false;
+
+  candidateName = "";
+
+  introScript = "";
+
+  writtenQuestions: string[] = [];
+
+  writtenAnswers: string[] = ["", "", "", "", ""];
+
+  phase1Answer = "";
+
+  feedbackScript = "";
+
   summary: any = null;
-  /** Texto capturado da voz — editável antes de enviar */
-  candidateDraft = '';
+
+  phase1Minutes = 15;
+
+  timerSeconds = 0;
+
+  candidateDraft = "";
+
+  candidateSegments: string[] = [];
+
+  candidateInterim = "";
+
+  loading = false;
+
+  error: string | null = null;
+
   speechSupported = true;
-  private sendingAnswer = false;
-  private speakIdleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  simliActive = false;
+
+  simliBootstrapping = false;
+
+  videoExpanded = false;
+
+  interviewerCaption = "";
+
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
+
+  private autoStartTriggered = false;
+
+  private currentVideoScript = "";
+
+  private phaseTransitionLock = false;
+
+  @ViewChild("simliVideo") simliVideoRef?: ElementRef<HTMLVideoElement>;
+
+  @ViewChild("simliAudio") simliAudioRef?: ElementRef<HTMLAudioElement>;
 
   constructor(
     private analyzer: AnalyzerService,
+
     private voice: VoiceSpeechService,
+
+    private simli: SimliAvatarService,
+
     private ngZone: NgZone,
-    private cdr: ChangeDetectorRef
+
+    private cdr: ChangeDetectorRef,
   ) {
     this.speechSupported = this.voice.isSupported();
   }
 
+  ngAfterViewInit(): void {
+    this.tryAutoStart();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes["autoStart"] || changes["analysisId"]) {
+      this.tryAutoStart();
+    }
+  }
+
   ngOnDestroy(): void {
-    this.clearSpeakIdleTimer();
+    this.clearTimer();
+
     this.voice.stopSpeaking();
+
     this.voice.stopListening();
+
+    void this.simli.stopSession();
   }
 
-  skipNarration(): void {
-    this.clearSpeakIdleTimer();
-    this.voice.stopSpeaking();
-    this.setUiState('idle');
+  get simliStageVisible(): boolean {
+    return this.simliActive || this.simliBootstrapping;
   }
 
-  get canUseMic(): boolean {
-    return (
-      this.started &&
-      !this.finished &&
-      !this.loading &&
-      this.uiState !== 'speaking' &&
-      this.uiState !== 'processing'
-    );
-  }
+  get timerLabel(): string {
+    const m = Math.floor(this.timerSeconds / 60);
 
-  get canSendAnswer(): boolean {
-    return (
-      !this.finished &&
-      !this.loading &&
-      this.uiState !== 'speaking' &&
-      this.uiState !== 'processing' &&
-      !!this.candidateDraft.trim()
-    );
+    const s = this.timerSeconds % 60;
+
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }
 
   get statusLabel(): string {
-    switch (this.uiState) {
-      case 'speaking':
-        return `${this.persona?.name ?? 'Entrevistador'} está falando...`;
-      case 'listening':
-        return 'Ouvindo você... o texto aparece abaixo em tempo real';
-      case 'reviewing':
-        return 'Revise sua resposta e clique em Enviar';
-      case 'processing':
-        return 'Processando resposta...';
+    switch (this.step) {
+      case "written_questions":
+        return "Responda às 5 perguntas sobre seu currículo";
+
+      case "loading_intro":
+        return "Preparando apresentação em vídeo...";
+
+      case "intro_video":
+        return "Entrevistador se apresentando...";
+
+      case "phase1":
+        return `Fale sobre você (${this.timerLabel} restantes)`;
+
+      case "loading_feedback":
+        return "Analisando respostas e gerando feedback...";
+
+      case "feedback_video":
+        return "Feedback da entrevista...";
+
+      case "complete":
+        return "Entrevista concluída";
+
+      case "already_done":
+        return "Entrevista já realizada";
+
       default:
-        return this.finished
-          ? 'Entrevista encerrada'
-          : 'Toque no microfone, fale, revise o texto e envie';
+        return "";
     }
+  }
+
+  get isRecordingPhase(): boolean {
+    return this.step === "phase1";
+  }
+
+  get isVideoPhase(): boolean {
+    return (
+      this.step === "intro_video" ||
+      this.step === "feedback_video" ||
+      this.simliBootstrapping
+    );
+  }
+
+  get writtenQuestionsComplete(): boolean {
+    return this.writtenAnswers.filter((a) => a?.trim().length > 0).length >= 3;
+  }
+
+  toggleVideoExpanded(): void {
+    this.videoExpanded = !this.videoExpanded;
+
+    this.cdr.markForCheck();
+  }
+
+  finishRecordingEarly(): void {
+    if (!this.isRecordingPhase || this.phaseTransitionLock) {
+      return;
+    }
+
+    this.endCurrentRecordingPhase();
   }
 
   begin(): void {
     if (!this.resumeText || !this.analysis) {
-      this.error = 'Análise do currículo necessária antes da entrevista.';
+      this.error = "Análise do currículo necessária antes da entrevista.";
+
       return;
     }
 
     this.loading = true;
+
     this.error = null;
 
-    this.analyzer
-      .startVoiceInterview(this.resumeText, this.analysis, this.siteId, this.resumeId, this.analysisId)
-      .subscribe({
-        next: (res: any) => {
-          this.loading = false;
-          if (!res?.success) {
-            this.error = res?.message || 'Erro ao iniciar entrevista';
+    this.step = "loading";
+
+    if (this.analysisId) {
+      this.analyzer.getStructuredInterviewStatus(this.analysisId).subscribe({
+        next: (statusRes: any) => {
+          if (statusRes?.status?.alreadyCompleted) {
+            this.loading = false;
+
+            this.simulationId = statusRes.status.simulationId ?? null;
+
+            this.summary = statusRes.status.savedFeedback ?? null;
+            this.feedbackScript = this.summary?.feedbackScript ?? "";
+
+            this.step = "already_done";
+
+            this.cdr.markForCheck();
+
             return;
           }
-          this.persona = this.mapPersona(res.persona);
-          this.simulationId = res.simulationId ?? null;
-          this.started = true;
-          this.pushInterviewer(res.openingMessage);
-          this.speakInterviewer(res.openingMessage);
+
+          this.startInterview();
         },
+
+        error: () => this.startInterview(),
+      });
+    } else {
+      this.startInterview();
+    }
+  }
+
+  continueToVoicePhase(): void {
+    if (!this.writtenQuestionsComplete) {
+      this.error = "Responda pelo menos 3 das 5 perguntas para continuar.";
+
+      this.cdr.markForCheck();
+
+      return;
+    }
+
+    this.error = null;
+
+    this.step = "loading_intro";
+
+    this.cdr.markForCheck();
+
+    this.analyzer
+
+      .beginStructuredVoicePhase(this.resumeText, this.analysis, {
+        simulationId: this.simulationId ?? undefined,
+
+        analysisId: this.analysisId,
+
+        siteId: this.siteId,
+
+        candidateName: this.candidateName,
+
+        writtenQuestions: this.writtenQuestions,
+
+        writtenAnswers: this.writtenAnswers,
+      })
+
+      .subscribe({
+        next: (res: any) => {
+          if (!res?.success) {
+            this.error = res?.message || "Erro ao iniciar fase em vídeo";
+
+            this.step = "written_questions";
+
+            this.cdr.markForCheck();
+
+            return;
+          }
+
+          this.introScript = res.introScript ?? "";
+
+          void this.playVideoScript(this.introScript, () => this.startPhase1());
+        },
+
         error: (err) => {
-          this.loading = false;
-          const msg = err?.error?.message || 'Erro ao iniciar entrevista por voz';
-          this.error =
-            msg.includes('high demand') || err?.status === 503
-              ? 'A IA está sobrecarregada no momento. Aguarde alguns minutos e tente de novo.'
-              : msg;
-        }
+          this.error = err?.error?.message || "Erro ao preparar vídeo";
+
+          this.step = "written_questions";
+
+          this.cdr.markForCheck();
+        },
       });
   }
 
-  startListening(): void {
-    if (!this.canUseMic) {
+  replayFeedbackAudio(): void {
+    const script = (
+      this.feedbackScript ||
+      this.summary?.feedbackScript ||
+      ""
+    ).trim();
+    if (!script) {
       return;
     }
-    this.error = null;
-    this.candidateDraft = '';
-    this.setUiState('listening');
-    this.voice.listen(
-      (text) => {
-        this.ngZone.run(() => {
-          this.candidateDraft = text;
-          this.cdr.markForCheck();
-        });
-      },
-      (msg) => {
-        this.ngZone.run(() => {
-          this.setUiState('reviewing');
-          this.error = msg;
-        });
-      },
-      () => {
-        this.ngZone.run(() => this.setUiState('reviewing'));
-      }
-    );
+    const gender = this.persona?.voiceGender ?? "female";
+    this.voice.speak(script, undefined, { gender });
   }
 
-  stopListeningForReview(): void {
-    this.voice.stopListening();
-    if (this.uiState === 'listening') {
-      this.setUiState('reviewing');
-    }
-  }
-
-  confirmAndSend(): void {
-    const message = this.candidateDraft.trim();
-    if (!message || this.sendingAnswer) {
+  downloadReport(): void {
+    if (!this.simulationId) {
       return;
     }
-    this.voice.stopListening();
-    this.sendCandidateMessage(message);
-  }
 
-  endEarly(): void {
-    this.voice.stopSpeaking();
-    this.voice.stopListening();
-    this.finalizeInterview();
+    this.analyzer.downloadInterview(this.simulationId).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+
+        link.download = `entrevista_${new Date().toISOString().split("T")[0]}.txt`;
+
+        link.click();
+
+        window.URL.revokeObjectURL(url);
+      },
+
+      error: () => {
+        this.error = "Erro ao baixar relatório.";
+
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   close(): void {
+    this.clearTimer();
+
+    this.videoExpanded = false;
+
+    this.interviewerCaption = "";
+
     this.voice.stopSpeaking();
+
     this.voice.stopListening();
+
+    void this.simli.stopSession();
+
     this.closed.emit();
   }
 
-  private sendCandidateMessage(message: string): void {
-    if (this.sendingAnswer) {
+  private tryAutoStart(): void {
+    if (!this.autoStart || this.autoStartTriggered || this.step !== "idle") {
       return;
     }
-    this.sendingAnswer = true;
-    this.candidateDraft = '';
-    this.setUiState('processing');
-    this.loading = true;
-    this.error = null;
-    this.turnNumber += 1;
-    this.pushCandidate(message);
 
-    const apiHistory = this.history.map(h => ({ role: h.role, content: h.content }));
+    if (!this.analysis) {
+      return;
+    }
 
+    if (!this.resumeText?.trim()) {
+      this.error = "Texto do currículo indisponível.";
+
+      this.cdr.markForCheck();
+
+      return;
+    }
+
+    this.autoStartTriggered = true;
+
+    setTimeout(() => this.begin(), 0);
+  }
+
+  private startInterview(): void {
     this.analyzer
-      .voiceInterviewTurn(
+
+      .startStructuredInterview(
         this.resumeText,
         this.analysis,
-        message,
-        apiHistory,
-        this.turnNumber,
         this.siteId,
-        this.simulationId ?? undefined,
-        this.analysisId
+        this.resumeId,
+        this.analysisId,
       )
+
       .subscribe({
         next: (res: any) => {
           this.loading = false;
-          this.sendingAnswer = false;
-          if (!res?.success) {
-            this.error = res?.message || 'Erro no turno da entrevista';
-            this.setUiState('reviewing');
-            this.candidateDraft = message;
+
+          if (res?.alreadyCompleted) {
+            this.simulationId = res.simulationId ?? null;
+
+            this.step = "already_done";
+
+            this.cdr.markForCheck();
+
             return;
           }
-          this.phase = res.phase || '';
-          this.pushInterviewer(res.interviewerMessage);
-          if (res.shouldEnd) {
-            this.speakInterviewer(res.interviewerMessage, () => this.finalizeInterview());
-          } else {
-            this.speakInterviewer(res.interviewerMessage);
+
+          if (!res?.success) {
+            this.error =
+              res?.message || res?.error || "Erro ao iniciar entrevista";
+
+            this.step = "idle";
+
+            this.cdr.markForCheck();
+
+            return;
           }
+
+          this.persona = this.mapPersona(res.persona);
+
+          this.simulationId = res.simulationId ?? null;
+
+          this.candidateName = res.candidateName ?? "Candidato";
+
+          this.writtenQuestions = res.writtenQuestions ?? [];
+
+          if (this.writtenQuestions.length < 5) {
+            this.writtenQuestions = [
+              ...this.writtenQuestions,
+
+              ...Array(Math.max(0, 5 - this.writtenQuestions.length)).fill(
+                "Conte mais sobre sua experiência.",
+              ),
+            ].slice(0, 5);
+          }
+
+          this.writtenAnswers = ["", "", "", "", ""];
+
+          this.phase1Minutes = res.phase1Minutes ?? 15;
+
+          this.step = "written_questions";
+
+          this.cdr.markForCheck();
         },
+
         error: (err) => {
           this.loading = false;
-          this.sendingAnswer = false;
-          this.setUiState('reviewing');
-          this.candidateDraft = message;
-          this.error = err?.error?.message || 'Erro ao processar sua resposta';
-        }
+
+          this.step = "idle";
+
+          if (err?.error?.alreadyCompleted) {
+            this.simulationId = err.error.simulationId ?? null;
+
+            this.step = "already_done";
+          } else {
+            this.error =
+              err?.error?.message ||
+              err?.error?.error ||
+              "Erro ao iniciar entrevista";
+          }
+
+          this.cdr.markForCheck();
+        },
       });
   }
 
-  private finalizeInterview(): void {
-    this.setUiState('processing');
-    this.loading = true;
-    this.voice.stopListening();
-    const apiHistory = this.history.map(h => ({ role: h.role, content: h.content }));
+  private startPhase1(): void {
+    this.stopSimliForRecording();
+
+    this.interviewerCaption = "";
+
+    this.phaseTransitionLock = false;
+
+    this.step = "phase1";
+
+    this.candidateDraft = "";
+
+    this.candidateSegments = [];
+
+    this.candidateInterim = "";
+
+    this.startPhaseTimer(this.phase1Minutes, () => this.onPhase1End());
+  }
+
+  private onPhase1End(): void {
+    this.phase1Answer = this.getRecordingAnswer();
+
+    this.persistPhase(this.introScript, this.phase1Answer);
+
+    this.step = "loading_feedback";
+
+    this.cdr.markForCheck();
 
     this.analyzer
-      .finishVoiceInterview(
-        this.resumeText,
-        this.analysis,
-        apiHistory,
-        this.simulationId ?? undefined,
-        this.analysisId
-      )
+
+      .finishStructuredInterview(this.resumeText, this.analysis, {
+        simulationId: this.simulationId ?? undefined,
+
+        analysisId: this.analysisId,
+
+        siteId: this.siteId,
+
+        candidateName: this.candidateName,
+
+        introScript: this.introScript,
+
+        phase1Answer: this.phase1Answer,
+
+        writtenQuestions: this.writtenQuestions,
+
+        writtenAnswers: this.writtenAnswers,
+      })
+
       .subscribe({
         next: (res: any) => {
-          this.loading = false;
-          this.finished = true;
-          this.setUiState('idle');
-          this.summary = res?.summary ?? res;
+          if (!res?.success) {
+            this.error = res?.message || "Erro ao finalizar";
+
+            this.step = "complete";
+
+            this.cdr.markForCheck();
+
+            return;
+          }
+
+          this.summary = res.summary ?? res;
+
+          this.feedbackScript = res.feedbackScript ?? "";
+
+          this.simulationId = res.simulationId ?? this.simulationId;
+
+          if (this.feedbackScript?.trim()) {
+            void this.playVideoScript(this.feedbackScript, () =>
+              this.onComplete(),
+            );
+          } else {
+            this.onComplete();
+          }
         },
+
         error: (err) => {
-          this.loading = false;
-          this.finished = true;
-          this.error = err?.error?.message || 'Erro ao gerar resumo final';
-        }
+          this.error = err?.error?.message || "Erro ao gerar feedback";
+
+          this.step = "complete";
+
+          this.cdr.markForCheck();
+        },
       });
   }
 
-  private mapPersona(raw: any): Persona {
-    const initials = (raw?.initials ?? 'AR').toUpperCase();
-    return {
-      name: raw?.name ?? 'Entrevistador',
-      role: raw?.role ?? 'Recrutador(a)',
-      company: raw?.company ?? '',
-      initials,
-      avatarColor: raw?.avatarColor ?? '#6366f1',
-      avatarUrl: INTERVIEWER_AVATARS[initials] ?? 'assets/imagens/persona.jpeg',
-      voiceGender: PERSONA_GENDER[initials] ?? 'female'
-    };
-  }
+  private onComplete(): void {
+    this.step = "complete";
 
-  private pushInterviewer(content: string): void {
-    this.history.push({ role: 'interviewer', content });
-  }
+    if (this.simulationId) {
+      this.completed.emit({ simulationId: this.simulationId });
+    }
 
-  private pushCandidate(content: string): void {
-    this.history.push({ role: 'candidate', content });
-  }
+    void this.simli.stopSession();
 
-  private speakInterviewer(text: string, onEnd?: () => void): void {
-    this.voice.stopListening();
-    this.setUiState('speaking');
-    this.scheduleSpeakIdleFallback(text);
+    this.simliActive = false;
 
-    const gender = this.persona?.voiceGender ?? 'female';
-    this.voice.speak(
-      text,
-      () => {
-        this.ngZone.run(() => {
-          this.clearSpeakIdleTimer();
-          this.setUiState('idle');
-          onEnd?.();
-        });
-      },
-      { gender }
-    );
-  }
-
-  private setUiState(state: VoiceUiState): void {
-    this.uiState = state;
     this.cdr.markForCheck();
   }
 
-  private scheduleSpeakIdleFallback(text: string): void {
-    this.clearSpeakIdleTimer();
-    const ms = Math.min(75_000, Math.max(6_000, text.length * 50));
-    this.speakIdleTimer = setTimeout(() => {
-      if (this.uiState === 'speaking') {
-        this.setUiState('idle');
-      }
-    }, ms);
+  private getRecordingAnswer(): string {
+    const parts = [...this.candidateSegments];
+
+    const interim = this.candidateInterim.trim();
+
+    if (interim) {
+      parts.push(interim);
+    }
+
+    return parts.join(" ").trim() || this.candidateDraft.trim();
   }
 
-  private clearSpeakIdleTimer(): void {
-    if (this.speakIdleTimer) {
-      clearTimeout(this.speakIdleTimer);
-      this.speakIdleTimer = null;
+  private persistPhase(script: string, answer: string): void {
+    if (!this.simulationId) {
+      return;
     }
+
+    this.analyzer
+
+      .submitStructuredPhase(
+        this.simulationId,
+        5,
+        script,
+        answer,
+        this.analysisId,
+      )
+
+      .subscribe({ error: () => {} });
+  }
+
+  private startPhaseTimer(minutes: number, onEnd: () => void): void {
+    this.clearTimer(false);
+
+    this.timerSeconds = minutes * 60;
+
+    this.cdr.markForCheck();
+
+    this.startListening();
+
+    this.timerInterval = setInterval(() => {
+      this.ngZone.run(() => {
+        this.timerSeconds--;
+
+        this.cdr.markForCheck();
+
+        if (this.timerSeconds <= 0) {
+          this.endCurrentRecordingPhase(onEnd);
+        }
+      });
+    }, 1000);
+  }
+
+  private endCurrentRecordingPhase(onEnd?: () => void): void {
+    if (this.phaseTransitionLock) {
+      return;
+    }
+
+    this.phaseTransitionLock = true;
+
+    this.clearTimer();
+
+    if (onEnd) {
+      onEnd();
+    } else if (this.step === "phase1") {
+      this.onPhase1End();
+    }
+  }
+
+  private clearTimer(stopMic = true): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+
+      this.timerInterval = null;
+    }
+
+    if (stopMic) {
+      this.voice.stopListening();
+    }
+  }
+
+  private startListening(): void {
+    if (!this.speechSupported) {
+      return;
+    }
+
+    this.voice.listen(
+      (update) => {
+        this.ngZone.run(() => {
+          this.candidateDraft = update.transcript;
+
+          this.candidateSegments = update.segments;
+
+          this.candidateInterim = update.interim;
+
+          this.cdr.markForCheck();
+        });
+      },
+
+      () => {},
+
+      () => {},
+    );
+  }
+
+  private async playVideoScript(
+    script: string,
+    onEnd: () => void,
+  ): Promise<void> {
+    this.currentVideoScript = script;
+
+    this.interviewerCaption = script.trim();
+
+    this.voice.stopListening();
+
+    const videoStep = this.inferVideoStep();
+
+    this.step = videoStep;
+
+    this.cdr.markForCheck();
+
+    const elements = await this.waitForMediaElements();
+
+    if (elements) {
+      if (this.simli.isActive()) {
+        this.simliActive = true;
+      } else {
+        this.simliBootstrapping = true;
+
+        this.cdr.markForCheck();
+
+        try {
+          this.simliActive = await this.simli.startSession(
+            elements.video,
+
+            elements.audio,
+
+            this.persona?.initials,
+          );
+        } catch {
+          this.simliActive = false;
+        }
+
+        this.simliBootstrapping = false;
+
+        this.cdr.markForCheck();
+      }
+    }
+
+    const finish = () => {
+      this.ngZone.run(() => {
+        this.interviewerCaption = "";
+
+        onEnd();
+      });
+    };
+
+    const gender = this.persona?.voiceGender ?? "female";
+
+    if (this.simliActive && elements) {
+      void this.simli.speak(script, finish, { gender }).catch(() => {
+        void this.playSpeechFallback(script, elements.audio, finish, gender);
+      });
+    } else if (elements) {
+      void this.playSpeechFallback(script, elements.audio, finish, gender);
+    } else {
+      this.voice.speak(script, finish, { gender });
+    }
+  }
+
+  private stopSimliForRecording(): void {
+    void this.simli.stopSession();
+
+    this.simliActive = false;
+
+    this.simliBootstrapping = false;
+  }
+
+  private async playSpeechFallback(
+    script: string,
+
+    audioEl: HTMLAudioElement,
+
+    onEnd: () => void,
+
+    gender: VoiceGender,
+  ): Promise<void> {
+    try {
+      await this.simli.playBackendSpeech(audioEl, script, { gender });
+
+      onEnd();
+    } catch {
+      this.simliActive = false;
+
+      this.cdr.markForCheck();
+
+      this.voice.speak(script, onEnd, { gender });
+    }
+  }
+
+  private inferVideoStep(): InterviewStep {
+    if (this.currentVideoScript === this.feedbackScript) {
+      return "feedback_video";
+    }
+
+    return "intro_video";
+  }
+
+  private waitForMediaElements(
+    maxAttempts = 30,
+  ): Promise<{ video: HTMLVideoElement; audio: HTMLAudioElement } | null> {
+    return new Promise((resolve) => {
+      let attempts = 0;
+
+      const check = () => {
+        this.cdr.detectChanges();
+
+        const video = this.simliVideoRef?.nativeElement;
+
+        const audio = this.simliAudioRef?.nativeElement;
+
+        if (video && audio) {
+          resolve({ video, audio });
+
+          return;
+        }
+
+        if (++attempts >= maxAttempts) {
+          resolve(null);
+
+          return;
+        }
+
+        setTimeout(check, 50);
+      };
+
+      check();
+    });
+  }
+
+  private mapPersona(raw: any): Persona {
+    const initials = (raw?.initials ?? "AR").toUpperCase();
+
+    return {
+      name: raw?.name ?? "Entrevistador",
+
+      role: raw?.role ?? "Recrutador(a)",
+
+      company: raw?.company ?? "",
+
+      initials,
+
+      avatarColor: raw?.avatarColor ?? "#6366f1",
+
+      avatarUrl: INTERVIEWER_AVATARS[initials] ?? "assets/imagens/persona.jpeg",
+
+      voiceGender: PERSONA_GENDER[initials] ?? "female",
+    };
   }
 }

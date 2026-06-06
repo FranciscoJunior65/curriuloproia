@@ -6,6 +6,9 @@ import { FeaturesComponent } from './components/features/features.component';
 import { PricingComponent } from './components/pricing/pricing.component';
 import { TestimonialsComponent } from './components/testimonials/testimonials.component';
 import { FooterComponent } from './components/footer/footer.component';
+import { ProcessComponent } from './components/process/process.component';
+import { CtaComponent } from './components/cta/cta.component';
+import { FaqComponent } from './components/faq/faq.component';
 
 @Component({
   selector: 'app-root',
@@ -14,9 +17,12 @@ import { FooterComponent } from './components/footer/footer.component';
     RouterOutlet,
     NavbarComponent,
     HeroComponent,
+    ProcessComponent,
     FeaturesComponent,
     PricingComponent,
     TestimonialsComponent,
+    FaqComponent,
+    CtaComponent,
     FooterComponent
   ],
   templateUrl: './app.component.html',

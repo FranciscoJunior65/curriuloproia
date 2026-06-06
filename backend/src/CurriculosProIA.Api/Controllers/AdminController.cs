@@ -81,4 +81,12 @@ public class AdminController : ControllerBase
 
     [HttpGet("partner-referrals")]
     public Task<IActionResult> ListPartnerReferrals(CancellationToken ct) => _admin.ListPartnerReferrals(ct);
+
+    [HttpGet("settings/interview-config")]
+    public Task<IActionResult> GetInterviewConfigSettings(CancellationToken ct) =>
+        _admin.GetInterviewConfigSettings(ct);
+
+    [HttpPut("settings/interview-config")]
+    public Task<IActionResult> UpdateInterviewConfigSettings([FromBody] InterviewConfigUpdateSignature body, CancellationToken ct) =>
+        _admin.UpdateInterviewConfigSettings(body, ct);
 }

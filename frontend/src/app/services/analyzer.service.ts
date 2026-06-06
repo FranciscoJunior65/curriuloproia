@@ -393,6 +393,81 @@ export class AnalyzerService {
     });
   }
 
+  getStructuredInterviewStatus(analysisId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/analyze/interview/structured/status`, {
+      params: { analysisId },
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  startStructuredInterview(
+    resumeText: string,
+    analysis: any,
+    siteId?: string,
+    resumeId?: string,
+    analysisId?: string
+  ): Observable<any> {
+    const body: any = { resumeText, analysis };
+    if (siteId) body.siteId = siteId;
+    if (resumeId) body.resumeId = resumeId;
+    if (analysisId) body.analysisId = analysisId;
+    return this.http.post(`${this.apiUrl}/analyze/interview/structured/start`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  beginStructuredVoicePhase(
+    resumeText: string,
+    analysis: any,
+    opts: {
+      simulationId?: string;
+      analysisId?: string;
+      siteId?: string;
+      candidateName?: string;
+      writtenQuestions?: string[];
+      writtenAnswers?: string[];
+    }
+  ): Observable<any> {
+    const body: any = { resumeText, analysis, ...opts };
+    return this.http.post(`${this.apiUrl}/analyze/interview/structured/begin-voice`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  submitStructuredPhase(
+    simulationId: string,
+    phaseIndex: number,
+    interviewerScript: string,
+    candidateAnswer: string,
+    analysisId?: string
+  ): Observable<any> {
+    const body: any = { simulationId, phaseIndex, interviewerScript, candidateAnswer };
+    if (analysisId) body.analysisId = analysisId;
+    return this.http.post(`${this.apiUrl}/analyze/interview/structured/submit-phase`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  finishStructuredInterview(
+    resumeText: string,
+    analysis: any,
+    opts: {
+      simulationId?: string;
+      analysisId?: string;
+      siteId?: string;
+      candidateName?: string;
+      introScript?: string;
+      phase1Answer?: string;
+      writtenQuestions?: string[];
+      writtenAnswers?: string[];
+    }
+  ): Observable<any> {
+    const body: any = { resumeText, analysis, ...opts };
+    return this.http.post(`${this.apiUrl}/analyze/interview/structured/finish`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   finishInterview(simulationId: string, allAnswers: any[], analysisId?: string): Observable<any> {
     const body: any = { simulationId, allAnswers };
     if (analysisId) body.analysisId = analysisId;

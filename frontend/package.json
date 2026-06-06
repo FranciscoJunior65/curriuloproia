@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve -c localhost",
+    "start:prod-api": "ng serve",
     "start:localhost": "ng serve -c localhost",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
@@ -23,6 +24,7 @@
     "@angular/router": "^19.0.0",
     "nodemailer": "^7.0.12",
     "rxjs": "~7.8.0",
+    "simli-client": "^3.0.1",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
   },

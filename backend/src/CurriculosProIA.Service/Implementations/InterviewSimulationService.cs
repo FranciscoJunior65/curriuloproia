@@ -245,8 +245,31 @@ public class InterviewSimulationService : IInterviewSimulationService
             }
 
             sb.AppendLine();
-            sb.AppendLine(new string('=', 40));
+        sb.AppendLine(new string('=', 40));
+        sb.AppendLine();
+        }
+
+        var feedbackMessages = interview.Messages.Where(m => m.Tipo == "feedback").ToList();
+        if (feedbackMessages.Count > 0)
+        {
+            sb.AppendLine("========================================");
+            sb.AppendLine("FEEDBACK FINAL (VÍDEO)");
+            sb.AppendLine("========================================");
             sb.AppendLine();
+            foreach (var fb in feedbackMessages)
+            {
+                if (fb.DadosExtras != null &&
+                    fb.DadosExtras.TryGetValue("videoScript", out var scriptObj) &&
+                    scriptObj != null)
+                {
+                    sb.AppendLine("Roteiro falado:");
+                    sb.AppendLine(scriptObj.ToString());
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine($"Avaliação: {fb.Feedback ?? ""}");
+                sb.AppendLine();
+            }
         }
 
         return sb.ToString();

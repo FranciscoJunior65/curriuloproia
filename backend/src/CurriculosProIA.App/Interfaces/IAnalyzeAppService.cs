@@ -20,6 +20,11 @@ public interface IAnalyzeAppService
     Task<IActionResult> StartVoiceInterview(VoiceInterviewStartSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> VoiceInterviewTurn(VoiceInterviewTurnSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> FinishVoiceInterview(VoiceInterviewFinishSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetStructuredInterviewStatus(string? analysisId, CancellationToken cancellationToken = default);
+    Task<IActionResult> StartStructuredInterview(StructuredInterviewStartSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> BeginStructuredVoicePhase(StructuredInterviewBeginVoicePhaseSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> SubmitStructuredInterviewPhase(StructuredInterviewSubmitPhaseSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> FinishStructuredInterview(StructuredInterviewFinishSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GetPlans(CancellationToken cancellationToken = default);
     Task<IActionResult> GetPricingConfig(CancellationToken cancellationToken = default);
     Task<IActionResult> GetActivePaymentProvider(CancellationToken cancellationToken = default);

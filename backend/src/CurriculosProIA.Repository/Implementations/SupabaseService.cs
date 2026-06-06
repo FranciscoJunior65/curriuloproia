@@ -2574,6 +2574,142 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         return response.Models;
     }
 
+    public async Task<SimulacaoEntrevistaRow?> GetLatestInterviewForResumeAsync(
+        string userId,
+        string resumeId,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var response = await _client!
+            .From<SimulacaoEntrevistaRow>()
+            .Select("*")
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Filter("id_curriculo", Operator.Equals, resumeId)
+            .Order("criado_em", Ordering.Descending)
+            .Limit(1)
+            .Get();
+
+        return response.Models.FirstOrDefault();
+    }
+
+    public async Task SaveStructuredPhaseAsync(
+        string simulationId,
+        int phaseIndex,
+        string interviewerScript,
+        string candidateAnswer,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var orderBase = phaseIndex * 2 + 1;
+        var questionInsert = new MensagemEntrevistaInsert
+        {
+            IdSimulacao = simulationId,
+            Tipo = "pergunta",
+            Conteudo = interviewerScript,
+            Ordem = orderBase,
+            DadosExtras = new Dictionary<string, object?>
+            {
+                ["phaseIndex"] = phaseIndex,
+                ["structured"] = true
+            }
+        };
+
+        var answerInsert = new MensagemEntrevistaInsert
+        {
+            IdSimulacao = simulationId,
+            Tipo = "resposta",
+            Conteudo = candidateAnswer,
+            Ordem = orderBase + 1,
+            DadosExtras = new Dictionary<string, object?>
+            {
+                ["phaseIndex"] = phaseIndex,
+                ["structured"] = true
+            }
+        };
+
+        await _client!.From<MensagemEntrevistaInsert>().Insert(questionInsert);
+        await _client.From<MensagemEntrevistaInsert>().Insert(answerInsert);
+    }
+
+    public async Task SaveStructuredWrittenAnswersAsync(
+        string simulationId,
+        IReadOnlyList<string> questions,
+        IReadOnlyList<string> answers,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var count = Math.Min(questions.Count, answers.Count);
+        for (var i = 0; i < count; i++)
+        {
+            await SaveStructuredPhaseAsync(
+                simulationId,
+                i,
+                questions[i] ?? "",
+                answers[i] ?? "",
+                cancellationToken);
+        }
+    }
+
+    public async Task SaveStructuredFeedbackAsync(
+        string simulationId,
+        string feedbackScript,
+        InterviewEvaluation evaluation,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var feedbackInsert = new MensagemEntrevistaInsert
+        {
+            IdSimulacao = simulationId,
+            Tipo = "feedback",
+            Conteudo = JsonSerializer.Serialize(new
+            {
+                script = feedbackScript,
+                evaluation
+            }),
+            Feedback = evaluation.Feedback,
+            Ordem = 100,
+            DadosExtras = new Dictionary<string, object?>
+            {
+                ["structured"] = true,
+                ["score"] = evaluation.Score,
+                ["strengths"] = evaluation.Strengths,
+                ["improvements"] = evaluation.Improvements,
+                ["videoScript"] = feedbackScript
+            }
+        };
+
+        await _client!.From<MensagemEntrevistaInsert>().Insert(feedbackInsert);
+    }
+
+    public async Task UpdateInterviewQuestionsAsync(
+        string simulationId,
+        List<string> questions,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var update = new SimulacaoEntrevistaRow
+        {
+            Id = simulationId,
+            PerguntasFeitas = questions,
+            AtualizadoEm = DateTimeOffset.UtcNow
+        };
+
+        await _client!
+            .From<SimulacaoEntrevistaRow>()
+            .Filter("id", Operator.Equals, simulationId)
+            .Update(update);
+    }
+
     public async Task SaveFoundJobsAsync(
         string userId,
         string resumeId,

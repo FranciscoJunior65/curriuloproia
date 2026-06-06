@@ -1021,15 +1021,28 @@
               </div>
               <h3 class="text-lg font-bold text-gray-800 mb-2">Simular Entrevista</h3>
               <p class="text-gray-600 text-sm mb-4">
-                Entrevista por voz com persona virtual — conversa natural conduzida por IA ({{ getSelectedSiteName() || 'site selecionado' }})
+                Entrevista com avatar em vídeo: apresentação, tempo para falar suas experiências e 2 perguntas ({{ getSelectedSiteName() || 'site selecionado' }})
               </p>
               <button
+                *ngIf="!interviewAlreadyDone"
                 mat-raised-button
+                color="primary"
+                (click)="openInterviewSimulation()"
+                [disabled]="startingVoiceInterview"
+                class="w-full"
+              >
+                <mat-spinner *ngIf="startingVoiceInterview" diameter="20" class="inline-block mr-2"></mat-spinner>
+                <span>{{ startingVoiceInterview ? 'Abrindo entrevista...' : 'Iniciar Simulação' }}</span>
+              </button>
+              <button
+                *ngIf="interviewAlreadyDone"
+                mat-stroked-button
                 color="primary"
                 (click)="openInterviewSimulation()"
                 class="w-full"
               >
-                <span>Iniciar Simulação</span>
+                <mat-icon>download</mat-icon>
+                Ver relatório da entrevista
               </button>
             </mat-card-content>
           </mat-card>
@@ -1166,7 +1179,7 @@
         </section>
 
         <!-- Entrevista por voz (persona + conversa) -->
-        <mat-card *ngIf="showVoiceInterview" class="shadow-xl">
+        <mat-card *ngIf="showVoiceInterview" id="voice-interview-section" class="shadow-xl">
           <mat-card-content class="p-6">
             <app-voice-interview
               [resumeText]="result.originalText || ''"
@@ -1174,7 +1187,9 @@
               [siteId]="selectedSiteId || undefined"
               [resumeId]="result.resumeId || undefined"
               [analysisId]="result.analysisId || undefined"
-              (closed)="showVoiceInterview = false"
+              [autoStart]="voiceInterviewAutoStart"
+              (closed)="onVoiceInterviewClosed()"
+              (completed)="onVoiceInterviewCompleted($event)"
             ></app-voice-interview>
           </mat-card-content>
         </mat-card>

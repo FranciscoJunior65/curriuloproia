@@ -219,6 +219,82 @@
 
       <mat-tab>
         <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">record_voice_over</mat-icon>
+          Entrevista
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
+                Prompts padrão da simulação de entrevista com avatar em vídeo. Use placeholders:
+                <code>{{ '{' }}personaName{{ '}' }}</code>,
+                <code>{{ '{' }}personaRole{{ '}' }}</code>,
+                <code>{{ '{' }}company{{ '}' }}</code>,
+                <code>{{ '{' }}candidateName{{ '}' }}</code>,
+                <code>{{ '{' }}resumeContext{{ '}' }}</code>,
+                <code>{{ '{' }}phase1Answer{{ '}' }}</code>,
+                <code>{{ '{' }}fullTranscript{{ '}' }}</code>,
+                <code>{{ '{' }}responseSummary{{ '}' }}</code>,
+                <code>{{ '{' }}maxWords{{ '}' }}</code>,
+                <code>{{ '{' }}maxSegmentSeconds{{ '}' }}</code>,
+                <code>{{ '{' }}maxFeedbackSeconds{{ '}' }}</code>.
+                No feedback, avalie apenas o que o candidato falou (não o currículo).
+              </p>
+
+              <div *ngIf="loadingInterviewConfig" class="loading-inline">
+                <mat-spinner diameter="28"></mat-spinner>
+              </div>
+
+              <div *ngIf="!loadingInterviewConfig" class="interview-config-form">
+                <div class="pricing-field-grid">
+                  <div class="pricing-field">
+                    <label>Tempo fase 1 — experiências (min)</label>
+                    <input type="number" [(ngModel)]="interviewConfig.phase1Minutes" class="period-select" min="1" max="60" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Tempo pergunta 1 (min)</label>
+                    <input type="number" [(ngModel)]="interviewConfig.phase2Minutes" class="period-select" min="1" max="60" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Tempo pergunta 2 (min)</label>
+                    <input type="number" [(ngModel)]="interviewConfig.phase3Minutes" class="period-select" min="1" max="60" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Máx. fala total do vídeo (seg)</label>
+                    <input type="number" [(ngModel)]="interviewConfig.maxVideoSpeechSeconds" class="period-select" min="60" max="600" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Máx. por segmento de vídeo (seg)</label>
+                    <input type="number" [(ngModel)]="interviewConfig.maxSegmentSeconds" class="period-select" min="15" max="120" />
+                  </div>
+                </div>
+
+                <div class="pricing-field">
+                  <label>Prompt — apresentação inicial (vídeo)</label>
+                  <textarea [(ngModel)]="interviewConfig.introductionPrompt" rows="8" class="prompt-textarea"></textarea>
+                </div>
+                <div class="pricing-field">
+                  <label>Prompt — 5 perguntas escritas (currículo)</label>
+                  <textarea [(ngModel)]="interviewConfig.questionsPrompt" rows="8" class="prompt-textarea"></textarea>
+                </div>
+                <div class="pricing-field">
+                  <label>Prompt — feedback final (vídeo)</label>
+                  <textarea [(ngModel)]="interviewConfig.feedbackPrompt" rows="10" class="prompt-textarea"></textarea>
+                </div>
+
+                <button mat-raised-button color="primary" (click)="saveInterviewConfigSettings()" [disabled]="savingInterviewConfig">
+                  {{ savingInterviewConfig ? 'Salvando...' : 'Salvar prompts de entrevista' }}
+                </button>
+              </div>
+              <p *ngIf="interviewConfigMessage" class="settings-success">{{ interviewConfigMessage }}</p>
+              <p *ngIf="interviewConfigError" class="settings-error">{{ interviewConfigError }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
           <mat-icon class="settings-tab-icon">local_offer</mat-icon>
           Cupons de desconto
         </ng-template>

@@ -30,15 +30,243 @@
     margin-bottom: 1rem;
   }
 
+  &__written {
+    margin-bottom: 1rem;
+  }
+
+  &__written-item {
+    margin-bottom: 1rem;
+  }
+
+  &__written-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.35rem;
+  }
+
+  &__written-input {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    resize: vertical;
+    min-height: 72px;
+
+    &:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    }
+  }
+
   &__stage {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1rem;
-    padding: 1.5rem 1rem;
+    padding: 1.25rem 1rem 1.5rem;
     background: linear-gradient(160deg, #f8fafc 0%, #eef2ff 100%);
     border-radius: 1rem;
     margin-bottom: 1rem;
+    width: 100%;
+  }
+
+  &__video-shell {
+    position: relative;
+    width: 100%;
+
+    &--expanded {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      background: rgba(15, 23, 42, 0.96);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+      overflow-y: auto;
+      gap: 1rem;
+
+      .voice-interview__stage {
+        max-width: 960px;
+        width: 100%;
+        background: transparent;
+        margin-bottom: 0;
+        padding: 0;
+      }
+
+      .voice-interview__avatar--simli {
+        width: 100%;
+        max-width: none;
+      }
+
+      .voice-interview__avatar-face--simli {
+        width: 100%;
+        max-width: none;
+        min-height: min(62vh, 580px);
+        border-radius: 1rem;
+      }
+
+      .voice-interview__simli-video,
+      .voice-interview__backdrop-photo {
+        object-position: center var(--simli-crop-y, 34%);
+      }
+
+      .voice-interview__caption {
+        max-width: none;
+        font-size: 1.05rem;
+      }
+
+      .voice-interview__persona-info {
+        color: #e2e8f0;
+
+        h4 {
+          color: #f8fafc;
+        }
+
+        .text-indigo-600 {
+          color: #a5b4fc !important;
+        }
+
+        .text-gray-600 {
+          color: #cbd5e1 !important;
+        }
+      }
+
+      .voice-interview__timer-value {
+        color: #a5b4fc;
+        font-size: 3rem;
+      }
+
+      .voice-interview__timer-hint {
+        color: #cbd5e1;
+      }
+    }
+
+    &--recording-expanded {
+      .voice-interview__avatar--recording {
+        width: 100%;
+        max-width: 440px;
+        aspect-ratio: 4 / 5;
+        height: auto;
+      }
+
+      .voice-interview__avatar-face--recording-large {
+        width: 100%;
+        max-width: none;
+        aspect-ratio: 4 / 5;
+        height: auto;
+        border-radius: 1rem;
+      }
+
+      .voice-interview__avatar-ring {
+        display: none;
+      }
+
+      .voice-interview__live-transcript--in-expanded {
+        width: 100%;
+        max-width: 440px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 0.75rem;
+        padding: 1rem;
+
+        .voice-interview__live-label {
+          color: #cbd5e1;
+        }
+
+        .voice-interview__live-segment {
+          color: #f1f5f9;
+          border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .voice-interview__live-interim,
+        .voice-interview__live-text {
+          color: #94a3b8;
+        }
+      }
+    }
+  }
+
+  &__expand-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 0.5rem;
+    background: rgba(15, 23, 42, 0.65);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  &__expanded-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  &__caption {
+    width: 100%;
+    max-width: 560px;
+    background: rgba(15, 23, 42, 0.88);
+    color: #f8fafc;
+    padding: 0.85rem 1rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+
+    p {
+      margin: 0.4rem 0 0;
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+  }
+
+  &__caption-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
   }
 
   &__avatar {
@@ -77,13 +305,187 @@
     position: relative;
     z-index: 1;
     overflow: hidden;
+
+    &--simli {
+      width: 100%;
+      max-width: 440px;
+      /* Plano médio: cabeça + pescoço + ombros (não close-up só no rosto) */
+      aspect-ratio: 4 / 5;
+      height: auto;
+      border-radius: 1rem;
+      background: #0f172a;
+      --simli-crop-y: 34%;
+    }
+
+    &--interview {
+      background: linear-gradient(165deg, #1e293b 0%, #334155 45%, #475569 100%);
+      box-shadow:
+        0 16px 40px rgba(15, 23, 42, 0.35),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    &--recording-large {
+      width: 100%;
+      max-width: none;
+      aspect-ratio: 4 / 5;
+      height: auto;
+      border-radius: 1rem;
+      background: #0f172a;
+    }
+  }
+
+  &__avatar--simli {
+    width: 100%;
+    max-width: 440px;
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+
+  &__avatar--recording .voice-interview__avatar-ring {
+    animation: pulse-listen 0.9s ease-in-out infinite;
+    border-color: #ef4444;
+  }
+
+  &__timer {
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  &__timer-value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #4f46e5;
+    line-height: 1;
+  }
+
+  &__timer-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.35rem;
+  }
+
+  &__finish-recording-btn {
+    margin-top: 0.85rem;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  &__live-segments {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &__live-segment {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #1e293b;
+    line-height: 1.5;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f1f5f9;
+
+    &:last-of-type {
+      border-bottom: none;
+    }
+  }
+
+  &__live-interim {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #64748b;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  &__live-transcript {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    min-height: 80px;
+  }
+
+  &__live-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+  }
+
+  &__live-text {
+    font-size: 0.95rem;
+    color: #1e293b;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  &__done {
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+
+  &__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+
+  &__backdrop-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center var(--simli-crop-y, 34%);
+    z-index: 0;
+  }
+
+  &__simli-viewport {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    background: #0f172a;
+  }
+
+  &__simli-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center var(--simli-crop-y, 34%);
+    opacity: 0;
+    pointer-events: none;
+
+    &--visible {
+      opacity: 1;
+    }
+  }
+
+  &__simli-spinner {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    z-index: 2;
   }
 
   &__avatar-photo {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center top;
+    object-position: center 28%;
   }
 
   &__initials {

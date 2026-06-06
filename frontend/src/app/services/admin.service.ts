@@ -48,6 +48,17 @@ export interface PricingConfig {
   pack5PriceBRL?: number;
 }
 
+export interface InterviewConfig {
+  introductionPrompt: string;
+  questionsPrompt: string;
+  feedbackPrompt: string;
+  phase1Minutes: number;
+  phase2Minutes: number;
+  phase3Minutes: number;
+  maxVideoSpeechSeconds: number;
+  maxSegmentSeconds: number;
+}
+
 export interface AdminPartner {
   id: string;
   nome: string;
@@ -239,6 +250,21 @@ export class AdminService {
         englishPriceBRL: config.englishPriceBRL,
         englishBundlePriceBRL: config.englishBundlePriceBRL
       },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getInterviewConfigSettings(): Observable<{ success: boolean; config: InterviewConfig }> {
+    return this.http.get<{ success: boolean; config: InterviewConfig }>(
+      `${this.apiUrl}/admin/settings/interview-config`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  updateInterviewConfigSettings(config: Partial<InterviewConfig>): Observable<{ success: boolean; message?: string; config: InterviewConfig }> {
+    return this.http.put<{ success: boolean; message?: string; config: InterviewConfig }>(
+      `${this.apiUrl}/admin/settings/interview-config`,
+      config,
       { headers: this.getAuthHeaders() }
     );
   }

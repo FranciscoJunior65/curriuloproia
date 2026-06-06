@@ -14,6 +14,7 @@ public static class AppServiceCollectionExtensions
         services.AddScoped<IAdminAppService, AdminAppService>();
         services.AddScoped<IPurchaseAppService, PurchaseAppService>();
         services.AddScoped<IPaymentWebhookAppService, PaymentWebhookAppService>();
+        services.AddScoped<ISimliAppService, SimliAppService>();
         return services;
     }
 }

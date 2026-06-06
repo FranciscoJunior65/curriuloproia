@@ -25,4 +25,6 @@ public interface IAdminAppService
     Task<IActionResult> UpdateCoupon(string couponId, UpdateCouponSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GetCouponMetrics(CancellationToken cancellationToken = default);
     Task<IActionResult> ListPartnerReferrals(CancellationToken cancellationToken = default);
+    Task<IActionResult> GetInterviewConfigSettings(CancellationToken cancellationToken = default);
+    Task<IActionResult> UpdateInterviewConfigSettings(InterviewConfigUpdateSignature body, CancellationToken cancellationToken = default);
 }

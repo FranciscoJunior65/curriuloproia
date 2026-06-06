@@ -8,6 +8,7 @@ import {
   UsageData,
   PaymentProvider,
   PricingConfig,
+  InterviewConfig,
   AdminPartner,
   AdminCoupon,
   CouponMetrics,
@@ -84,6 +85,21 @@ export class AdminDashboardComponent implements OnInit {
   pricingSettingsMessage = '';
   pricingSettingsError = '';
 
+  interviewConfig: InterviewConfig = {
+    introductionPrompt: '',
+    questionsPrompt: '',
+    feedbackPrompt: '',
+    phase1Minutes: 15,
+    phase2Minutes: 10,
+    phase3Minutes: 10,
+    maxVideoSpeechSeconds: 300,
+    maxSegmentSeconds: 45
+  };
+  loadingInterviewConfig = false;
+  savingInterviewConfig = false;
+  interviewConfigMessage = '';
+  interviewConfigError = '';
+
   loadingCoupons = false;
   savingCoupon = false;
   coupons: AdminCoupon[] = [];
@@ -148,6 +164,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
           this.loadPricingSettings();
+          this.loadInterviewConfigSettings();
           this.loadCouponsData();
         } else {
           console.error('❌ Token inválido, redirecionando...');
@@ -169,6 +186,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadMonthlyUsage();
           this.loadPaymentProviderSettings();
           this.loadPricingSettings();
+          this.loadInterviewConfigSettings();
           this.loadCouponsData();
         }
       }
@@ -374,6 +392,42 @@ export class AdminDashboardComponent implements OnInit {
       error: (error) => {
         this.savingPricingSettings = false;
         this.pricingSettingsError = error.error?.message || error.error?.error || 'Erro ao salvar preços';
+      }
+    });
+  }
+
+  loadInterviewConfigSettings(): void {
+    this.loadingInterviewConfig = true;
+    this.interviewConfigError = '';
+    this.adminService.getInterviewConfigSettings().subscribe({
+      next: (response) => {
+        if (response.success && response.config) {
+          this.interviewConfig = { ...response.config };
+        }
+        this.loadingInterviewConfig = false;
+      },
+      error: (error) => {
+        this.loadingInterviewConfig = false;
+        this.interviewConfigError = error.error?.message || 'Erro ao carregar prompts de entrevista';
+      }
+    });
+  }
+
+  saveInterviewConfigSettings(): void {
+    this.savingInterviewConfig = true;
+    this.interviewConfigMessage = '';
+    this.interviewConfigError = '';
+    this.adminService.updateInterviewConfigSettings(this.interviewConfig).subscribe({
+      next: (response) => {
+        this.savingInterviewConfig = false;
+        if (response.success) {
+          this.interviewConfig = { ...response.config };
+          this.interviewConfigMessage = response.message || 'Prompts de entrevista atualizados.';
+        }
+      },
+      error: (error) => {
+        this.savingInterviewConfig = false;
+        this.interviewConfigError = error.error?.message || error.error?.error || 'Erro ao salvar prompts';
       }
     });
   }

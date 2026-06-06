@@ -98,6 +98,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   resumeChanges: any = null; // Armazena mudanças após geração
   showInterviewChat = false; // Controla exibição do chat (legado texto)
   showVoiceInterview = false; // Entrevista por voz com persona
+  voiceInterviewAutoStart = false;
+  startingVoiceInterview = false;
   foundJobs: Array<{
     title?: string;
     company?: string;
@@ -152,6 +154,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.analysisCompleted = false;
     this.resumeChanges = null;
     this.showVoiceInterview = false;
+    this.voiceInterviewAutoStart = false;
+    this.startingVoiceInterview = false;
     this.foundJobs = [];
     this.jobSearchMessage = null;
     this.searchingJobs = false;
@@ -212,6 +216,15 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
   hasEnglishGenerated(): boolean {
     return !!this.result?.servicos?.curriculo_ingles_gerado;
+  }
+
+  get interviewAlreadyDone(): boolean {
+    const itens = this.result?.servicos?.itens;
+    if (!itens?.length) {
+      return false;
+    }
+    const entrevista = itens.find((i: any) => (i.key ?? i.Key) === 'entrevista');
+    return !!entrevista?.usado;
   }
 
   private applyServicos(servicos: any): void {
@@ -1327,11 +1340,19 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   openInterviewSimulation(): void {
-    if (!this.result || !this.selectedSiteId) {
-      this.error = 'Análise e site são necessários para simulação';
+    if (!this.result) {
+      this.error = 'Faça uma análise do currículo antes de simular a entrevista.';
       return;
     }
 
+    if (!this.selectedSiteId) {
+      this.error = 'Selecione um site de vagas (ex.: LinkedIn) antes de simular a entrevista.';
+      return;
+    }
+
+    this.error = null;
+    this.startingVoiceInterview = true;
+    this.voiceInterviewAutoStart = true;
     this.showVoiceInterview = true;
     this.showInterviewChat = false;
     this.interviewStarted = false;
@@ -1342,6 +1363,37 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.waitingForNextQuestion = false;
     this.currentQuestionData = null;
     this.simulationId = null;
+
+    setTimeout(() => {
+      document.getElementById('voice-interview-section')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+      this.startingVoiceInterview = false;
+    }, 200);
+  }
+
+  onVoiceInterviewClosed(): void {
+    this.showVoiceInterview = false;
+    this.voiceInterviewAutoStart = false;
+    this.startingVoiceInterview = false;
+  }
+
+  onVoiceInterviewCompleted(event: { simulationId: string }): void {
+    if (this.result?.servicos?.itens) {
+      this.result = {
+        ...this.result,
+        servicos: {
+          ...this.result.servicos,
+          itens: this.result.servicos.itens.map((i: any) =>
+            (i.key ?? i.Key) === 'entrevista' ? { ...i, usado: true, pendente: false } : i
+          )
+        }
+      };
+    }
+    if (event.simulationId) {
+      this.simulationId = event.simulationId;
+    }
   }
 
   startInterview(): void {

@@ -73,6 +73,26 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> FinishVoiceInterview([FromBody] VoiceInterviewFinishSignature body, CancellationToken ct) =>
         _analyze.FinishVoiceInterview(body, ct);
 
+    [HttpGet("interview/structured/status")]
+    public Task<IActionResult> GetStructuredInterviewStatus([FromQuery] string? analysisId, CancellationToken ct) =>
+        _analyze.GetStructuredInterviewStatus(analysisId, ct);
+
+    [HttpPost("interview/structured/start")]
+    public Task<IActionResult> StartStructuredInterview([FromBody] StructuredInterviewStartSignature body, CancellationToken ct) =>
+        _analyze.StartStructuredInterview(body, ct);
+
+    [HttpPost("interview/structured/begin-voice")]
+    public Task<IActionResult> BeginStructuredVoicePhase([FromBody] StructuredInterviewBeginVoicePhaseSignature body, CancellationToken ct) =>
+        _analyze.BeginStructuredVoicePhase(body, ct);
+
+    [HttpPost("interview/structured/submit-phase")]
+    public Task<IActionResult> SubmitStructuredInterviewPhase([FromBody] StructuredInterviewSubmitPhaseSignature body, CancellationToken ct) =>
+        _analyze.SubmitStructuredInterviewPhase(body, ct);
+
+    [HttpPost("interview/structured/finish")]
+    public Task<IActionResult> FinishStructuredInterview([FromBody] StructuredInterviewFinishSignature body, CancellationToken ct) =>
+        _analyze.FinishStructuredInterview(body, ct);
+
     /// <summary>Planos e preços configurados (público, sem autenticação).</summary>
     [AllowAnonymous]
     [HttpGet("pricing-config")]

@@ -43,6 +43,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     private readonly IJobSearchService _jobSearch;
     private readonly IInterviewSimulationService _interviewSimulation;
     private readonly IVoiceInterviewService _voiceInterview;
+    private readonly IStructuredInterviewService _structuredInterview;
     private readonly IAnalysisRepository _analysis;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AnalyzeAppService> _logger;
@@ -60,6 +61,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         IJobSearchService jobSearch,
         IInterviewSimulationService interviewSimulation,
         IVoiceInterviewService voiceInterview,
+        IStructuredInterviewService structuredInterview,
         IAnalysisRepository analysis,
         IConfiguration configuration,
         ILogger<AnalyzeAppService> logger,
@@ -77,6 +79,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         _jobSearch = jobSearch;
         _interviewSimulation = interviewSimulation;
         _voiceInterview = voiceInterview;
+        _structuredInterview = structuredInterview;
         _analysis = analysis;
         _configuration = configuration;
         _logger = logger;
@@ -1087,6 +1090,307 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 success = false,
                 error = "Erro ao finalizar entrevista",
                 message = ex.Message
+            });
+        }
+    }
+
+    public async Task<IActionResult> GetStructuredInterviewStatus(
+        string? analysisId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(analysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(analysisId))
+            {
+                return BadRequest(new { success = false, error = "analysisId é obrigatório" });
+            }
+
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Não autenticado" });
+            }
+
+            var analysisRow = await _analysis.GetAnalysisByIdAsync(analysisId, cancellationToken);
+            var status = await _structuredInterview.GetStatusAsync(
+                analysisId,
+                userId,
+                analysisRow?.IdCurriculo,
+                cancellationToken);
+
+            return Ok(new { success = true, status });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao consultar status da entrevista estruturada");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> StartStructuredInterview(
+        StructuredInterviewStartSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Não autenticado" });
+            }
+
+            if (!string.IsNullOrWhiteSpace(body.AnalysisId))
+            {
+                var existing = await _structuredInterview.GetStatusAsync(
+                    body.AnalysisId,
+                    userId,
+                    body.ResumeId,
+                    cancellationToken);
+                if (existing.AlreadyCompleted)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error = "Entrevista já realizada",
+                        message = "Você já fez esta entrevista. Baixe o relatório disponível.",
+                        simulationId = existing.SimulationId,
+                        alreadyCompleted = true
+                    });
+                }
+            }
+
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                body.ResumeId,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Currículo não encontrado",
+                    message = "O texto do currículo não está disponível."
+                });
+            }
+
+            var result = await _structuredInterview.StartAsync(
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
+                userId,
+                ctx.ResumeId ?? body.ResumeId,
+                cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                simulationId = result.SimulationId,
+                persona = result.Persona,
+                candidateName = result.CandidateName,
+                writtenQuestions = result.WrittenQuestions,
+                phase1Minutes = result.Phase1Minutes,
+                mode = "structured_written_then_voice"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao iniciar entrevista estruturada");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao iniciar entrevista",
+                message = MapAiErrorMessage(ex)
+            });
+        }
+    }
+
+    public async Task<IActionResult> BeginStructuredVoicePhase(
+        StructuredInterviewBeginVoicePhaseSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
+            {
+                return BadRequest(new { success = false, error = "Currículo não encontrado" });
+            }
+
+            if (!string.IsNullOrWhiteSpace(body.SimulationId)
+                && body.WrittenQuestions?.Count > 0
+                && body.WrittenAnswers?.Count > 0)
+            {
+                await _structuredInterview.SaveWrittenAnswersAsync(
+                    body.SimulationId,
+                    body.WrittenQuestions,
+                    body.WrittenAnswers,
+                    cancellationToken);
+            }
+
+            var result = await _structuredInterview.BeginVoicePhaseAsync(
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
+                body.CandidateName ?? "Candidato",
+                cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                introScript = result.IntroScript
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao iniciar fase de voz da entrevista");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao preparar vídeo de apresentação",
+                message = MapAiErrorMessage(ex)
+            });
+        }
+    }
+
+    public async Task<IActionResult> SubmitStructuredInterviewPhase(
+        StructuredInterviewSubmitPhaseSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            if (string.IsNullOrWhiteSpace(body.SimulationId))
+            {
+                return BadRequest(new { success = false, error = "simulationId é obrigatório" });
+            }
+
+            await _structuredInterview.SavePhaseAsync(
+                body.SimulationId,
+                body.PhaseIndex,
+                body.InterviewerScript ?? "",
+                body.CandidateAnswer ?? "",
+                cancellationToken);
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao salvar fase da entrevista");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> FinishStructuredInterview(
+        StructuredInterviewFinishSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accessError = await EnsureBundledServiceAccessAsync(body.AnalysisId, cancellationToken);
+            if (accessError != null)
+            {
+                return accessError;
+            }
+
+            var (ctx, resolveError) = await ResolveAnalysisContextAsync(
+                body.AnalysisId,
+                body.Analysis,
+                body.ResumeText,
+                resumeId: null,
+                body.SiteId,
+                cancellationToken);
+            if (resolveError != null)
+            {
+                return resolveError;
+            }
+
+            if (string.IsNullOrWhiteSpace(ctx!.ResumeText))
+            {
+                return BadRequest(new { success = false, error = "Currículo não encontrado" });
+            }
+
+            var questions = body.WrittenQuestions ?? [];
+            var answers = body.WrittenAnswers ?? [];
+            var result = await _structuredInterview.FinishAsync(
+                body.SimulationId,
+                ctx.ResumeText!,
+                ctx.Analysis,
+                ctx.SiteId ?? body.SiteId,
+                body.CandidateName ?? "Candidato",
+                body.IntroScript ?? "",
+                questions,
+                answers,
+                body.Phase1Answer ?? "",
+                cancellationToken);
+
+            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.Entrevista, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                score = result.Score,
+                feedbackScript = result.FeedbackScript,
+                summary = new
+                {
+                    score = result.Score,
+                    overallFeedback = result.OverallFeedback,
+                    strengths = result.Strengths,
+                    improvements = result.Improvements
+                },
+                simulationId = result.SimulationId,
+                message = "Entrevista finalizada"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao finalizar entrevista estruturada");
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao finalizar entrevista",
+                message = MapAiErrorMessage(ex)
             });
         }
     }

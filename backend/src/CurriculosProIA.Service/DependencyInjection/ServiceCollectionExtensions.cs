@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpClient("Gemini");
         services.AddHttpClient("MercadoPago");
+        services.AddHttpClient("Simli");
 
         services.AddScoped<IPricingService, PricingService>();
         services.AddScoped<ISettingsService, SettingsService>();
@@ -30,6 +31,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJobSearchService, JobSearchService>();
         services.AddScoped<IInterviewSimulationService, InterviewSimulationService>();
         services.AddScoped<IVoiceInterviewService, VoiceInterviewService>();
+        services.AddScoped<IStructuredInterviewService, StructuredInterviewService>();
+        services.AddScoped<IInterviewConfigService, InterviewConfigService>();
+        services.AddScoped<ISimliService, SimliService>();
 
         return services;
     }

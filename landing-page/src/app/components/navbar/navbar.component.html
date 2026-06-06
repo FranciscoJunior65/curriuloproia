@@ -1,48 +1,42 @@
-<nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<nav class="fixed top-0 left-0 right-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-neutral-800/60">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex justify-between items-center h-16">
-      <!-- Logo -->
-      <div class="flex items-center space-x-2 cursor-pointer" (click)="scrollToTop()">
-        <div class="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center shadow-glow">
-          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center gap-2.5 cursor-pointer" (click)="scrollToTop()">
+        <div class="w-8 h-8 bg-gradient-primary rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
         </div>
-        <span class="text-xl font-bold text-gradient">CurriculosPro IA</span>
+        <span class="text-sm font-bold tracking-widest uppercase text-white">CurriculosPro<span class="text-gradient"> IA</span></span>
       </div>
 
-      <!-- Desktop Menu -->
-      <div class="hidden md:flex items-center space-x-8">
-        <a (click)="scrollTo('features')" class="text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Recursos</a>
-        <a (click)="scrollTo('pricing')" class="text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Preços</a>
-        <a (click)="scrollTo('testimonials')" class="text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Depoimentos</a>
-        <a href="https://curriculosproia.getpushtecnologia.com.br/" target="_blank" rel="noopener noreferrer" class="text-gray-700 hover:text-primary-600 font-medium">Entrar</a>
-        <a href="https://curriculosproia.getpushtecnologia.com.br/" target="_blank" rel="noopener noreferrer" class="bg-gradient-primary text-white px-6 py-2 rounded-full font-semibold hover:shadow-glow transition-all">
-          Começar Grátis
+      <div class="hidden md:flex items-center gap-8">
+        <a (click)="scrollTo('features')" class="text-neutral-400 hover:text-white cursor-pointer text-xs font-medium uppercase tracking-wider">Recursos</a>
+        <a (click)="scrollTo('pricing')" class="text-neutral-400 hover:text-white cursor-pointer text-xs font-medium uppercase tracking-wider">Preços</a>
+        <a (click)="scrollTo('faq')" class="text-neutral-400 hover:text-white cursor-pointer text-xs font-medium uppercase tracking-wider">FAQ</a>
+        <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-primary !py-2.5 !px-6 !text-xs">
+          Começar Agora
         </a>
       </div>
 
-      <!-- Mobile Menu Button -->
-      <button (click)="toggleMobileMenu()" class="md:hidden p-2 rounded-lg hover:bg-gray-100">
-        <svg *ngIf="!mobileMenuOpen" class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <button (click)="toggleMobileMenu()" class="md:hidden p-2 text-neutral-400 hover:text-white">
+        <svg *ngIf="!mobileMenuOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
         </svg>
-        <svg *ngIf="mobileMenuOpen" class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg *ngIf="mobileMenuOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
   </div>
 
-  <!-- Mobile Menu -->
-  <div *ngIf="mobileMenuOpen" class="md:hidden bg-white border-t border-gray-200 animate-slide-down">
-    <div class="px-4 py-4 space-y-3">
-      <a (click)="scrollTo('features')" class="block py-2 text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Recursos</a>
-      <a (click)="scrollTo('pricing')" class="block py-2 text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Preços</a>
-      <a (click)="scrollTo('testimonials')" class="block py-2 text-gray-700 hover:text-primary-600 cursor-pointer font-medium">Depoimentos</a>
-      <a href="https://curriculosproia.getpushtecnologia.com.br/" target="_blank" rel="noopener noreferrer" class="text-gray-700 hover:text-primary-600 font-medium">Entrar</a>
-      <a href="https://curriculosproia.getpushtecnologia.com.br/" target="_blank" rel="noopener noreferrer" class="block text-center bg-gradient-primary text-white px-6 py-3 rounded-full font-semibold">
-        Começar Grátis
+  <div *ngIf="mobileMenuOpen" class="md:hidden bg-[#0a0a0a] border-t border-neutral-800 animate-slide-down">
+    <div class="px-4 py-4 space-y-1">
+      <a (click)="scrollTo('features')" class="block py-3 px-3 text-neutral-300 hover:text-white cursor-pointer text-sm uppercase tracking-wider">Recursos</a>
+      <a (click)="scrollTo('pricing')" class="block py-3 px-3 text-neutral-300 hover:text-white cursor-pointer text-sm uppercase tracking-wider">Preços</a>
+      <a (click)="scrollTo('faq')" class="block py-3 px-3 text-neutral-300 hover:text-white cursor-pointer text-sm uppercase tracking-wider">FAQ</a>
+      <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="block text-center btn-primary mt-3 !text-xs">
+        Começar Agora
       </a>
     </div>
   </div>

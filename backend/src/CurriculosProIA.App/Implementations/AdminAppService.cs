@@ -29,12 +29,14 @@ public class AdminAppService : AppControllerBase, IAdminAppService
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly IPricingService _pricing;
+    private readonly IInterviewConfigService _interviewConfig;
     private readonly IConfiguration _configuration;
 
     public AdminAppService(
         IAppDataStore data,
         ISettingsService settings,
         IPricingService pricing,
+        IInterviewConfigService interviewConfig,
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
         IConfiguration configuration,
@@ -44,6 +46,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         _data = data;
         _settings = settings;
         _pricing = pricing;
+        _interviewConfig = interviewConfig;
         _stripe = stripe;
         _mercadoPago = mercadoPago;
         _configuration = configuration;
@@ -455,6 +458,75 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         }
 
         return Ok(new { success = true, referrals });
+    }
+
+    public async Task<IActionResult> GetInterviewConfigSettings(CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var config = await _interviewConfig.GetConfigAsync(cancellationToken);
+        return Ok(new
+        {
+            success = true,
+            config = new
+            {
+                introductionPrompt = config.IntroductionPrompt,
+                questionsPrompt = config.QuestionsPrompt,
+                feedbackPrompt = config.FeedbackPrompt,
+                phase1Minutes = config.Phase1Minutes,
+                phase2Minutes = config.Phase2Minutes,
+                phase3Minutes = config.Phase3Minutes,
+                maxVideoSpeechSeconds = config.MaxVideoSpeechSeconds,
+                maxSegmentSeconds = config.MaxSegmentSeconds
+            }
+        });
+    }
+
+    public async Task<IActionResult> UpdateInterviewConfigSettings(
+        InterviewConfigUpdateSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        try
+        {
+            var current = await _interviewConfig.GetConfigAsync(cancellationToken);
+            var updated = new InterviewConfigDto
+            {
+                IntroductionPrompt = body.IntroductionPrompt ?? current.IntroductionPrompt,
+                QuestionsPrompt = body.QuestionsPrompt ?? current.QuestionsPrompt,
+                FeedbackPrompt = body.FeedbackPrompt ?? current.FeedbackPrompt,
+                Phase1Minutes = body.Phase1Minutes ?? current.Phase1Minutes,
+                Phase2Minutes = body.Phase2Minutes ?? current.Phase2Minutes,
+                Phase3Minutes = body.Phase3Minutes ?? current.Phase3Minutes,
+                MaxVideoSpeechSeconds = body.MaxVideoSpeechSeconds ?? current.MaxVideoSpeechSeconds,
+                MaxSegmentSeconds = body.MaxSegmentSeconds ?? current.MaxSegmentSeconds
+            };
+
+            var saved = await _interviewConfig.SaveConfigAsync(updated, cancellationToken);
+            _interviewConfig.ClearCache();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Configurações de entrevista atualizadas.",
+                config = new
+                {
+                    introductionPrompt = saved.IntroductionPrompt,
+                    questionsPrompt = saved.QuestionsPrompt,
+                    feedbackPrompt = saved.FeedbackPrompt,
+                    phase1Minutes = saved.Phase1Minutes,
+                    phase2Minutes = saved.Phase2Minutes,
+                    phase3Minutes = saved.Phase3Minutes,
+                    maxVideoSpeechSeconds = saved.MaxVideoSpeechSeconds,
+                    maxSegmentSeconds = saved.MaxSegmentSeconds
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
     }
 
     private string GetFrontendUrl() =>

@@ -7,6 +7,12 @@ export interface SpeakOptions {
   gender?: VoiceGender;
 }
 
+export interface SpeechListenUpdate {
+  transcript: string;
+  segments: string[];
+  interim: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class VoiceSpeechService {
   private synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
@@ -67,7 +73,7 @@ export class VoiceSpeechService {
   }
 
   listen(
-    onResult: (transcript: string) => void,
+    onResult: (update: SpeechListenUpdate) => void,
     onError?: (message: string) => void,
     onEnd?: (finalTranscript: string) => void
   ): void {
@@ -84,21 +90,31 @@ export class VoiceSpeechService {
     recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
-    let finalText = '';
+    let latestTranscript = '';
 
     recognition.onresult = (event: any) => {
+      const segments: string[] = [];
       let interim = '';
+
       for (let i = 0; i < event.results.length; i++) {
-        const part = event.results[i][0]?.transcript ?? '';
-        if (event.results[i].isFinal) {
-          finalText += part;
+        const result = event.results[i];
+        const part = (result[0]?.transcript ?? '').trim();
+        if (!part) {
+          continue;
+        }
+        if (result.isFinal) {
+          segments.push(part);
         } else {
-          interim += part;
+          interim = part;
         }
       }
-      const preview = (finalText + interim).trim();
-      if (preview) {
-        onResult(preview);
+
+      const finalized = segments.join(' ');
+      const transcript = interim ? `${finalized} ${interim}`.trim() : finalized;
+      latestTranscript = transcript;
+
+      if (transcript || segments.length > 0) {
+        onResult({ transcript, segments, interim });
       }
     };
 
@@ -113,7 +129,7 @@ export class VoiceSpeechService {
     };
 
     recognition.onend = () => {
-      const text = finalText.trim();
+      const text = latestTranscript.trim();
       onEnd?.(text);
       this.recognition = null;
     };
@@ -274,9 +290,7 @@ export class VoiceSpeechService {
   }
 
   private pickVoice(gender: VoiceGender): SpeechSynthesisVoice | null {
-    const voices = (this.synth?.getVoices() ?? []).filter(v =>
-      v.lang.toLowerCase().startsWith('pt')
-    );
+    const voices = (this.synth?.getVoices() ?? []).filter(v => this.isBrazilianPortugueseVoice(v));
     if (voices.length === 0) {
       return null;
     }
@@ -315,8 +329,8 @@ export class VoiceSpeechService {
     const score = (v: SpeechSynthesisVoice): number => {
       const n = v.name.toLowerCase();
       let s = 0;
-      if (v.lang.toLowerCase().startsWith('pt-br')) {
-        s += 2;
+      if (this.isBrazilianPortugueseVoice(v)) {
+        s += 4;
       }
       if (gender === 'female') {
         if (femaleHints.some(h => n.includes(h))) {
@@ -344,5 +358,14 @@ export class VoiceSpeechService {
     if (voices.length > 0) {
       this.voicesReady = true;
     }
+  }
+
+  /** Aceita só pt-BR — evita vozes de Portugal (pt-PT) que soam “estrangeiras”. */
+  private isBrazilianPortugueseVoice(v: SpeechSynthesisVoice): boolean {
+    const lang = v.lang.toLowerCase().replace('_', '-');
+    if (lang.startsWith('pt-pt') || lang === 'pt') {
+      return false;
+    }
+    return lang === 'pt-br' || lang.startsWith('pt-br-');
   }
 }

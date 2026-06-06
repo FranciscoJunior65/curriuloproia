@@ -1,156 +1,258 @@
 <div class="voice-interview">
   <div class="voice-interview__header">
-    <h3 class="text-xl font-bold text-gray-800">Entrevista por Voz</h3>
+    <h3 class="text-xl font-bold text-gray-800">Simulação de Entrevista</h3>
     <button mat-icon-button type="button" (click)="close()" aria-label="Fechar">
       <mat-icon>close</mat-icon>
     </button>
   </div>
 
   <p *ngIf="!speechSupported" class="voice-interview__warn">
-    Use Chrome ou Edge para melhor suporte à voz. Você pode revisar e editar o texto antes de cada envio.
+    Use Chrome ou Edge para captar sua voz durante os tempos de resposta.
   </p>
 
-  <div *ngIf="!started && !finished" class="voice-interview__intro">
+  <!-- Início -->
+  <div *ngIf="step === 'idle' && !loading" class="voice-interview__intro">
     <p class="text-gray-600 mb-4">
-      Converse com um entrevistador virtual. Você <strong>vê o texto da sua fala</strong>, revisa e só então envia.
+      Entrevista em <strong>3 etapas</strong>:
+      <strong>5 perguntas escritas</strong> sobre seu currículo,
+      vídeo curto do entrevistador pedindo que você se apresente,
+      depois <strong>{{ phase1Minutes }} min</strong> para falar sobre você.
+      No final, feedback técnico e comportamental (voz + texto).
     </p>
-    <button mat-raised-button color="primary" (click)="begin()" [disabled]="loading" class="w-full">
-      <mat-spinner *ngIf="loading" diameter="22" class="inline-block mr-2"></mat-spinner>
-      <mat-icon *ngIf="!loading" class="mr-2">record_voice_over</mat-icon>
-      {{ loading ? 'Preparando entrevista...' : 'Iniciar entrevista por voz' }}
+    <p class="text-sm text-gray-500 mb-4">Esta entrevista só pode ser feita uma vez por análise.</p>
+    <button mat-raised-button color="primary" (click)="begin()" class="w-full">
+      <mat-icon class="mr-2">play_arrow</mat-icon>
+      Iniciar entrevista
     </button>
   </div>
 
-  <div *ngIf="started && persona" class="voice-interview__session">
-    <div class="voice-interview__stage">
-      <div
-        class="voice-interview__avatar"
-        [class.voice-interview__avatar--speaking]="uiState === 'speaking'"
-        [class.voice-interview__avatar--listening]="uiState === 'listening'"
-        [style.--avatar-color]="persona.avatarColor"
-      >
-        <div class="voice-interview__avatar-ring"></div>
-        <div class="voice-interview__avatar-face">
-          <img
-            *ngIf="persona.avatarUrl"
-            [src]="persona.avatarUrl"
-            [alt]="'Foto de ' + persona.name"
-            class="voice-interview__avatar-photo"
-          />
-          <span *ngIf="!persona.avatarUrl" class="voice-interview__initials">{{ persona.initials }}</span>
-        </div>
-        <div class="voice-interview__avatar-badge" *ngIf="uiState === 'listening'">
-          <mat-icon>mic</mat-icon>
-        </div>
-        <div class="voice-interview__avatar-badge voice-interview__avatar-badge--speak" *ngIf="uiState === 'speaking'">
-          <mat-icon>volume_up</mat-icon>
-        </div>
-      </div>
-
-      <div class="voice-interview__persona-info">
-        <h4 class="font-bold text-lg text-gray-900">{{ persona.name }}</h4>
-        <p class="text-sm text-indigo-600 font-medium">{{ persona.role }}</p>
-        <p class="text-xs text-gray-500">{{ persona.company }}</p>
-        <p class="text-sm text-gray-600 mt-2">{{ statusLabel }}</p>
-        <button
-          *ngIf="uiState === 'speaking'"
-          type="button"
-          class="voice-interview__skip-narration"
-          (click)="skipNarration()"
-        >
-          Pular narração e responder
-        </button>
-      </div>
-    </div>
-
-    <div class="voice-interview__transcript">
-      <div
-        *ngFor="let line of history"
-        class="voice-interview__line"
-        [class.voice-interview__line--candidate]="line.role === 'candidate'"
-      >
-        <span class="voice-interview__line-role">
-          {{ line.role === 'interviewer' ? persona.name : 'Você' }}
-        </span>
-        <p>{{ line.content }}</p>
-      </div>
-    </div>
-
-    <!-- Sua resposta: texto ao vivo + revisão antes de enviar -->
-    <div *ngIf="!finished" class="voice-interview__answer-box">
-      <label class="voice-interview__answer-label">
-        <mat-icon class="text-indigo-600 text-base">edit</mat-icon>
-        Sua resposta (revise antes de enviar)
-      </label>
-      <textarea
-        class="voice-interview__answer-textarea"
-        [(ngModel)]="candidateDraft"
-        rows="4"
-        placeholder="Toque no microfone e fale. O texto aparecerá aqui para você conferir e editar."
-        [disabled]="loading || uiState === 'speaking' || uiState === 'processing'"
-      ></textarea>
-      <p *ngIf="uiState === 'listening'" class="voice-interview__listening-hint">
-        <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
-        Gravando… quando terminar, toque em “Parar e revisar” ou “Enviar resposta”
-      </p>
-    </div>
-
-    <div *ngIf="!finished" class="voice-interview__controls">
+  <!-- Já realizada -->
+  <div *ngIf="step === 'already_done'" class="voice-interview__done">
+    <mat-icon class="text-indigo-600" style="font-size: 48px; width: 48px; height: 48px;">history</mat-icon>
+    <h4 class="text-lg font-bold text-gray-800 mt-2">Entrevista já realizada</h4>
+    <p class="text-gray-600 text-sm mt-2 mb-4">
+      Você já completou esta simulação. Consulte o feedback abaixo ou baixe o relatório.
+    </p>
+    <ng-container *ngIf="summary">
+      <p class="text-3xl font-bold text-indigo-600">{{ summary.score }}/100</p>
+      <p class="text-gray-700 mt-3 text-sm">{{ summary.overallFeedback }}</p>
       <button
-        mat-fab
-        color="primary"
-        type="button"
-        class="voice-interview__mic-btn"
-        [class.voice-interview__mic-btn--ready]="canUseMic"
-        (click)="startListening()"
-        [disabled]="!canUseMic"
-        aria-label="Gravar resposta"
-      >
-        <mat-icon>{{ uiState === 'listening' ? 'mic' : 'mic_none' }}</mat-icon>
-      </button>
-      <button
+        *ngIf="summary.feedbackScript"
         mat-stroked-button
         type="button"
-        (click)="stopListeningForReview()"
-        [disabled]="uiState !== 'listening'"
+        class="mt-3"
+        (click)="replayFeedbackAudio()"
       >
-        Parar e revisar
+        <mat-icon>volume_up</mat-icon>
+        Ouvir feedback
       </button>
+    </ng-container>
+    <button mat-raised-button color="primary" class="mt-4" (click)="downloadReport()" [disabled]="!simulationId">
+      <mat-icon>download</mat-icon>
+      Baixar relatório
+    </button>
+  </div>
+
+  <!-- Perguntas escritas -->
+  <div *ngIf="step === 'written_questions' && persona" class="voice-interview__written">
+    <p class="text-sm text-gray-600 mb-4">
+      Responda às perguntas com base no seu currículo. Mínimo <strong>3 respostas</strong> para continuar.
+    </p>
+    <div *ngFor="let q of writtenQuestions; let i = index" class="voice-interview__written-item">
+      <label class="voice-interview__written-label">{{ i + 1 }}. {{ q }}</label>
+      <textarea
+        [(ngModel)]="writtenAnswers[i]"
+        rows="3"
+        class="voice-interview__written-input"
+        [attr.placeholder]="'Sua resposta à pergunta ' + (i + 1)"
+      ></textarea>
+    </div>
+    <button
+      mat-raised-button
+      color="primary"
+      class="w-full mt-2"
+      [disabled]="!writtenQuestionsComplete"
+      (click)="continueToVoicePhase()"
+    >
+      Continuar para vídeo e apresentação
+    </button>
+  </div>
+
+  <!-- Sessão ativa (vídeo + gravação) -->
+  <div *ngIf="persona && step !== 'idle' && step !== 'already_done' && step !== 'written_questions'" class="voice-interview__session">
+    <div
+      class="voice-interview__video-shell"
+      [class.voice-interview__video-shell--expanded]="videoExpanded"
+      [class.voice-interview__video-shell--recording-expanded]="videoExpanded && isRecordingPhase"
+    >
+      <div class="voice-interview__stage">
+        <div
+          class="voice-interview__avatar"
+          [class.voice-interview__avatar--simli]="simliStageVisible || isVideoPhase"
+          [class.voice-interview__avatar--recording]="isRecordingPhase"
+          [style.--avatar-color]="persona.avatarColor"
+        >
+          <button
+            *ngIf="simliStageVisible || isVideoPhase || isRecordingPhase"
+            type="button"
+            class="voice-interview__expand-btn"
+            (click)="toggleVideoExpanded()"
+            [attr.aria-label]="videoExpanded ? 'Reduzir vídeo' : 'Expandir vídeo'"
+          >
+            <mat-icon>{{ videoExpanded ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          </button>
+
+          <div class="voice-interview__avatar-ring" *ngIf="!simliStageVisible && !isVideoPhase"></div>
+          <div
+            class="voice-interview__avatar-face"
+            [class.voice-interview__avatar-face--simli]="simliStageVisible || isVideoPhase"
+            [class.voice-interview__avatar-face--interview]="simliStageVisible || isVideoPhase"
+            [class.voice-interview__avatar-face--recording-large]="isRecordingPhase && videoExpanded"
+          >
+            <img
+              *ngIf="(simliStageVisible || isVideoPhase) && persona.avatarUrl && !simliActive"
+              [src]="persona.avatarUrl"
+              [alt]="persona.name"
+              class="voice-interview__backdrop-photo"
+            />
+            <div class="voice-interview__simli-viewport" *ngIf="simliStageVisible || isVideoPhase">
+              <video
+                #simliVideo
+                class="voice-interview__simli-video"
+                [class.voice-interview__simli-video--visible]="simliActive"
+                autoplay
+                playsinline
+                muted
+              ></video>
+            </div>
+            <audio #simliAudio autoplay></audio>
+            <mat-spinner *ngIf="simliBootstrapping" diameter="36" class="voice-interview__simli-spinner"></mat-spinner>
+            <img
+              *ngIf="!simliStageVisible && !isVideoPhase && persona.avatarUrl"
+              [src]="persona.avatarUrl"
+              [alt]="persona.name"
+              class="voice-interview__avatar-photo"
+            />
+          </div>
+          <div class="voice-interview__avatar-badge voice-interview__avatar-badge--rec" *ngIf="isRecordingPhase">
+            <mat-icon>mic</mat-icon>
+          </div>
+        </div>
+
+        <div
+          *ngIf="isVideoPhase && interviewerCaption"
+          class="voice-interview__caption"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="voice-interview__caption-label">{{ persona.name }}</span>
+          <p>{{ interviewerCaption }}</p>
+        </div>
+
+        <div class="voice-interview__persona-info">
+          <h4 class="font-bold text-lg">{{ persona.name }}</h4>
+          <p class="text-sm text-indigo-600">{{ persona.role }}</p>
+          <p class="text-sm text-gray-600 mt-2">{{ statusLabel }}</p>
+
+          <div *ngIf="isRecordingPhase" class="voice-interview__timer">
+            <span class="voice-interview__timer-value">{{ timerLabel }}</span>
+            <span class="voice-interview__timer-hint">Fale agora — sua voz está sendo captada</span>
+            <button
+              mat-stroked-button
+              type="button"
+              color="primary"
+              class="voice-interview__finish-recording-btn"
+              (click)="finishRecordingEarly()"
+            >
+              <mat-icon>stop_circle</mat-icon>
+              Finalizar gravação
+            </button>
+          </div>
+        </div>
+      </div>
+
       <button
-        mat-raised-button
-        color="primary"
+        *ngIf="videoExpanded"
         type="button"
-        (click)="confirmAndSend()"
-        [disabled]="!canSendAnswer"
+        class="voice-interview__expanded-close"
+        (click)="toggleVideoExpanded()"
+        aria-label="Fechar tela expandida"
       >
-        <mat-icon>send</mat-icon>
-        Enviar resposta
+        <mat-icon>close</mat-icon>
       </button>
-      <button mat-stroked-button type="button" color="warn" (click)="endEarly()" [disabled]="loading">
-        Encerrar
-      </button>
+
+      <!-- Transcript ao vivo (dentro do expand para ver timer + fala juntos) -->
+      <div
+        *ngIf="isRecordingPhase && videoExpanded"
+        class="voice-interview__live-transcript voice-interview__live-transcript--in-expanded"
+      >
+        <p class="voice-interview__live-label">
+          <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
+          O que você está dizendo:
+        </p>
+        <div *ngIf="candidateSegments.length || candidateInterim; else waitingSpeechExpanded" class="voice-interview__live-segments">
+          <p *ngFor="let seg of candidateSegments" class="voice-interview__live-segment">{{ seg }}</p>
+          <p *ngIf="candidateInterim" class="voice-interview__live-interim">{{ candidateInterim }}</p>
+        </div>
+        <ng-template #waitingSpeechExpanded>
+          <p class="voice-interview__live-text">(aguardando fala...)</p>
+        </ng-template>
+      </div>
+    </div>
+
+    <!-- Transcript ao vivo (modo normal) -->
+    <div *ngIf="isRecordingPhase && !videoExpanded" class="voice-interview__live-transcript">
+      <p class="voice-interview__live-label">
+        <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
+        O que você está dizendo:
+      </p>
+      <div *ngIf="candidateSegments.length || candidateInterim; else waitingSpeech" class="voice-interview__live-segments">
+        <p *ngFor="let seg of candidateSegments" class="voice-interview__live-segment">{{ seg }}</p>
+        <p *ngIf="candidateInterim" class="voice-interview__live-interim">{{ candidateInterim }}</p>
+      </div>
+      <ng-template #waitingSpeech>
+        <p class="voice-interview__live-text">(aguardando fala...)</p>
+      </ng-template>
+    </div>
+
+    <div *ngIf="loading || step === 'loading' || step === 'loading_intro' || step === 'loading_feedback'" class="voice-interview__loading">
+      <mat-spinner diameter="32"></mat-spinner>
+      <p>{{ statusLabel || 'Carregando...' }}</p>
     </div>
   </div>
 
-  <div *ngIf="finished && summary" class="voice-interview__summary">
-    <div class="text-center mb-4">
-      <mat-icon class="text-green-600" style="font-size: 48px; width: 48px; height: 48px;">check_circle</mat-icon>
-      <h4 class="text-xl font-bold text-gray-800">Entrevista concluída</h4>
-      <p class="text-3xl font-bold text-indigo-600 mt-2">{{ summary.score }}/100</p>
-    </div>
-    <p class="text-gray-700 mb-4">{{ summary.overallFeedback }}</p>
-    <div *ngIf="summary.strengths?.length" class="mb-3">
-      <p class="font-semibold text-green-700 text-sm">Pontos fortes</p>
+  <!-- Resumo final -->
+  <div *ngIf="step === 'complete' && summary" class="voice-interview__summary">
+    <mat-icon class="text-green-600" style="font-size: 48px; width: 48px; height: 48px;">check_circle</mat-icon>
+    <h4 class="text-xl font-bold text-gray-800 mt-2">Entrevista concluída</h4>
+    <p class="text-3xl font-bold text-indigo-600 mt-2">{{ summary.score }}/100</p>
+    <p class="text-gray-700 mt-4">{{ summary.overallFeedback }}</p>
+    <div *ngIf="summary.strengths?.length" class="mt-3">
+      <p class="font-semibold text-green-700 text-sm">Pontos positivos</p>
       <ul class="text-sm text-gray-600 list-disc pl-5">
         <li *ngFor="let s of summary.strengths">{{ s }}</li>
       </ul>
     </div>
-    <div *ngIf="summary.improvements?.length" class="mb-3">
-      <p class="font-semibold text-orange-700 text-sm">Melhorar</p>
+    <div *ngIf="summary.improvements?.length" class="mt-3">
+      <p class="font-semibold text-orange-700 text-sm">Pontos a melhorar</p>
       <ul class="text-sm text-gray-600 list-disc pl-5">
         <li *ngFor="let i of summary.improvements">{{ i }}</li>
       </ul>
     </div>
+    <button
+      mat-stroked-button
+      type="button"
+      class="mt-4 mr-2"
+      (click)="replayFeedbackAudio()"
+      *ngIf="feedbackScript || summary?.feedbackScript"
+    >
+      <mat-icon>volume_up</mat-icon>
+      Ouvir feedback novamente
+    </button>
+    <button mat-raised-button color="primary" class="mt-4" (click)="downloadReport()" [disabled]="!simulationId">
+      <mat-icon>download</mat-icon>
+      Baixar relatório completo
+    </button>
   </div>
 
   <p *ngIf="error" class="voice-interview__error">{{ error }}</p>

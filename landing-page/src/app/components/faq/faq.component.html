@@ -1,0 +1,35 @@
+<section id="faq" class="py-24 lg:py-32 section-elevated">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-16">
+      <p class="section-label">Dúvidas frequentes</p>
+      <h2 class="section-title">FAQ</h2>
+    </div>
+
+    <div class="space-y-2">
+      <div *ngFor="let faq of faqs; let i = index" class="card-dark overflow-hidden">
+        <button
+          (click)="toggle(i)"
+          class="w-full flex items-center justify-between p-6 text-left hover:bg-white/[0.02] transition-colors"
+        >
+          <span class="text-white font-medium text-sm pr-4">{{ faq.question }}</span>
+          <svg
+            class="w-5 h-5 text-neutral-500 flex-shrink-0 transition-transform duration-200"
+            [class.rotate-180]="openIndex === i"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+        <div *ngIf="openIndex === i" class="px-6 pb-6 text-sm text-neutral-400 leading-relaxed border-t border-neutral-800/60 pt-4">
+          {{ faq.answer }}
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-12">
+      <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-primary">
+        Começar Agora
+      </a>
+    </div>
+  </div>
+</section>
