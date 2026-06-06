@@ -13,7 +13,7 @@ namespace CurriculosProIA.Service.Implementations;
 
 public class SimliService : ISimliService
 {
-    private const string DefaultFaceId = "tmp9i8bbq7c";
+    private const string DefaultFaceId = "cace3ef7-a4c4-425d-a8cf-a5358eb0c427";
     private const string DefaultEdgeFemaleVoice = "pt-BR-FranciscaNeural";
     private const string DefaultEdgeMaleVoice = "pt-BR-AntonioNeural";
     private static readonly Regex PlaceholderKeyRegex = new(
