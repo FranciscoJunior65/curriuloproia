@@ -21,11 +21,15 @@ export interface UsageData {
 }
 
 export type PaymentProvider = 'stripe' | 'mercadopago';
+export type MercadoPagoMode = 'test' | 'production';
 
 export interface PaymentProviderSetting {
   provider: PaymentProvider;
   providers: PaymentProvider[];
   labels?: Record<PaymentProvider, string>;
+  mercadoPagoMode?: MercadoPagoMode;
+  mercadoPagoModes?: MercadoPagoMode[];
+  mercadoPagoModeLabels?: Record<MercadoPagoMode, string>;
 }
 
 export interface PaymentConnectionTestResult {
@@ -216,10 +220,13 @@ export class AdminService {
     );
   }
 
-  updatePaymentProvider(provider: PaymentProvider): Observable<{ success: boolean; message?: string; provider: PaymentProvider }> {
-    return this.http.put<{ success: boolean; message?: string; provider: PaymentProvider }>(
+  updatePaymentProvider(
+    provider: PaymentProvider,
+    mercadoPagoMode?: MercadoPagoMode
+  ): Observable<{ success: boolean; message?: string; provider: PaymentProvider; mercadoPagoMode?: MercadoPagoMode }> {
+    return this.http.put<{ success: boolean; message?: string; provider: PaymentProvider; mercadoPagoMode?: MercadoPagoMode }>(
       `${this.apiUrl}/admin/settings/payment-provider`,
-      { provider },
+      { provider, mercadoPagoMode },
       { headers: this.getAuthHeaders() }
     );
   }

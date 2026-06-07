@@ -85,12 +85,16 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
 
         var provider = await _settings.GetPaymentProviderAsync(cancellationToken);
+        var mercadoPagoMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
         return Ok(new
         {
             success = true,
             provider,
             providers = _settings.GetValidPaymentProviders(),
-            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago" }
+            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago" },
+            mercadoPagoMode,
+            mercadoPagoModes = _settings.GetValidMercadoPagoModes(),
+            mercadoPagoModeLabels = new { test = "Teste (sandbox)", production = "Produção (cobrança real)" }
         });
     }
 
@@ -107,12 +111,30 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         {
             var normalized = await _settings.SetPaymentProviderAsync(body.Provider, cancellationToken);
             _settings.ClearPaymentProviderCache();
+
+            string? savedMpMode = null;
+            if (!string.IsNullOrWhiteSpace(body.MercadoPagoMode))
+            {
+                savedMpMode = await _settings.SetMercadoPagoModeAsync(body.MercadoPagoMode, cancellationToken);
+                _settings.ClearMercadoPagoModeCache();
+            }
+
             var confirmed = await _settings.GetPaymentProviderAsync(cancellationToken);
+            var confirmedMpMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
+            var message = $"Meio de pagamento alterado para {(confirmed == "stripe" ? "Stripe" : "Mercado Pago")}.";
+            if (savedMpMode != null)
+            {
+                message += confirmedMpMode == "production"
+                    ? " Ambiente Mercado Pago: produção."
+                    : " Ambiente Mercado Pago: teste.";
+            }
+
             return Ok(new
             {
                 success = true,
-                message = $"Meio de pagamento alterado para {(confirmed == "stripe" ? "Stripe" : "Mercado Pago")}.",
-                provider = confirmed
+                message,
+                provider = confirmed,
+                mercadoPagoMode = confirmedMpMode
             });
         }
         catch (Exception ex)

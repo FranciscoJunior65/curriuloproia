@@ -48,6 +48,26 @@ public class SimliAppService : ISimliAppService
         }
     }
 
+    public async Task<IActionResult> GetIceServers(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var iceServers = await _simli.GetIceServersAsync(cancellationToken);
+            return new OkObjectResult(new { success = true, iceServers });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new BadRequestObjectResult(new { success = false, error = ex.Message });
+        }
+        catch (Exception)
+        {
+            return new ObjectResult(new { success = false, error = "Erro ao obter servidores ICE do Simli." })
+            {
+                StatusCode = 500
+            };
+        }
+    }
+
     public async Task<IActionResult> SynthesizeSpeech(
         SimliSpeechSignature body,
         CancellationToken cancellationToken)

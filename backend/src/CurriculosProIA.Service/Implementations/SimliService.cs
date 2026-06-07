@@ -99,6 +99,73 @@ public class SimliService : ISimliService
         };
     }
 
+    public async Task<IReadOnlyList<Dictionary<string, object>>> GetIceServersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var apiKey = GetApiKey()
+            ?? throw new InvalidOperationException("Simli não configurado. Defina SIMLI_API_KEY no .env.");
+
+        var client = _httpClientFactory.CreateClient("Simli");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.simli.ai/compose/ice");
+        request.Headers.Add("x-simli-api-key", apiKey);
+
+        var response = await client.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Simli ICE falhou ({Status}): {Body}", (int)response.StatusCode, body);
+            return [new Dictionary<string, object> { ["urls"] = new[] { "stun:stun.l.google.com:19302" } }];
+        }
+
+        using var json = JsonDocument.Parse(body);
+        if (json.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return [new Dictionary<string, object> { ["urls"] = new[] { "stun:stun.l.google.com:19302" } }];
+        }
+
+        var servers = new List<Dictionary<string, object>>();
+        foreach (var item in json.RootElement.EnumerateArray())
+        {
+            var server = new Dictionary<string, object>();
+            if (item.TryGetProperty("urls", out var urls) && urls.ValueKind == JsonValueKind.Array)
+            {
+                server["urls"] = urls.EnumerateArray()
+                    .Select(u => u.GetString())
+                    .Where(u => !string.IsNullOrWhiteSpace(u))
+                    .Select(u => u!)
+                    .ToArray();
+            }
+
+            if (item.TryGetProperty("username", out var user) && user.ValueKind == JsonValueKind.String)
+            {
+                var username = user.GetString();
+                if (!string.IsNullOrEmpty(username))
+                {
+                    server["username"] = username;
+                }
+            }
+
+            if (item.TryGetProperty("credential", out var cred) && cred.ValueKind == JsonValueKind.String)
+            {
+                var credential = cred.GetString();
+                if (!string.IsNullOrEmpty(credential))
+                {
+                    server["credential"] = credential;
+                }
+            }
+
+            if (server.Count > 0)
+            {
+                servers.Add(server);
+            }
+        }
+
+        return servers.Count > 0
+            ? servers
+            : [new Dictionary<string, object> { ["urls"] = new[] { "stun:stun.l.google.com:19302" } }];
+    }
+
     public async Task<byte[]> SynthesizeSpeechMp3Async(
         string text,
         string? voice,
@@ -268,6 +335,14 @@ public class SimliService : ISimliService
         }
 
         var map = BuildFaceIdMap();
+        var femaleFace = map.GetValueOrDefault("AR")
+            ?? map.GetValueOrDefault("MC")
+            ?? _configuration["SIMLI_FACE_ID_FEMALE"]?.Trim();
+        if (!string.IsNullOrEmpty(femaleFace))
+        {
+            return femaleFace;
+        }
+
         var initials = personaInitials?.Trim().ToUpperInvariant();
         if (!string.IsNullOrEmpty(initials) && map.TryGetValue(initials, out var mapped))
         {

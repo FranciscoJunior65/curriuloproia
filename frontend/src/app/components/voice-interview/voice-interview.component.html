@@ -14,10 +14,10 @@
   <div *ngIf="step === 'idle' && !loading" class="voice-interview__intro">
     <p class="text-gray-600 mb-4">
       Entrevista em <strong>3 etapas</strong>:
-      <strong>5 perguntas escritas</strong> sobre seu currículo,
-      vídeo curto do entrevistador pedindo que você se apresente,
+      <strong>5 perguntas</strong> (3 de alternativas + 2 abertas) sobre seu currículo,
+      vídeo da <strong>entrevistadora</strong> pedindo que você se apresente,
       depois <strong>{{ phase1Minutes }} min</strong> para falar sobre você.
-      No final, feedback técnico e comportamental (voz + texto).
+      No final, feedback em voz e texto.
     </p>
     <p class="text-sm text-gray-500 mb-4">Esta entrevista só pode ser feita uma vez por análise.</p>
     <button mat-raised-button color="primary" (click)="begin()" class="w-full">
@@ -59,8 +59,20 @@
       Responda às perguntas com base no seu currículo. Mínimo <strong>3 respostas</strong> para continuar.
     </p>
     <div *ngFor="let q of writtenQuestions; let i = index" class="voice-interview__written-item">
-      <label class="voice-interview__written-label">{{ i + 1 }}. {{ q }}</label>
+      <label class="voice-interview__written-label">{{ i + 1 }}. {{ q.text }}</label>
+      <div *ngIf="q.type === 'choice'" class="voice-interview__choices">
+        <label *ngFor="let opt of q.options" class="voice-interview__choice">
+          <input
+            type="radio"
+            [name]="'written-q-' + i"
+            [value]="opt"
+            [(ngModel)]="writtenAnswers[i]"
+          />
+          <span>{{ opt }}</span>
+        </label>
+      </div>
       <textarea
+        *ngIf="q.type !== 'choice'"
         [(ngModel)]="writtenAnswers[i]"
         rows="3"
         class="voice-interview__written-input"
@@ -115,7 +127,11 @@
               [alt]="persona.name"
               class="voice-interview__backdrop-photo"
             />
-            <div class="voice-interview__simli-viewport" *ngIf="simliStageVisible || isVideoPhase">
+            <div
+              class="voice-interview__simli-viewport"
+              *ngIf="simliStageVisible || isVideoPhase"
+              [class.voice-interview__simli-viewport--inactive]="!simliActive"
+            >
               <video
                 #simliVideo
                 class="voice-interview__simli-video"
@@ -138,6 +154,13 @@
             <mat-icon>mic</mat-icon>
           </div>
         </div>
+
+        <p
+          *ngIf="isVideoPhase && !simliActive && simliUnavailableHint"
+          class="voice-interview__simli-hint"
+        >
+          {{ simliUnavailableHint }}
+        </p>
 
         <div
           *ngIf="isVideoPhase && interviewerCaption"

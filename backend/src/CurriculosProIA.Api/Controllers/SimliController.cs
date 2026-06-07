@@ -22,6 +22,11 @@ public class SimliController : ControllerBase
     public Task<IActionResult> CreateSession([FromBody] CreateSimliSessionSignature body, CancellationToken ct) =>
         _simli.CreateSession(body, ct);
 
+    [HttpGet("ice")]
+    [Authorize]
+    public Task<IActionResult> GetIceServers(CancellationToken ct) =>
+        _simli.GetIceServers(ct);
+
     [HttpPost("speech")]
     [Authorize]
     public Task<IActionResult> SynthesizeSpeech([FromBody] SimliSpeechSignature body, CancellationToken ct) =>

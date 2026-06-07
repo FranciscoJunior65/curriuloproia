@@ -21,7 +21,7 @@ public interface IMercadoPagoService
 
     Task<PaymentVerificationResult> VerifyPaymentAsync(string paymentId, CancellationToken cancellationToken = default);
 
-    Task HandleWebhookAsync(IQueryCollection query, CancellationToken cancellationToken = default);
+    Task HandleWebhookAsync(HttpRequest request, CancellationToken cancellationToken = default);
 
     Task<PaymentProviderTestResult> TestConnectionAsync(CancellationToken cancellationToken = default);
 }

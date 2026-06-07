@@ -43,4 +43,23 @@ public static class PaymentReturnUrls
 
         return $"{baseUrl}/{path.TrimStart('/')}?{string.Join("&", query)}";
     }
+
+    /// <summary>
+    /// Mercado Pago exige HTTPS e proíbe localhost/127.0.0.1 para auto_return e notification_url.
+    /// </summary>
+    public static bool SupportsMercadoPagoHttpsCallback(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return !url.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+            && !url.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+    }
 }

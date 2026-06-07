@@ -134,6 +134,22 @@
           [disabled]="savingPaymentProvider">
           <option *ngFor="let p of paymentProviders" [value]="p">{{ paymentProviderLabels[p] }}</option>
         </select>
+
+        <ng-container *ngIf="paymentProvider === 'mercadopago'">
+          <label for="mercadopago-mode">Ambiente Mercado Pago</label>
+          <select
+            id="mercadopago-mode"
+            [(ngModel)]="mercadoPagoMode"
+            class="period-select payment-provider-select"
+            [disabled]="savingPaymentProvider">
+            <option *ngFor="let m of mercadoPagoModes" [value]="m">{{ mercadoPagoModeLabels[m] }}</option>
+          </select>
+          <p class="settings-description settings-description--inline">
+            <ng-container *ngIf="mercadoPagoMode === 'test'">Pagamentos simulados — sem cobrança real.</ng-container>
+            <ng-container *ngIf="mercadoPagoMode === 'production'">Cobrança real — use apenas em produção.</ng-container>
+          </p>
+        </ng-container>
+
         <button
           mat-raised-button
           color="primary"

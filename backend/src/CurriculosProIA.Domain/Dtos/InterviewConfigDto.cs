@@ -54,7 +54,7 @@ public class InterviewConfigDto
 
         - Apresente-se em UMA frase (nome + cargo)
 
-        - Cumprimente {candidateName} pelo primeiro nome
+        - Cumprimente o candidato usando o nome "{candidateName}" exatamente como consta no currículo (primeiro nome ou nome completo, conforme soe natural)
 
         - Diga que em seguida ele terá tempo para se apresentar e falar sobre si
 
@@ -86,7 +86,11 @@ public class InterviewConfigDto
 
 
 
-        Gere EXATAMENTE 5 perguntas escritas para o candidato responder antes da fase em vídeo:
+        Gere EXATAMENTE 5 perguntas para o candidato responder antes da fase em vídeo:
+
+        - EXATAMENTE 3 perguntas de múltipla escolha (type: "choice") com 4 alternativas plausíveis cada
+
+        - EXATAMENTE 2 perguntas abertas (type: "open") para resposta em texto livre
 
         - Misture perguntas técnicas (habilidades, ferramentas, projetos do CV) e comportamentais
 
@@ -94,13 +98,25 @@ public class InterviewConfigDto
 
         - Português do Brasil
 
-        - Máximo {maxWords} palavras por pergunta
+        - Máximo {maxWords} palavras no texto da pergunta
 
         - Sem numeração no texto da pergunta
 
 
 
-        Retorne APENAS JSON: { "questions": ["pergunta 1", "pergunta 2", "pergunta 3", "pergunta 4", "pergunta 5"] }
+        Retorne APENAS JSON:
+
+        {
+
+          "questions": [
+
+            { "text": "pergunta", "type": "choice", "options": ["alt A", "alt B", "alt C", "alt D"] },
+
+            { "text": "pergunta aberta", "type": "open", "options": [] }
+
+          ]
+
+        }
 
         """;
 

@@ -83,12 +83,21 @@ public class PaymentCheckoutService : IPaymentCheckoutService
             metadata["analysisId"] = analysisId.Trim();
         }
 
+        string? cpfNormalized = null;
+        if (!string.IsNullOrWhiteSpace(cpf))
+        {
+            cpfNormalized = _coupons.NormalizeCpf(cpf);
+            if (cpfNormalized.Length == 11)
+            {
+                metadata["cpfNormalized"] = cpfNormalized;
+            }
+        }
+
         CheckoutCouponInfo? couponInfo = null;
 
         if (!string.IsNullOrWhiteSpace(couponCode) && planId != "english")
         {
-            var cpfNorm = cpf != null ? _coupons.NormalizeCpf(cpf) : string.Empty;
-            if (cpfNorm.Length != 11)
+            if (cpfNormalized == null || cpfNormalized.Length != 11)
             {
                 throw new InvalidOperationException("Para usar cupom, informe seu CPF (11 dígitos).");
             }
@@ -114,7 +123,6 @@ public class PaymentCheckoutService : IPaymentCheckoutService
             metadata["couponName"] = couponInfo.CouponName;
             metadata["discountPercent"] = pct.ToString(System.Globalization.CultureInfo.InvariantCulture);
             metadata["originalPrice"] = original.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            metadata["cpfNormalized"] = cpfNorm;
         }
 
         var amountInCents = (long)Math.Round(amountBrl * 100);
@@ -132,7 +140,7 @@ public class PaymentCheckoutService : IPaymentCheckoutService
                 Plan = plan,
                 Metadata = metadata,
                 CouponInfo = couponInfo,
-                CpfNormalized = metadata.GetValueOrDefault("cpfNormalized")
+                CpfNormalized = cpfNormalized
             };
         }
 
@@ -147,7 +155,8 @@ public class PaymentCheckoutService : IPaymentCheckoutService
             AmountInCents = amountInCents,
             Plan = plan,
             Metadata = metadata,
-            CouponInfo = couponInfo
+            CouponInfo = couponInfo,
+            CpfNormalized = cpfNormalized
         };
     }
 }

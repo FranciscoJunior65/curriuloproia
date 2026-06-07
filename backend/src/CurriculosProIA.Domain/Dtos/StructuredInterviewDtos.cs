@@ -36,6 +36,22 @@ public class StructuredInterviewSavedFeedback
 
 
 
+public class WrittenQuestionDto
+
+{
+
+    public string Text { get; set; } = "";
+
+    /// <summary>open = texto livre; choice = múltipla escolha</summary>
+
+    public string Type { get; set; } = "open";
+
+    public List<string> Options { get; set; } = [];
+
+}
+
+
+
 public class StructuredInterviewStartResult
 
 {
@@ -46,7 +62,7 @@ public class StructuredInterviewStartResult
 
     public string CandidateName { get; set; } = "";
 
-    public List<string> WrittenQuestions { get; set; } = [];
+    public List<WrittenQuestionDto> WrittenQuestions { get; set; } = [];
 
     public int Phase1Minutes { get; set; }
 

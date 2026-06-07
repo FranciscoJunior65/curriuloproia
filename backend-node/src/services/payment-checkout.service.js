@@ -18,10 +18,17 @@ export const buildCheckoutContext = async (planId, userId, couponCode = null, cp
     analyses: String(plan.analyses)
   };
   let couponInfo = null;
+  let cpfNormalized = null;
+
+  if (cpf && String(cpf).trim()) {
+    cpfNormalized = normalizeCpf(cpf);
+    if (cpfNormalized.length === 11) {
+      metadata.cpfNormalized = cpfNormalized;
+    }
+  }
 
   if (couponCode && String(couponCode).trim()) {
-    const cpfNorm = cpf ? normalizeCpf(cpf) : '';
-    if (cpfNorm.length !== 11) {
+    if (!cpfNormalized || cpfNormalized.length !== 11) {
       throw new Error('Para usar cupom, informe seu CPF (11 dígitos).');
     }
     const result = await validateCoupon(couponCode, cpf);
@@ -41,7 +48,6 @@ export const buildCheckoutContext = async (planId, userId, couponCode = null, cp
     metadata.couponName = result.coupon.nome;
     metadata.discountPercent = String(pct);
     metadata.originalPrice = String(original);
-    metadata.cpfNormalized = cpfNorm;
   }
 
   const amountInCents = Math.round(amountBRL * 100);
@@ -57,7 +63,7 @@ export const buildCheckoutContext = async (planId, userId, couponCode = null, cp
       plan,
       metadata,
       couponInfo,
-      cpfNormalized: metadata.cpfNormalized || null
+      cpfNormalized: cpfNormalized || metadata.cpfNormalized || null
     };
   }
 
@@ -71,6 +77,7 @@ export const buildCheckoutContext = async (planId, userId, couponCode = null, cp
     amountInCents,
     plan,
     metadata,
-    couponInfo
+    couponInfo,
+    cpfNormalized: cpfNormalized || metadata.cpfNormalized || null
   };
 };

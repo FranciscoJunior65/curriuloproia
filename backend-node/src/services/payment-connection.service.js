@@ -1,6 +1,5 @@
 import '../load-env.js';
 import Stripe from 'stripe';
-import { MercadoPagoConfig, User } from 'mercadopago';
 
 /**
  * Testa conexão com a API do Stripe
@@ -51,50 +50,8 @@ export const testStripeConnection = async () => {
  * Testa conexão com a API do Mercado Pago
  */
 export const testMercadoPagoConnection = async () => {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
-  if (!token || !String(token).trim()) {
-    return {
-      connected: false,
-      provider: 'mercadopago',
-      message: 'MERCADOPAGO_ACCESS_TOKEN não configurado no .env'
-    };
-  }
-
-  if (token.includes('seu-access-token') || token === 'APP_USR-seu-access-token') {
-    return {
-      connected: false,
-      provider: 'mercadopago',
-      message: 'MERCADOPAGO_ACCESS_TOKEN ainda está com valor de exemplo no .env'
-    };
-  }
-
-  try {
-    const client = new MercadoPagoConfig({ accessToken: token });
-    const userClient = new User(client);
-    const account = await userClient.get();
-
-    const isTest = token.includes('TEST') || account?.live_mode === false;
-    const mode = isTest ? 'test' : 'production';
-
-    return {
-      connected: true,
-      provider: 'mercadopago',
-      message: `Conexão com Mercado Pago OK (modo ${mode}).`,
-      details: {
-        mode,
-        userId: account?.id,
-        email: account?.email,
-        country: account?.country_id
-      }
-    };
-  } catch (error) {
-    return {
-      connected: false,
-      provider: 'mercadopago',
-      message: error.message || 'Falha ao conectar com Mercado Pago',
-      details: { status: error.status }
-    };
-  }
+  const { testMercadoPagoIntegration } = await import('./mercadopago.service.js');
+  return testMercadoPagoIntegration();
 };
 
 /**

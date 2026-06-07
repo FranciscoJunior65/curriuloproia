@@ -7,6 +7,7 @@ import {
   DashboardStats,
   UsageData,
   PaymentProvider,
+  MercadoPagoMode,
   PricingConfig,
   InterviewConfig,
   AdminPartner,
@@ -59,6 +60,12 @@ export class AdminDashboardComponent implements OnInit {
   accessDenied = false;
 
   paymentProvider: PaymentProvider = 'stripe';
+  mercadoPagoMode: MercadoPagoMode = 'test';
+  mercadoPagoModes: MercadoPagoMode[] = ['test', 'production'];
+  mercadoPagoModeLabels: Record<MercadoPagoMode, string> = {
+    test: 'Teste (sandbox)',
+    production: 'Produção (cobrança real)'
+  };
   paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago'];
   paymentProviderLabels: Record<PaymentProvider, string> = {
     stripe: 'Stripe',
@@ -327,6 +334,15 @@ export class AdminDashboardComponent implements OnInit {
         if (response.success) {
           this.paymentProvider = response.provider;
           this.paymentProviders = response.providers || ['stripe', 'mercadopago'];
+          if (response.mercadoPagoMode) {
+            this.mercadoPagoMode = response.mercadoPagoMode;
+          }
+          if (response.mercadoPagoModes?.length) {
+            this.mercadoPagoModes = response.mercadoPagoModes;
+          }
+          if (response.mercadoPagoModeLabels) {
+            this.mercadoPagoModeLabels = { ...this.mercadoPagoModeLabels, ...response.mercadoPagoModeLabels };
+          }
           if (response.labels) {
             this.paymentProviderLabels = { ...this.paymentProviderLabels, ...response.labels };
           }
@@ -344,11 +360,17 @@ export class AdminDashboardComponent implements OnInit {
     this.savingPaymentProvider = true;
     this.paymentSettingsMessage = '';
     this.paymentSettingsError = '';
-    this.adminService.updatePaymentProvider(this.paymentProvider).subscribe({
+    this.adminService.updatePaymentProvider(
+      this.paymentProvider,
+      this.paymentProvider === 'mercadopago' ? this.mercadoPagoMode : undefined
+    ).subscribe({
       next: (response) => {
         this.savingPaymentProvider = false;
         if (response.success) {
           this.paymentProvider = response.provider;
+          if (response.mercadoPagoMode) {
+            this.mercadoPagoMode = response.mercadoPagoMode;
+          }
           this.paymentSettingsMessage = response.message || 'Meio de pagamento atualizado.';
         }
       },

@@ -63,13 +63,53 @@ public class AiService : IAiService
 
     private bool UseMockAi() => AiRuntimeOptions.UseMockAi(_configuration, _hostEnvironment);
 
+    private static readonly string[] DefaultGeminiFallbackModels =
+    [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
+    ];
+
     private string GeminiModel
     {
         get
         {
-            var model = _configuration["GEMINI_MODEL"] ?? "gemini-3-flash-preview";
-            return model == "gemini-pro" ? "gemini-3-flash-preview" : model;
+            var model = _configuration["GEMINI_MODEL"] ?? "gemini-2.5-flash";
+            return model == "gemini-pro" ? "gemini-2.5-flash" : model;
         }
+    }
+
+    private IReadOnlyList<string> GetGeminiModelChain()
+    {
+        var configuredFallbacks = _configuration["GEMINI_FALLBACK_MODELS"];
+        var fallbacks = string.IsNullOrWhiteSpace(configuredFallbacks)
+            ? DefaultGeminiFallbackModels
+            : configuredFallbacks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return new[] { GeminiModel }
+            .Concat(fallbacks)
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Select(model => model.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsTransientGeminiStatus(System.Net.HttpStatusCode statusCode) =>
+        statusCode == System.Net.HttpStatusCode.ServiceUnavailable
+        || statusCode == System.Net.HttpStatusCode.TooManyRequests
+        || statusCode == System.Net.HttpStatusCode.GatewayTimeout
+        || statusCode == System.Net.HttpStatusCode.RequestTimeout;
+
+    private static bool IsTransientGeminiError(Exception ex)
+    {
+        var msg = ex.Message ?? string.Empty;
+        return msg.Contains("503", StringComparison.Ordinal)
+            || msg.Contains("429", StringComparison.Ordinal)
+            || msg.Contains("502", StringComparison.Ordinal)
+            || msg.Contains("504", StringComparison.Ordinal)
+            || msg.Contains("high demand", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<ResumeAnalysisResult> AnalyzeResumeWithGeminiAsync(
@@ -109,23 +149,11 @@ public class AiService : IAiService
             IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou depois.
             """;
 
-        var requestBody = GeminiRequestBuilder.BuildGenerateContentRequest(
+        var responseContent = await GenerateGeminiTextAsync(
             $"{systemPrompt}\n\n{userPrompt}",
             temperature: 0.7,
             maxOutputTokens: 4000,
-            model: GeminiModel);
-
-        var client = _httpClientFactory.CreateClient("Gemini");
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent?key={apiKey}";
-        using var response = await client.PostAsJsonAsync(url, requestBody, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException($"Gemini API error: {response.StatusCode} - {payload}");
-        }
-
-        var responseContent = GeminiResponseParser.ExtractText(payload);
+            cancellationToken);
 
         responseContent = CleanJsonResponse(responseContent);
         var analysis = ParseAnalysisJson(responseContent);
@@ -330,7 +358,7 @@ public class AiService : IAiService
         }
     }
 
-    public async Task<string> GenerateTextAsync(
+    public Task<string> GenerateTextAsync(
         string prompt,
         double temperature = 0.7,
         int maxOutputTokens = 3000,
@@ -342,19 +370,63 @@ public class AiService : IAiService
                 "Geração em modo mock desativada para este ambiente. Defina USE_MOCK_AI=false e configure GEMINI_API_KEY.");
         }
 
+        return GenerateGeminiTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+    }
+
+    private async Task<string> GenerateGeminiTextAsync(
+        string prompt,
+        double temperature,
+        int maxOutputTokens,
+        CancellationToken cancellationToken)
+    {
         var apiKey = _configuration["GEMINI_API_KEY"];
         GeminiApiKeyValidator.EnsureValidOrThrow(apiKey);
 
+        Exception? lastError = null;
+        foreach (var model in GetGeminiModelChain())
+        {
+            try
+            {
+                var text = await GenerateGeminiTextWithModelAsync(
+                    apiKey!,
+                    model,
+                    prompt,
+                    temperature,
+                    maxOutputTokens,
+                    cancellationToken);
+                return CleanMarkdownFence(text);
+            }
+            catch (InvalidOperationException ex) when (IsTransientGeminiError(ex))
+            {
+                lastError = ex;
+                _logger.LogWarning(
+                    "Gemini modelo {Model} indisponível ({Message}). Tentando fallback...",
+                    model,
+                    ex.Message);
+            }
+        }
+
+        throw lastError ?? new InvalidOperationException("Gemini API error: falha após tentativas em todos os modelos.");
+    }
+
+    private async Task<string> GenerateGeminiTextWithModelAsync(
+        string apiKey,
+        string model,
+        string prompt,
+        double temperature,
+        int maxOutputTokens,
+        CancellationToken cancellationToken)
+    {
         var requestBody = GeminiRequestBuilder.BuildGenerateContentRequest(
             prompt,
             temperature,
             maxOutputTokens,
-            GeminiModel);
+            model);
 
         var client = _httpClientFactory.CreateClient("Gemini");
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent?key={apiKey}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
-        const int maxAttempts = 3;
+        const int maxAttempts = 5;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             using var response = await client.PostAsJsonAsync(url, requestBody, cancellationToken);
@@ -362,28 +434,27 @@ public class AiService : IAiService
 
             if (response.IsSuccessStatusCode)
             {
-                var text = GeminiResponseParser.ExtractText(payload);
-                return CleanMarkdownFence(text);
+                return GeminiResponseParser.ExtractText(payload);
             }
 
-            var retryable = response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
-                || response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
-
-            if (retryable && attempt < maxAttempts)
+            if (IsTransientGeminiStatus(response.StatusCode) && attempt < maxAttempts)
             {
+                var delaySeconds = Math.Min(30, (int)Math.Pow(2, attempt));
                 _logger.LogWarning(
-                    "Gemini {Status} na tentativa {Attempt}/{Max}. Reagendando...",
+                    "Gemini {Status} ({Model}) tentativa {Attempt}/{Max}. Aguardando {Delay}s...",
                     response.StatusCode,
+                    model,
                     attempt,
-                    maxAttempts);
-                await Task.Delay(TimeSpan.FromSeconds(attempt * 2), cancellationToken);
+                    maxAttempts,
+                    delaySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
                 continue;
             }
 
             throw new InvalidOperationException($"Gemini API error: {response.StatusCode} - {payload}");
         }
 
-        throw new InvalidOperationException("Gemini API error: falha após tentativas");
+        throw new InvalidOperationException($"Gemini API error: falha após {maxAttempts} tentativas ({model}).");
     }
 
     internal static string CleanMarkdownFence(string content)

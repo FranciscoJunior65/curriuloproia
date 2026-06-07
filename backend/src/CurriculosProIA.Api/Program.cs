@@ -148,7 +148,8 @@ app.UseCors();
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api/analyze/payment/webhook", StringComparison.OrdinalIgnoreCase))
+    if (context.Request.Path.StartsWithSegments("/api/analyze/payment/webhook", StringComparison.OrdinalIgnoreCase)
+        || context.Request.Path.StartsWithSegments("/api/analyze/payment/mercadopago/webhook", StringComparison.OrdinalIgnoreCase))
         context.Request.EnableBuffering();
 
     await next();

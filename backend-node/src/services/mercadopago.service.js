@@ -1,9 +1,33 @@
 import '../load-env.js';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment, User } from 'mercadopago';
 import { buildCheckoutContext } from './payment-checkout.service.js';
 import { fulfillPaidOrder } from './payment-fulfillment.service.js';
+import {
+  getMercadoPagoAccessToken,
+  getMercadoPagoDebugInfo,
+  isMercadoPagoProductionMode,
+  maskMercadoPagoToken,
+  buildCheckoutPaymentMethods
+} from './mercadopago-config.js';
 
 let mpClient = null;
+let cachedLiveMode = null;
+
+const getAccessToken = () => getMercadoPagoAccessToken() || '';
+
+const maskToken = maskMercadoPagoToken;
+
+const resolveIsProductionMode = async () => {
+  if (cachedLiveMode !== null) return cachedLiveMode;
+  cachedLiveMode = isMercadoPagoProductionMode();
+  return cachedLiveMode;
+};
+
+const resolveCheckoutInitPoint = (result, isProduction) => {
+  const production = result?.init_point || null;
+  const sandbox = result?.sandbox_init_point || null;
+  return isProduction ? (production || sandbox) : (sandbox || production);
+};
 
 const getClient = () => {
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -19,6 +43,28 @@ const getClient = () => {
 const getApiBaseUrl = () => {
   const url = process.env.PUBLIC_API_URL || process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
   return String(url).replace(/\/$/, '');
+};
+
+/** MP exige HTTPS e proíbe localhost para auto_return e notification_url. */
+const supportsMercadoPagoHttpsCallback = (url) => {
+  if (!url) return false;
+  const normalized = String(url).toLowerCase();
+  return normalized.startsWith('https://')
+    && !normalized.includes('localhost')
+    && !normalized.includes('127.0.0.1');
+};
+
+const buildPayer = (email, cpfNormalized) => {
+  const hasEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const hasCpf = cpfNormalized && String(cpfNormalized).length === 11;
+  if (!hasEmail && !hasCpf) return undefined;
+
+  const payer = {};
+  if (hasEmail) payer.email = email.trim();
+  if (hasCpf) {
+    payer.identification = { type: 'CPF', number: String(cpfNormalized) };
+  }
+  return payer;
 };
 
 const parseExternalReference = (externalReference) => {
@@ -67,6 +113,14 @@ export const createMercadoPagoCheckout = async (planId, userId, email, frontendU
     amountBRL: ctx.amountBRL
   });
 
+  const backUrls = {
+    success: `${baseUrl}/compra/sucesso?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
+    failure: `${baseUrl}/compra/falha?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
+    pending: `${baseUrl}/compra/pendente?provider=mercadopago&userId=${encodeURIComponent(userId)}`
+  };
+
+  const isProduction = await resolveIsProductionMode();
+
   const body = {
     items: [
       {
@@ -78,20 +132,24 @@ export const createMercadoPagoCheckout = async (planId, userId, email, frontendU
         currency_id: 'BRL'
       }
     ],
-    payer: email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? { email: email.trim() } : undefined,
+    payer: buildPayer(email, ctx.cpfNormalized || ctx.metadata.cpfNormalized),
     external_reference: externalReference,
     metadata: ctx.metadata,
-    back_urls: {
-      success: `${baseUrl}/compra/sucesso?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
-      failure: `${baseUrl}/compra/falha?provider=mercadopago&userId=${encodeURIComponent(userId)}`,
-      pending: `${baseUrl}/compra/pendente?provider=mercadopago&userId=${encodeURIComponent(userId)}`
-    },
-    auto_return: 'approved',
-    notification_url: `${getApiBaseUrl()}/api/analyze/payment/mercadopago/webhook`
+    back_urls: backUrls,
+    payment_methods: buildCheckoutPaymentMethods(isProduction)
   };
 
+  if (supportsMercadoPagoHttpsCallback(backUrls.success)) {
+    body.auto_return = 'approved';
+  }
+
+  const notificationUrl = `${getApiBaseUrl()}/api/analyze/payment/mercadopago/webhook`;
+  if (supportsMercadoPagoHttpsCallback(notificationUrl)) {
+    body.notification_url = notificationUrl;
+  }
+
   const result = await preferenceClient.create({ body });
-  const initPoint = result.init_point || result.sandbox_init_point;
+  const initPoint = resolveCheckoutInitPoint(result, isProduction);
 
   if (!initPoint) {
     throw new Error('Mercado Pago não retornou URL de checkout');
@@ -174,5 +232,65 @@ export const handleMercadoPagoWebhook = async (req, res) => {
   } catch (error) {
     console.error('Erro no webhook Mercado Pago:', error);
     res.status(200).send('OK');
+  }
+};
+
+/** Testa credenciais e conta Mercado Pago (GET /api/test/mercadopago). */
+export const testMercadoPagoIntegration = async () => {
+  const token = getAccessToken();
+  if (!token) {
+    return {
+      connected: false,
+      provider: 'mercadopago',
+      message: 'MERCADOPAGO_ACCESS_TOKEN não configurado no .env'
+    };
+  }
+
+  if (token.includes('seu-access-token')) {
+    return {
+      connected: false,
+      provider: 'mercadopago',
+      message: 'MERCADOPAGO_ACCESS_TOKEN ainda está com valor de exemplo no .env'
+    };
+  }
+
+  const webhookUrl = `${getApiBaseUrl()}/api/analyze/payment/mercadopago/webhook`;
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:4200').replace(/\/$/, '');
+
+  try {
+    const client = new MercadoPagoConfig({ accessToken: token });
+    const userClient = new User(client);
+    const account = await userClient.get();
+    cachedLiveMode = account?.live_mode === true;
+    const mode = cachedLiveMode ? 'production' : 'test';
+
+    return {
+      connected: true,
+      provider: 'mercadopago',
+      message: `Conexão com Mercado Pago OK (modo ${mode}).`,
+      details: {
+        mode,
+        liveMode: cachedLiveMode,
+        checkoutTarget: cachedLiveMode ? 'init_point' : 'sandbox_init_point',
+        userId: account?.id,
+        email: account?.email,
+        country: account?.country_id,
+        siteId: account?.site_id,
+        tokenPreview: maskToken(token),
+        webhookUrl,
+        webhookConfigured: supportsMercadoPagoHttpsCallback(webhookUrl),
+        frontendUrl,
+        paymentProvider: process.env.PAYMENT_PROVIDER || 'stripe',
+        sandboxOverride: process.env.MERCADOPAGO_SANDBOX || null,
+        config: getMercadoPagoDebugInfo()
+      }
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      provider: 'mercadopago',
+      message: error.message || 'Falha ao conectar com Mercado Pago',
+      details: { webhookUrl, tokenPreview: maskToken(token), status: error.status, config: getMercadoPagoDebugInfo() }
+    };
   }
 };

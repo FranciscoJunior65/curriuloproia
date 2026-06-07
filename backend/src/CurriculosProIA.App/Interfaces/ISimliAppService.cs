@@ -8,4 +8,5 @@ public interface ISimliAppService
     IActionResult GetConfig();
     Task<IActionResult> CreateSession(CreateSimliSessionSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> SynthesizeSpeech(SimliSpeechSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetIceServers(CancellationToken cancellationToken = default);
 }

@@ -662,5 +662,77 @@ router.get('/gemini', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/test/mercadopago:
+ *   get:
+ *     summary: Testa integração com Mercado Pago
+ *     tags: [Test]
+ *     responses:
+ *       200:
+ *         description: Conexão OK
+ *       500:
+ *         description: Erro na integração
+ */
+router.get('/mercadopago', async (req, res) => {
+  try {
+    const { testMercadoPagoIntegration } = await import('../services/mercadopago.service.js');
+    const { getMercadoPagoAccessToken, getMercadoPagoDebugInfo } = await import('../services/mercadopago-config.js');
+    const token = getMercadoPagoAccessToken() || '';
+    const debug = {
+      hasAccessToken: !!token,
+      tokenPreview: token ? `${token.slice(0, 8)}...` : 'não definido',
+      paymentProvider: process.env.PAYMENT_PROVIDER || 'stripe',
+      publicApiUrl: process.env.PUBLIC_API_URL?.trim() || '(localhost)',
+      frontendUrl: process.env.FRONTEND_URL?.trim() || 'http://localhost:4200',
+      mercadoPago: getMercadoPagoDebugInfo()
+    };
+
+    if (!token) {
+      return res.status(500).json({
+        success: false,
+        connected: false,
+        error: 'Mercado Pago não configurado',
+        message: 'MERCADOPAGO_ACCESS_TOKEN não encontrado no .env',
+        debug,
+        connection: 'ERRO'
+      });
+    }
+
+    const result = await testMercadoPagoIntegration();
+    if (!result.connected) {
+      return res.status(500).json({
+        success: false,
+        connected: false,
+        provider: result.provider,
+        error: 'Falha na integração Mercado Pago',
+        message: result.message,
+        details: result.details,
+        debug,
+        connection: 'ERRO'
+      });
+    }
+
+    return res.json({
+      success: true,
+      connected: true,
+      provider: result.provider,
+      message: result.message,
+      details: result.details,
+      debug,
+      connection: 'OK',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      connected: false,
+      error: 'Erro ao testar Mercado Pago',
+      message: error.message,
+      connection: 'ERRO'
+    });
+  }
+});
+
 export default router;
 

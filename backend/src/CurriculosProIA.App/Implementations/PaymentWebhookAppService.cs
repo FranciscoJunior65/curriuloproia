@@ -31,6 +31,7 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
     {
         _stripe = stripe;
         _mercadoPago = mercadoPago;
+        _http = http;
     }
 
         public async Task<IActionResult> StripeWebhook(CancellationToken cancellationToken)
@@ -51,9 +52,9 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
         }
     }
 
-        public async Task<IActionResult> MercadoPagoWebhook(CancellationToken cancellationToken)
+    public async Task<IActionResult> MercadoPagoWebhook(CancellationToken cancellationToken)
     {
-        await _mercadoPago.HandleWebhookAsync(_http.HttpContext!.Request.Query, cancellationToken);
+        await _mercadoPago.HandleWebhookAsync(_http.HttpContext!.Request, cancellationToken);
         return Content("OK", "text/plain");
     }
 }

@@ -12,17 +12,20 @@ public class TestController : ControllerBase
 {
     private readonly ISupabaseConnectionTester _supabase;
     private readonly IAiService _ai;
+    private readonly IMercadoPagoService _mercadoPago;
     private readonly IConfiguration _configuration;
     private readonly IHostEnvironment _hostEnvironment;
 
     public TestController(
         ISupabaseConnectionTester supabase,
         IAiService ai,
+        IMercadoPagoService mercadoPago,
         IConfiguration configuration,
         IHostEnvironment hostEnvironment)
     {
         _supabase = supabase;
         _ai = ai;
+        _mercadoPago = mercadoPago;
         _configuration = configuration;
         _hostEnvironment = hostEnvironment;
     }
@@ -174,5 +177,68 @@ public class TestController : ControllerBase
                 connection = "ERRO"
             });
         }
+    }
+
+    /// <summary>Testa integração com Mercado Pago (credenciais, conta e webhook).</summary>
+    [HttpGet("mercadopago")]
+    public async Task<IActionResult> TestMercadoPago(CancellationToken cancellationToken)
+    {
+        var token = MercadoPagoConfigHelper.GetAccessToken(_configuration)?.Trim() ?? string.Empty;
+        var debug = new
+        {
+            hasAccessToken = !string.IsNullOrWhiteSpace(token),
+            tokenPreview = string.IsNullOrWhiteSpace(token) ? "não definido" : MercadoPagoConfigHelper.MaskToken(token),
+            paymentProvider = _configuration["PAYMENT_PROVIDER"] ?? "stripe",
+            publicApiUrl = _configuration["PUBLIC_API_URL"]?.Trim() ?? "(localhost)",
+            frontendUrl = _configuration["FRONTEND_URL"]?.Trim() ?? "http://localhost:4200",
+            mercadoPago = MercadoPagoConfigHelper.GetDebugInfo(_configuration),
+            envFile = EnvFileLoader.LoadedPath
+        };
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                error = "Mercado Pago não configurado",
+                message = "Configure MERCADOPAGO_MODE=test|production e os tokens _TEST/_PRODUCTION no .env",
+                debug,
+                help = new[]
+                {
+                    "1. MERCADOPAGO_MODE=test (desenvolvimento) ou production (pagamentos reais)",
+                    "2. Preencha MERCADOPAGO_ACCESS_TOKEN_TEST e MERCADOPAGO_ACCESS_TOKEN_PRODUCTION",
+                    "3. Reinicie o backend"
+                }
+            });
+        }
+
+        var result = await _mercadoPago.TestConnectionAsync(cancellationToken);
+        if (!result.Connected)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                provider = result.Provider,
+                error = "Falha na integração Mercado Pago",
+                message = result.Message,
+                details = result.Details,
+                debug,
+                connection = "ERRO"
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            connected = true,
+            provider = result.Provider,
+            message = result.Message,
+            details = result.Details,
+            debug,
+            connection = "OK",
+            timestamp = DateTime.UtcNow
+        });
     }
 }

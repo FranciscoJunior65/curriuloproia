@@ -71,8 +71,13 @@ app.post('/api/analyze/payment/webhook', express.raw({ type: 'application/json' 
   return handleWebhook(req, res);
 });
 
-// Mercado Pago webhook (IPN)
+// Mercado Pago webhook (IPN + Webhooks v2)
 app.post('/api/analyze/payment/mercadopago/webhook', express.json(), async (req, res) => {
+  const { handleMercadoPagoWebhook } = await import('./services/mercadopago.service.js');
+  return handleMercadoPagoWebhook(req, res);
+});
+
+app.get('/api/analyze/payment/mercadopago/webhook', async (req, res) => {
   const { handleMercadoPagoWebhook } = await import('./services/mercadopago.service.js');
   return handleMercadoPagoWebhook(req, res);
 });

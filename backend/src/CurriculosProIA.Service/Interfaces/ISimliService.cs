@@ -13,4 +13,6 @@ public interface ISimliService
         string text,
         string? voice,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Dictionary<string, object>>> GetIceServersAsync(
+        CancellationToken cancellationToken = default);
 }

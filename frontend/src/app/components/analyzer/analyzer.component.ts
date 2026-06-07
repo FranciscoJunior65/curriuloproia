@@ -767,6 +767,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Mercado Pago: CPF ajuda a exibir PIX no checkout
+    if (this.paymentProvider === 'mercadopago') {
+      const cpfDigits = (this.cpf || '').replace(/\D/g, '');
+      if (cpfDigits.length !== 11) {
+        alert('Para pagar com PIX no Mercado Pago, informe seu CPF (11 dígitos).');
+        this.processingPayment = false;
+        return;
+      }
+    }
+
     const userEmail = this.currentUser?.email || '';
     
     const includeEnglish =

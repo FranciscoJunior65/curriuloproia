@@ -21,19 +21,24 @@ public class MercadoPagoService : IMercadoPagoService
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
+    private readonly ISettingsService _settings;
     private readonly ILogger<MercadoPagoService> _logger;
+    private bool? _cachedLiveMode;
+    private string? _cachedMode;
 
     public MercadoPagoService(
         IPaymentCheckoutService checkout,
         IPaymentFulfillmentService fulfillment,
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
+        ISettingsService settings,
         ILogger<MercadoPagoService> logger)
     {
         _checkout = checkout;
         _fulfillment = fulfillment;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -94,9 +99,22 @@ public class MercadoPagoService : IMercadoPagoService
             analysisId = ctx.Metadata.GetValueOrDefault("analysisId")
         });
 
-        var body = new
+        var successUrl = PaymentReturnUrls.Build(
+            baseUrl, PaymentReturnUrls.SuccessPath, "mercadopago", userId,
+            ctx.Metadata.GetValueOrDefault("analysisId"),
+            englishPaid: planId == "english");
+        var failureUrl = PaymentReturnUrls.Build(
+            baseUrl, PaymentReturnUrls.FailurePath, "mercadopago", userId,
+            ctx.Metadata.GetValueOrDefault("analysisId"));
+        var pendingUrl = PaymentReturnUrls.Build(
+            baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
+            ctx.Metadata.GetValueOrDefault("analysisId"));
+
+        var isProduction = await ResolveIsProductionModeAsync(cancellationToken);
+
+        var body = new Dictionary<string, object?>
         {
-            items = new[]
+            ["items"] = new[]
             {
                 new
                 {
@@ -110,27 +128,42 @@ public class MercadoPagoService : IMercadoPagoService
                     currency_id = "BRL"
                 }
             },
-            payer = IsValidEmail(email) ? new { email = email.Trim() } : null,
-            external_reference = externalReference,
-            metadata = ctx.Metadata,
-            back_urls = new
+            ["external_reference"] = externalReference,
+            ["metadata"] = ctx.Metadata,
+            ["back_urls"] = new Dictionary<string, string>
             {
-                success = PaymentReturnUrls.Build(
-                    baseUrl, PaymentReturnUrls.SuccessPath, "mercadopago", userId,
-                    ctx.Metadata.GetValueOrDefault("analysisId"),
-                    englishPaid: planId == "english"),
-                failure = PaymentReturnUrls.Build(
-                    baseUrl, PaymentReturnUrls.FailurePath, "mercadopago", userId,
-                    ctx.Metadata.GetValueOrDefault("analysisId")),
-                pending = PaymentReturnUrls.Build(
-                    baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
-                    ctx.Metadata.GetValueOrDefault("analysisId"))
+                ["success"] = successUrl,
+                ["failure"] = failureUrl,
+                ["pending"] = pendingUrl
             },
-            auto_return = "approved",
-            notification_url = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook"
+            ["payment_methods"] = MercadoPagoConfigHelper.BuildCheckoutPaymentMethods(isProduction)
         };
 
-        var client = CreateClient();
+        var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
+        var payer = BuildPayer(email, cpfNormalized);
+        if (payer != null)
+        {
+            body["payer"] = payer;
+        }
+
+        // MP rejeita auto_return com localhost — só em produção/ngrok HTTPS
+        if (PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(successUrl))
+        {
+            body["auto_return"] = "approved";
+        }
+
+        var notificationUrl = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook";
+        if (PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(notificationUrl))
+        {
+            body["notification_url"] = notificationUrl;
+        }
+        else
+        {
+            _logger.LogWarning(
+                "notification_url omitida (localhost ou HTTP). Webhook automático indisponível em dev local.");
+        }
+
+        var client = await CreateClientAsync(cancellationToken);
         using var response = await client.PostAsJsonAsync("checkout/preferences", body, cancellationToken);
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -141,13 +174,17 @@ public class MercadoPagoService : IMercadoPagoService
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var initPoint = root.TryGetProperty("init_point", out var ip) ? ip.GetString()
-            : root.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null;
+        var initPoint = ResolveCheckoutInitPoint(root, isProduction);
 
         if (string.IsNullOrEmpty(initPoint))
         {
             throw new InvalidOperationException("Mercado Pago não retornou URL de checkout");
         }
+
+        _logger.LogInformation(
+            "Checkout Mercado Pago criado: modo={Mode}, url={CheckoutMode}",
+            isProduction ? "production" : "sandbox",
+            initPoint.Contains("sandbox", StringComparison.OrdinalIgnoreCase) ? "sandbox_init_point" : "init_point");
 
         var preferenceId = root.GetProperty("id").GetString();
         return new CheckoutSessionResult
@@ -160,7 +197,7 @@ public class MercadoPagoService : IMercadoPagoService
 
     public async Task<PaymentVerificationResult> VerifyPaymentAsync(string paymentId, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync(cancellationToken);
         using var response = await client.GetAsync($"v1/payments/{paymentId}", cancellationToken);
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -222,14 +259,13 @@ public class MercadoPagoService : IMercadoPagoService
         };
     }
 
-    public async Task HandleWebhookAsync(IQueryCollection query, CancellationToken cancellationToken = default)
+    public async Task HandleWebhookAsync(HttpRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var topic = query["topic"].FirstOrDefault() ?? query["type"].FirstOrDefault();
-            var id = query["id"].FirstOrDefault() ?? query["data.id"].FirstOrDefault();
+            var (topic, id) = await ParseWebhookNotificationAsync(request, cancellationToken);
 
-            if ((topic == "payment" || topic == "merchant_order") && !string.IsNullOrEmpty(id) && topic == "payment")
+            if (topic == "payment" && !string.IsNullOrEmpty(id))
             {
                 await VerifyPaymentAsync(id, cancellationToken);
             }
@@ -240,22 +276,77 @@ public class MercadoPagoService : IMercadoPagoService
         }
     }
 
+    private static async Task<(string? Topic, string? Id)> ParseWebhookNotificationAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        var query = request.Query;
+        var topic = query["topic"].FirstOrDefault() ?? query["type"].FirstOrDefault();
+        var id = query["id"].FirstOrDefault() ?? query["data.id"].FirstOrDefault();
+
+        if (!string.IsNullOrEmpty(topic) && !string.IsNullOrEmpty(id))
+        {
+            return (topic, id);
+        }
+
+        if (request.ContentLength is null or 0)
+        {
+            return (topic, id);
+        }
+
+        request.EnableBuffering();
+        request.Body.Position = 0;
+
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken);
+            var root = doc.RootElement;
+
+            topic ??= root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null;
+            topic ??= root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : null;
+
+            if (string.IsNullOrEmpty(id)
+                && root.TryGetProperty("data", out var data)
+                && data.TryGetProperty("id", out var dataId))
+            {
+                id = dataId.ValueKind == JsonValueKind.String
+                    ? dataId.GetString()
+                    : dataId.GetRawText();
+            }
+        }
+        catch (JsonException)
+        {
+            // Corpo vazio ou não-JSON — query string já foi considerada acima.
+        }
+        finally
+        {
+            request.Body.Position = 0;
+        }
+
+        return (topic, id);
+    }
+
     public async Task<PaymentProviderTestResult> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
-        var token = _configuration["MERCADOPAGO_ACCESS_TOKEN"];
+        var configuredMode = await ResolveModeAsync(cancellationToken);
+        var token = MercadoPagoConfigHelper.GetAccessToken(_configuration, configuredMode);
+
         if (string.IsNullOrWhiteSpace(token))
         {
             return new PaymentProviderTestResult
             {
                 Connected = false,
                 Provider = "mercadopago",
-                Message = "MERCADOPAGO_ACCESS_TOKEN não configurado no .env"
+                Message = "Credencial Mercado Pago não configurada. Defina MERCADOPAGO_MODE e os tokens _TEST/_PRODUCTION no .env"
             };
         }
 
+        var webhookUrl = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook";
+        var frontendUrl = _configuration["FRONTEND_URL"]?.TrimEnd('/') ?? "http://localhost:4200";
+
         try
         {
-            var client = CreateClient();
+            var client = await CreateClientAsync(cancellationToken);
             using var response = await client.GetAsync("users/me", cancellationToken);
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
@@ -264,21 +355,50 @@ public class MercadoPagoService : IMercadoPagoService
                 {
                     Connected = false,
                     Provider = "mercadopago",
-                    Message = json
+                    Message = json,
+                    Details = new { webhookUrl, tokenPreview = MercadoPagoConfigHelper.MaskToken(token), configuredMode }
                 };
             }
 
             using var doc = JsonDocument.Parse(json);
-            var mode = token.Contains("TEST", StringComparison.Ordinal) ? "test" : "production";
+            var root = doc.RootElement;
+            var liveMode = root.TryGetProperty("live_mode", out var lm) && lm.GetBoolean();
+            _cachedLiveMode = liveMode;
+            var mode = liveMode ? "production" : "test";
+            var checkoutTarget = liveMode ? "init_point" : "sandbox_init_point";
+            var paymentMethods = await GetAvailablePaymentMethodsAsync(client, cancellationToken);
+            var pixAvailable = paymentMethods.Any(m =>
+                string.Equals(m, "pix", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m, "bank_transfer", StringComparison.OrdinalIgnoreCase));
+
             return new PaymentProviderTestResult
             {
                 Connected = true,
                 Provider = "mercadopago",
-                Message = $"Conexão com Mercado Pago OK (modo {mode}).",
+                Message = pixAvailable
+                    ? $"Conexão com Mercado Pago OK (modo {mode}). PIX disponível na conta."
+                    : $"Conexão com Mercado Pago OK (modo {mode}). PIX não encontrado nos meios da conta — verifique chave PIX.",
                 Details = new
                 {
                     mode,
-                    userId = doc.RootElement.TryGetProperty("id", out var id) ? id.GetRawText() : null
+                    liveMode,
+                    checkoutTarget,
+                    pixAvailable,
+                    paymentMethods,
+                    userId = root.TryGetProperty("id", out var id) ? id.GetRawText() : null,
+                    email = root.TryGetProperty("email", out var email) ? email.GetString() : null,
+                    country = root.TryGetProperty("country_id", out var country) ? country.GetString() : null,
+                    siteId = root.TryGetProperty("site_id", out var site) ? site.GetString() : null,
+                    tokenPreview = MercadoPagoConfigHelper.MaskToken(token),
+                    webhookUrl,
+                    webhookConfigured = PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(webhookUrl),
+                    frontendUrl,
+                    paymentProvider = _configuration["PAYMENT_PROVIDER"] ?? "stripe",
+                    configuredMode,
+                    config = MercadoPagoConfigHelper.GetDebugInfo(_configuration, configuredMode),
+                    pixHint = pixAvailable
+                        ? "Se PIX não aparecer no checkout, use sandbox_init_point e informe CPF do pagador."
+                        : "Cadastre uma chave PIX em mercadopago.com.br → Seu negócio → Chaves PIX."
                 }
             };
         }
@@ -288,15 +408,120 @@ public class MercadoPagoService : IMercadoPagoService
             {
                 Connected = false,
                 Provider = "mercadopago",
-                Message = ex.Message
+                Message = ex.Message,
+                Details = new { webhookUrl, tokenPreview = MercadoPagoConfigHelper.MaskToken(token), configuredMode }
             };
         }
     }
 
-    private HttpClient CreateClient()
+    private async Task<string> ResolveModeAsync(CancellationToken cancellationToken)
     {
-        var token = _configuration["MERCADOPAGO_ACCESS_TOKEN"]
-            ?? throw new InvalidOperationException("MERCADOPAGO_ACCESS_TOKEN não configurado");
+        if (!string.IsNullOrEmpty(_cachedMode))
+        {
+            return _cachedMode;
+        }
+
+        _cachedMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
+        return _cachedMode;
+    }
+
+    private async Task<bool> ResolveIsProductionModeAsync(CancellationToken cancellationToken)
+    {
+        if (!_cachedLiveMode.HasValue)
+        {
+            var mode = await ResolveModeAsync(cancellationToken);
+            _cachedLiveMode = mode == MercadoPagoConfigHelper.ModeProduction;
+        }
+
+        return _cachedLiveMode.Value;
+    }
+
+    private static string? ResolveCheckoutInitPoint(JsonElement root, bool isProduction)
+    {
+        var production = root.TryGetProperty("init_point", out var ip) ? ip.GetString() : null;
+        var sandbox = root.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null;
+        return isProduction ? production ?? sandbox : sandbox ?? production;
+    }
+
+    private static object? BuildPayer(string? email, string? cpfNormalized)
+    {
+        var hasEmail = IsValidEmail(email);
+        var hasCpf = !string.IsNullOrWhiteSpace(cpfNormalized) && cpfNormalized.Length == 11;
+
+        if (!hasEmail && !hasCpf)
+        {
+            return null;
+        }
+
+        var payer = new Dictionary<string, object?>();
+        if (hasEmail)
+        {
+            payer["email"] = email!.Trim();
+        }
+
+        if (hasCpf)
+        {
+            payer["identification"] = new { type = "CPF", number = cpfNormalized };
+        }
+
+        return payer;
+    }
+
+    private static async Task<IReadOnlyList<string>> GetAvailablePaymentMethodsAsync(
+        HttpClient client,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await client.GetAsync("v1/payment_methods", cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return Array.Empty<string>();
+            }
+
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<string>();
+            }
+
+            var methods = new List<string>();
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (item.TryGetProperty("id", out var id))
+                {
+                    methods.Add(id.GetString() ?? string.Empty);
+                }
+
+                if (item.TryGetProperty("payment_type_id", out var typeId))
+                {
+                    var type = typeId.GetString();
+                    if (!string.IsNullOrEmpty(type) && !methods.Contains(type))
+                    {
+                        methods.Add(type);
+                    }
+                }
+            }
+
+            return methods
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(m => m, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken)
+    {
+        var mode = await ResolveModeAsync(cancellationToken);
+        var token = MercadoPagoConfigHelper.GetAccessToken(_configuration, mode)
+            ?? throw new InvalidOperationException(
+                "Mercado Pago não configurado. Defina os tokens _TEST/_PRODUCTION no .env");
 
         var client = _httpClientFactory.CreateClient("MercadoPago");
         client.BaseAddress = new Uri("https://api.mercadopago.com/");

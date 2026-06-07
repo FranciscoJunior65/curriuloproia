@@ -217,6 +217,12 @@
   color: #64748b;
   margin: 0 0 1rem;
   font-size: 0.95rem;
+
+  &--inline {
+    flex-basis: 100%;
+    margin: -0.5rem 0 0;
+    font-size: 0.85rem;
+  }
 }
 
 .payment-provider-form {

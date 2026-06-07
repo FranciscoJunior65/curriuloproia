@@ -60,6 +60,12 @@ interface Persona {
   voiceGender: VoiceGender;
 }
 
+interface WrittenQuestion {
+  text: string;
+  type: "open" | "choice";
+  options: string[];
+}
+
 const INTERVIEWER_AVATARS: Record<string, string> = {
   AR: "assets/interviewers/ana-ribeiro.png",
 
@@ -122,7 +128,7 @@ export class VoiceInterviewComponent
 
   introScript = "";
 
-  writtenQuestions: string[] = [];
+  writtenQuestions: WrittenQuestion[] = [];
 
   writtenAnswers: string[] = ["", "", "", "", ""];
 
@@ -151,6 +157,8 @@ export class VoiceInterviewComponent
   simliActive = false;
 
   simliBootstrapping = false;
+
+  simliUnavailableHint: string | null = null;
 
   videoExpanded = false;
 
@@ -250,11 +258,7 @@ export class VoiceInterviewComponent
   }
 
   get isVideoPhase(): boolean {
-    return (
-      this.step === "intro_video" ||
-      this.step === "feedback_video" ||
-      this.simliBootstrapping
-    );
+    return this.step === "intro_video" || this.simliBootstrapping;
   }
 
   get writtenQuestionsComplete(): boolean {
@@ -342,7 +346,7 @@ export class VoiceInterviewComponent
 
         candidateName: this.candidateName,
 
-        writtenQuestions: this.writtenQuestions,
+        writtenQuestions: this.writtenQuestions.map((q) => q.text),
 
         writtenAnswers: this.writtenAnswers,
       })
@@ -495,17 +499,19 @@ export class VoiceInterviewComponent
 
           this.candidateName = res.candidateName ?? "Candidato";
 
-          this.writtenQuestions = res.writtenQuestions ?? [];
+          this.writtenQuestions = this.normalizeWrittenQuestions(
+            res.writtenQuestions,
+          );
 
-          if (this.writtenQuestions.length < 5) {
-            this.writtenQuestions = [
-              ...this.writtenQuestions,
-
-              ...Array(Math.max(0, 5 - this.writtenQuestions.length)).fill(
-                "Conte mais sobre sua experiência.",
-              ),
-            ].slice(0, 5);
+          while (this.writtenQuestions.length < 5) {
+            this.writtenQuestions.push({
+              text: "Conte mais sobre sua experiência.",
+              type: "open",
+              options: [],
+            });
           }
+
+          this.writtenQuestions = this.writtenQuestions.slice(0, 5);
 
           this.writtenAnswers = ["", "", "", "", ""];
 
@@ -579,7 +585,7 @@ export class VoiceInterviewComponent
 
         phase1Answer: this.phase1Answer,
 
-        writtenQuestions: this.writtenQuestions,
+        writtenQuestions: this.writtenQuestions.map((q) => q.text),
 
         writtenAnswers: this.writtenAnswers,
       })
@@ -603,7 +609,7 @@ export class VoiceInterviewComponent
           this.simulationId = res.simulationId ?? this.simulationId;
 
           if (this.feedbackScript?.trim()) {
-            void this.playVideoScript(this.feedbackScript, () =>
+            void this.playFeedbackAudio(this.feedbackScript, () =>
               this.onComplete(),
             );
           } else {
@@ -766,15 +772,27 @@ export class VoiceInterviewComponent
         this.cdr.markForCheck();
 
         try {
-          this.simliActive = await this.simli.startSession(
-            elements.video,
-
-            elements.audio,
-
-            this.persona?.initials,
-          );
+          const simliConfig = await this.simli.loadConfig();
+          if (!simliConfig.enabled) {
+            this.simliUnavailableHint =
+              "Vídeo animado indisponível: configure SIMLI_API_KEY no backend/.env e reinicie a API.";
+            this.simliActive = false;
+          } else {
+            this.simliUnavailableHint = null;
+            this.simliActive = await this.simli.startSession(
+              elements.video,
+              elements.audio,
+              this.persona?.initials,
+            );
+            if (!this.simliActive) {
+              this.simliUnavailableHint =
+                "Não foi possível conectar o avatar em vídeo. Verifique SIMLI_API_KEY e a face ID.";
+            }
+          }
         } catch {
           this.simliActive = false;
+          this.simliUnavailableHint =
+            "Falha ao conectar avatar Simli. Confira SIMLI_API_KEY no backend/.env.";
         }
 
         this.simliBootstrapping = false;
@@ -834,12 +852,69 @@ export class VoiceInterviewComponent
     }
   }
 
-  private inferVideoStep(): InterviewStep {
-    if (this.currentVideoScript === this.feedbackScript) {
-      return "feedback_video";
+  private async playFeedbackAudio(
+    script: string,
+    onEnd: () => void,
+  ): Promise<void> {
+    this.interviewerCaption = script.trim();
+    this.cdr.markForCheck();
+
+    void this.simli.stopSession();
+    this.simliActive = false;
+    this.simliBootstrapping = false;
+
+    const finish = () => {
+      this.ngZone.run(() => {
+        this.interviewerCaption = "";
+        onEnd();
+      });
+    };
+
+    const gender = this.persona?.voiceGender ?? "female";
+    const elements = await this.waitForMediaElements(10);
+    const audioEl = elements?.audio ?? this.simliAudioRef?.nativeElement;
+
+    if (audioEl) {
+      try {
+        await this.simli.playBackendSpeech(audioEl, script, { gender });
+        finish();
+        return;
+      } catch {
+        // fallback abaixo
+      }
     }
 
+    this.voice.speak(script, finish, { gender });
+  }
+
+  private inferVideoStep(): InterviewStep {
     return "intro_video";
+  }
+
+  private normalizeWrittenQuestions(raw: unknown): WrittenQuestion[] {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+
+    return raw
+      .map((item: any) => {
+        if (typeof item === "string") {
+          return { text: item.trim(), type: "open" as const, options: [] };
+        }
+
+        const text = (item?.text ?? item?.question ?? "").trim();
+        const type = item?.type === "choice" ? "choice" : "open";
+        const options = Array.isArray(item?.options)
+          ? item.options.filter((o: unknown) => typeof o === "string")
+          : [];
+
+        return {
+          text,
+          type: type as "open" | "choice",
+          options: type === "choice" ? options : [],
+        };
+      })
+      .filter((q) => q.text.length > 0);
   }
 
   private waitForMediaElements(
@@ -875,12 +950,12 @@ export class VoiceInterviewComponent
   }
 
   private mapPersona(raw: any): Persona {
-    const initials = (raw?.initials ?? "AR").toUpperCase();
+    const initials = "AR";
 
     return {
-      name: raw?.name ?? "Entrevistador",
+      name: raw?.name ?? "Entrevistadora",
 
-      role: raw?.role ?? "Recrutador(a)",
+      role: raw?.role ?? "Recrutadora",
 
       company: raw?.company ?? "",
 
@@ -890,7 +965,7 @@ export class VoiceInterviewComponent
 
       avatarUrl: INTERVIEWER_AVATARS[initials] ?? "assets/imagens/persona.jpeg",
 
-      voiceGender: PERSONA_GENDER[initials] ?? "female",
+      voiceGender: "female",
     };
   }
 }

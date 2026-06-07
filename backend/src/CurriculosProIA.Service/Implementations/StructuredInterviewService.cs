@@ -12,12 +12,13 @@ public class StructuredInterviewService : IStructuredInterviewService
 {
     private const int WrittenQuestionCount = 5;
 
-    private static readonly InterviewPersonaDto[] Personas =
-    [
-        new() { Name = "Ana Ribeiro", Role = "Recrutadora Sênior", Initials = "AR", AvatarColor = "#6366f1" },
-        new() { Name = "Carlos Mendes", Role = "Tech Lead", Initials = "CM", AvatarColor = "#0ea5e9" },
-        new() { Name = "Marina Costa", Role = "Gerente de RH", Initials = "MC", AvatarColor = "#8b5cf6" }
-    ];
+    private static readonly InterviewPersonaDto DefaultInterviewer = new()
+    {
+        Name = "Entrevistadora",
+        Role = "Recrutadora",
+        Initials = "AR",
+        AvatarColor = "#6366f1"
+    };
 
     private readonly IAiService _ai;
     private readonly IJobSitesService _jobSites;
@@ -93,7 +94,7 @@ public class StructuredInterviewService : IStructuredInterviewService
         });
 
         var raw = await _ai.GenerateTextAsync(prompt, 0.7, 1200, cancellationToken);
-        var writtenQuestions = ParseStringArray(raw, "questions");
+        var writtenQuestions = ParseWrittenQuestions(raw);
         if (writtenQuestions.Count < WrittenQuestionCount)
         {
             writtenQuestions = DefaultWrittenQuestions(analysis);
@@ -110,7 +111,7 @@ public class StructuredInterviewService : IStructuredInterviewService
                     userId,
                     resumeId,
                     siteId,
-                    writtenQuestions,
+                    writtenQuestions.Select(q => q.Text).ToList(),
                     "Entrevista estruturada",
                     cancellationToken);
             }
@@ -157,13 +158,24 @@ public class StructuredInterviewService : IStructuredInterviewService
             ["maxSegmentSeconds"] = introSeconds.ToString()
         });
 
-        var raw = await _ai.GenerateTextAsync(prompt, 0.65, 400, cancellationToken);
-        var introScript = ParseJsonField(raw, "script")
-            ?? $"Olá, {candidateName}! Sou {persona.Name}, {persona.Role}. Em instantes você terá tempo para se apresentar.";
+        var fallbackIntro =
+            $"Olá, {candidateName}! Sou {persona.Name}, {persona.Role}. Em instantes você terá tempo para se apresentar.";
+
+        string introScript;
+        try
+        {
+            var raw = await _ai.GenerateTextAsync(prompt, 0.65, 1024, cancellationToken);
+            introScript = ParseJsonField(raw, "script") ?? fallbackIntro;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao gerar roteiro de abertura com IA; usando roteiro padrão");
+            introScript = fallbackIntro;
+        }
 
         return new StructuredInterviewVoicePhaseResult
         {
-            IntroScript = introScript.Trim()
+            IntroScript = EnsureCandidateNameInScript(introScript.Trim(), candidateName)
         };
     }
 
@@ -404,7 +416,7 @@ public class StructuredInterviewService : IStructuredInterviewService
 
     private async Task<InterviewPersonaDto> BuildPersonaAsync(string? siteId, CancellationToken cancellationToken)
     {
-        var persona = Personas[Random.Shared.Next(Personas.Length)];
+        var persona = DefaultInterviewer;
         var company = "empresa contratante";
 
         if (!string.IsNullOrEmpty(siteId))
@@ -428,21 +440,28 @@ public class StructuredInterviewService : IStructuredInterviewService
 
     private async Task<string> ExtractCandidateNameAsync(string resumeText, CancellationToken cancellationToken)
     {
+        var fromResume = TryExtractNameFromResumeText(resumeText);
+        if (!string.IsNullOrWhiteSpace(fromResume))
+        {
+            return fromResume;
+        }
+
         try
         {
             var prompt = """
                 Extraia o nome completo do candidato deste currículo.
+                Use exatamente a grafia que aparece no documento (acentos e maiúsculas).
                 Se não encontrar, retorne o primeiro nome mais provável ou "Candidato".
                 Retorne APENAS JSON com campo name.
 
                 CURRÍCULO:
                 """ + SafeTake(resumeText, 1500);
 
-            var raw = await _ai.GenerateTextAsync(prompt, 0.2, 200, cancellationToken);
+            var raw = await _ai.GenerateTextAsync(prompt, 0.2, 512, cancellationToken);
             var name = ParseJsonField(raw, "name");
-            if (!string.IsNullOrWhiteSpace(name))
+            if (!string.IsNullOrWhiteSpace(name) && IsPlausibleCandidateName(name))
             {
-                return name.Trim();
+                return NormalizeCandidateName(name);
             }
         }
         catch (Exception ex)
@@ -451,6 +470,112 @@ public class StructuredInterviewService : IStructuredInterviewService
         }
 
         return "Candidato";
+    }
+
+    private static string? TryExtractNameFromResumeText(string? resumeText)
+    {
+        if (string.IsNullOrWhiteSpace(resumeText))
+        {
+            return null;
+        }
+
+        var lines = resumeText
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .Take(20)
+            .ToList();
+
+        foreach (var line in lines)
+        {
+            var labeled = Regex.Match(line, @"^(?:nome|name)\s*[:\-]\s*(.+)$", RegexOptions.IgnoreCase);
+            if (labeled.Success)
+            {
+                var name = NormalizeCandidateName(labeled.Groups[1].Value.Trim());
+                if (IsPlausibleCandidateName(name))
+                {
+                    return name;
+                }
+            }
+        }
+
+        foreach (var line in lines.Take(5))
+        {
+            if (IsPlausibleCandidateName(line))
+            {
+                return NormalizeCandidateName(line);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsPlausibleCandidateName(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+        if (trimmed.Length < 3 || trimmed.Length > 80)
+        {
+            return false;
+        }
+
+        if (Regex.IsMatch(trimmed, @"[@#/\\]|https?://|www\.|\d{4,}|\.com\b|\.br\b|linkedin|github|curriculum|currículo|resume|cv\b", RegexOptions.IgnoreCase))
+        {
+            return false;
+        }
+
+        var words = trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length is < 2 or > 6)
+        {
+            return false;
+        }
+
+        return words.All(word => Regex.IsMatch(word, @"^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ''\-.]*$"));
+    }
+
+    private static string EnsureCandidateNameInScript(string script, string candidateName)
+    {
+        if (string.IsNullOrWhiteSpace(script)
+            || string.IsNullOrWhiteSpace(candidateName)
+            || string.Equals(candidateName, "Candidato", StringComparison.OrdinalIgnoreCase))
+        {
+            return script;
+        }
+
+        if (script.Contains(candidateName, StringComparison.OrdinalIgnoreCase))
+        {
+            return script;
+        }
+
+        var firstName = candidateName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(firstName)
+            && script.Contains(firstName, StringComparison.OrdinalIgnoreCase))
+        {
+            return script;
+        }
+
+        return $"Olá, {candidateName}! {script}";
+    }
+
+    private static string NormalizeCandidateName(string name)
+    {
+        var trimmed = Regex.Replace(name.Trim(), @"\s+", " ");
+        if (trimmed.Length == 0)
+        {
+            return trimmed;
+        }
+
+        if (trimmed.All(c => !char.IsLetter(c) || char.IsUpper(c)))
+        {
+            return string.Join(' ', trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => char.ToUpper(word[0]) + word[1..].ToLowerInvariant()));
+        }
+
+        return trimmed;
     }
 
     private static string BuildResumeContext(string resumeText, AnalysisInput analysis, string company)
@@ -465,17 +590,138 @@ public class StructuredInterviewService : IStructuredInterviewService
             """;
     }
 
-    private static List<string> DefaultWrittenQuestions(AnalysisInput analysis)
+    private static List<WrittenQuestionDto> DefaultWrittenQuestions(AnalysisInput analysis)
     {
         var area = analysis.AreaAtuacao ?? "sua área";
         return
         [
-            $"Descreva sua experiência mais relevante em {area} e os resultados que alcançou.",
-            "Quais tecnologias ou ferramentas do seu currículo você domina melhor? Dê um exemplo prático.",
-            "Conte sobre um desafio profissional difícil e como você resolveu.",
-            "Como você trabalha em equipe e lida com prazos apertados?",
-            "O que você busca no próximo passo da sua carreira?"
+            new WrittenQuestionDto
+            {
+                Text = $"Qual experiência em {area} melhor representa seu perfil?",
+                Type = "choice",
+                Options =
+                [
+                    "Experiência sênior com resultados mensuráveis",
+                    "Experiência intermediária em projetos relevantes",
+                    "Experiência júnior com aprendizado acelerado",
+                    "Experiência em outra área com transferência de habilidades"
+                ]
+            },
+            new WrittenQuestionDto
+            {
+                Text = "Como você costuma trabalhar em equipe?",
+                Type = "choice",
+                Options =
+                [
+                    "Colaboração constante e comunicação aberta",
+                    "Autonomia com alinhamentos periódicos",
+                    "Liderança técnica e mentoria",
+                    "Execução focada com entregas individuais"
+                ]
+            },
+            new WrittenQuestionDto
+            {
+                Text = "O que mais te motiva profissionalmente?",
+                Type = "choice",
+                Options =
+                [
+                    "Resolver problemas complexos",
+                    "Crescer em novas tecnologias",
+                    "Impactar resultados do negócio",
+                    "Estabilidade e evolução de carreira"
+                ]
+            },
+            new WrittenQuestionDto
+            {
+                Text = "Quais tecnologias ou ferramentas do seu currículo você domina melhor? Dê um exemplo prático.",
+                Type = "open"
+            },
+            new WrittenQuestionDto
+            {
+                Text = "Conte sobre um desafio profissional difícil e como você resolveu.",
+                Type = "open"
+            }
         ];
+    }
+
+    private static List<WrittenQuestionDto> ParseWrittenQuestions(string raw)
+    {
+        try
+        {
+            var cleaned = AiService.CleanMarkdownFence(raw.Trim());
+            var match = Regex.Match(cleaned, @"\{.*\}", RegexOptions.Singleline);
+            var json = match.Success ? match.Value : cleaned;
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("questions", out var arr) ||
+                arr.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var questions = new List<WrittenQuestionDto>();
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var text = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        questions.Add(new WrittenQuestionDto { Text = text.Trim(), Type = "open" });
+                    }
+
+                    continue;
+                }
+
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var questionText = item.TryGetProperty("text", out var textEl)
+                    ? textEl.GetString()
+                    : item.TryGetProperty("question", out var legacyEl)
+                        ? legacyEl.GetString()
+                        : null;
+                if (string.IsNullOrWhiteSpace(questionText))
+                {
+                    continue;
+                }
+
+                var type = item.TryGetProperty("type", out var typeEl)
+                    ? typeEl.GetString()?.Trim().ToLowerInvariant()
+                    : "open";
+                var isChoice = type == "choice";
+                var options = new List<string>();
+                if (item.TryGetProperty("options", out var optionsEl) &&
+                    optionsEl.ValueKind == JsonValueKind.Array)
+                {
+                    options = optionsEl.EnumerateArray()
+                        .Select(e => e.GetString())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s!.Trim())
+                        .Take(6)
+                        .ToList();
+                }
+
+                if (isChoice && options.Count < 2)
+                {
+                    isChoice = false;
+                }
+
+                questions.Add(new WrittenQuestionDto
+                {
+                    Text = questionText.Trim(),
+                    Type = isChoice ? "choice" : "open",
+                    Options = isChoice ? options : []
+                });
+            }
+
+            return questions;
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     private static string BuildWrittenAnswersBlock(IReadOnlyList<string> questions, IReadOnlyList<string> answers)

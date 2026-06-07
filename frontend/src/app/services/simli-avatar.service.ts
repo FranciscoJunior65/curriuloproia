@@ -70,7 +70,10 @@ export class SimliAvatarService {
     const sessionRes = await firstValueFrom(
       this.http.post<{ success: boolean; sessionToken: string; faceId: string; error?: string }>(
         `${environment.apiUrl}/simli/session`,
-        { personaInitials },
+        {
+          personaInitials,
+          faceId: config.defaultFaceId || undefined
+        },
         { headers: this.authHeaders(token) }
       )
     );
@@ -80,22 +83,52 @@ export class SimliAvatarService {
     }
 
     const mod = await this.loadClientModule();
-    const transport = config.transportMode;
-    this.client = new mod.SimliClient(
-      sessionRes.sessionToken,
-      videoEl,
-      audioEl,
-      null,
-      mod.LogLevel.INFO,
-      transport
-    );
+    const transports: Array<'livekit' | 'p2p'> =
+      config.transportMode === 'p2p' ? ['p2p', 'livekit'] : ['livekit', 'p2p'];
 
-    await Promise.race([
-      this.client.start(),
-      new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Tempo esgotado ao conectar avatar Simli.')), 20_000)
-      )
-    ]);
+    let lastError: unknown;
+    for (const transport of transports) {
+      try {
+        const iceServers =
+          transport === 'p2p'
+            ? await this.fetchIceServers(token).catch(() => null)
+            : null;
+
+        this.client = new mod.SimliClient(
+          sessionRes.sessionToken,
+          videoEl,
+          audioEl,
+          iceServers,
+          mod.LogLevel.INFO,
+          transport
+        );
+
+        await Promise.race([
+          this.client.start(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Tempo esgotado ao conectar avatar Simli.')), 25_000)
+          )
+        ]);
+
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        await this.stopSession();
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    videoEl.muted = true;
+    try {
+      await videoEl.play();
+    } catch {
+      // autoplay pode falhar até haver stream; ignora
+    }
+
     return true;
   }
 
@@ -228,6 +261,16 @@ export class SimliAvatarService {
 
   private authHeaders(token: string): HttpHeaders {
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
+  }
+
+  private async fetchIceServers(token: string): Promise<RTCIceServer[] | null> {
+    const res = await firstValueFrom(
+      this.http.get<{ success: boolean; iceServers: RTCIceServer[] }>(
+        `${environment.apiUrl}/simli/ice`,
+        { headers: this.authHeaders(token) }
+      )
+    );
+    return res.iceServers?.length ? res.iceServers : null;
   }
 
   private async mp3ToPcm16Mono16k(mp3: ArrayBuffer): Promise<Uint8Array> {
