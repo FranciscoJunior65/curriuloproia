@@ -10,7 +10,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Router, ActivatedRoute } from '@angular/router';
+import { getCpfDigits } from '../../utils/cpf.utils';
+import { CheckoutModalComponent } from '../checkout-modal/checkout-modal.component';
+import { CpfRequiredModalComponent } from '../cpf-required-modal/cpf-required-modal.component';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
 import { AuthService, User } from '../../services/auth.service';
@@ -37,7 +41,8 @@ import { VoiceInterviewComponent } from '../voice-interview/voice-interview.comp
     MatIconModule,
     MatChipsModule,
     MatMenuModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatDialogModule
   ],
   templateUrl: './analyzer.component.html',
   styleUrl: './analyzer.component.scss'
@@ -60,14 +65,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   userCredits: number = 0;
   englishCredits = 0;
   showPlans = true;
-  processingPayment = false;
+  processingPaymentPlanId: string | null = null;
+  checkoutHint: string | null = null;
   adminFreeLoading = false;
   adminFreePlanId: string | null = null;
   includeEnglishResume: { [planId: string]: boolean } = {}; // Checkbox por plano
   englishBundlePriceBRL = 5.9;
   englishStandalonePriceBRL = 17.9;
   couponCode = '';
-  cpf = '';
   validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
   couponError = '';
   validatingCoupon = false;
@@ -183,7 +188,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     private router: Router,
     private route: ActivatedRoute,
     private pricingPlansService: PricingPlansService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {}
 
   copyApplyLink(link: string | undefined): void {
@@ -400,10 +406,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           porcentagem_desconto: referral.discountPercent
         };
         this.couponError = '';
-
-        if (this.currentUser?.cpf) {
-          this.cpf = this.currentUser.cpf;
-        }
       },
       error: () => {}
     });
@@ -717,18 +719,76 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       });
   }
 
+  private getUserCpfDigits(): string {
+    return getCpfDigits(this.currentUser?.cpf ?? '');
+  }
+
+  private promptCpfIfMissing(onReady: () => void, onCancel?: () => void): void {
+    if (this.getUserCpfDigits().length === 11) {
+      onReady();
+      return;
+    }
+
+    const ref = this.dialog.open(CpfRequiredModalComponent, {
+      width: '100%',
+      maxWidth: '440px',
+      disableClose: true,
+      panelClass: 'cpf-required-modal-panel'
+    });
+
+    ref.afterClosed().subscribe((saved) => {
+      if (saved && this.getUserCpfDigits().length === 11) {
+        onReady();
+      } else {
+        onCancel?.();
+      }
+    });
+  }
+
+  private openCheckout(checkoutUrl: string): void {
+    this.processingPaymentPlanId = null;
+    this.checkoutHint = null;
+
+    const ref = this.dialog.open(CheckoutModalComponent, {
+      data: {
+        checkoutUrl,
+        providerLabel: this.paymentProviderLabel
+      },
+      width: '100%',
+      maxWidth: '480px',
+      disableClose: false,
+      panelClass: 'checkout-modal-panel'
+    });
+
+    ref.afterClosed().subscribe((result) => {
+      if (result === 'completed') {
+        this.checkPaymentStatus();
+        this.checkCredits();
+      }
+    });
+  }
+
   purchasePlan(plan: PublicPlan): void {
     if (!plan) return;
 
-    // Verifica se está autenticado
     if (!this.isAuthenticated) {
       this.openAuthModal();
       return;
     }
 
-    this.processingPayment = true;
+    this.processingPaymentPlanId = plan.id;
+    this.checkoutHint = null;
     this.error = null;
 
+    this.promptCpfIfMissing(
+      () => this.executePurchasePlan(plan),
+      () => {
+        this.processingPaymentPlanId = null;
+      }
+    );
+  }
+
+  private executePurchasePlan(plan: PublicPlan): void {
     console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
       planId: plan.id,
       planName: plan.name,
@@ -736,49 +796,22 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       price: plan.priceBRL
     });
 
-    // Envia userId no body
     if (!this.userId && this.currentUser?.id) {
       this.userId = this.currentUser.id;
     }
-    
-    console.log('👤 userId para compra:', this.userId);
-    
+
     if (!this.userId) {
       alert('❌ Erro: ID do usuário não encontrado. Faça login novamente.');
-      this.processingPayment = false;
+      this.processingPaymentPlanId = null;
       return;
     }
-    
-    // Calcula preço total (incluindo currículo em inglês se selecionado)
-    let totalPrice = plan.priceBRL;
-    
-    if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
-      totalPrice += this.englishBundlePriceBRL;
-      alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
-    }
-    
-    // Se informou cupom, exige CPF (uso único por CPF)
-    if (this.couponCode && this.couponCode.trim()) {
-      const cpfDigits = (this.cpf || '').replace(/\D/g, '');
-      if (cpfDigits.length !== 11) {
-        alert('Para usar cupom, informe seu CPF (11 dígitos) no campo acima.');
-        this.processingPayment = false;
-        return;
-      }
-    }
 
-    // Mercado Pago: CPF ajuda a exibir PIX no checkout
-    if (this.paymentProvider === 'mercadopago') {
-      const cpfDigits = (this.cpf || '').replace(/\D/g, '');
-      if (cpfDigits.length !== 11) {
-        alert('Para pagar com PIX no Mercado Pago, informe seu CPF (11 dígitos).');
-        this.processingPayment = false;
-        return;
-      }
+    if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
+      alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
     }
 
     const userEmail = this.currentUser?.email || '';
-    
+    const userCpf = this.getUserCpfDigits();
     const includeEnglish =
       plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
 
@@ -787,7 +820,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.userId,
       userEmail,
       this.couponCode?.trim() || null,
-      this.cpf?.trim() || null,
+      userCpf || null,
       includeEnglish,
       plan.id === 'english' ? this.result?.analysisId ?? undefined : undefined
     ).subscribe({
@@ -799,27 +832,25 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           return;
         }
         if (response.success && response.checkoutUrl) {
-          console.log(`✅ Redirecionando para ${this.paymentProviderLabel}...`);
-          window.location.href = response.checkoutUrl;
+          console.log(`✅ Abrindo checkout ${this.paymentProviderLabel} em popup...`);
+          this.openCheckout(response.checkoutUrl);
         } else {
           this.error = response.error || 'Erro ao criar sessão de pagamento';
           console.error('❌ Erro na resposta:', response);
           alert(`❌ Erro: ${this.error}`);
-          this.processingPayment = false;
+          this.processingPaymentPlanId = null;
         }
       },
       error: (err) => {
         console.error('❌ Erro completo ao criar sessão de pagamento:', err);
-        console.error('Status:', err.status);
-        console.error('Mensagem:', err.error);
-        
         const errorMessage = err.error?.message || err.error?.error || err.message || 'Erro ao processar compra';
         this.error = errorMessage;
-        this.processingPayment = false;
-        
-        // Mostra alerta com detalhes do erro
+        this.processingPaymentPlanId = null;
+
         if (err.status === 401) {
           alert('❌ Você precisa estar logado para comprar créditos. Faça login e tente novamente.');
+        } else if (err.error?.code === 'CPF_REQUIRED') {
+          this.promptCpfIfMissing(() => this.executePurchasePlan(plan));
         } else if (err.status === 404) {
           alert('❌ Usuário não encontrado. Faça logout e login novamente.');
         } else {
@@ -830,30 +861,40 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   validateCoupon(): void {
+    if (!this.isAuthenticated) {
+      this.openAuthModal();
+      return;
+    }
+
     const code = this.couponCode?.trim();
     if (!code) {
       this.couponError = 'Informe o código do cupom.';
       this.validatedCoupon = null;
       return;
     }
-    const cpfVal = this.cpf?.trim();
-    if (!cpfVal) {
-      this.couponError = 'Informe seu CPF para validar o cupom (uso único por CPF).';
-      this.validatedCoupon = null;
-      return;
-    }
-    const cpfDigits = cpfVal.replace(/\D/g, '');
+
+    this.promptCpfIfMissing(() => this.runCouponValidation(code));
+  }
+
+  private runCouponValidation(code: string): void {
+    const cpfDigits = this.getUserCpfDigits();
     if (cpfDigits.length !== 11) {
-      this.couponError = 'CPF deve ter 11 dígitos.';
+      this.couponError = 'Cadastre seu CPF no perfil para validar o cupom.';
       this.validatedCoupon = null;
       return;
     }
+
     this.validatingCoupon = true;
     this.couponError = '';
     this.validatedCoupon = null;
-    this.analyzerService.validateCoupon(code, cpfVal).subscribe({
+
+    this.analyzerService.validateCoupon(code, cpfDigits).subscribe({
       next: (res: any) => {
         this.validatingCoupon = false;
+        if (res.code === 'CPF_REQUIRED') {
+          this.promptCpfIfMissing(() => this.runCouponValidation(code));
+          return;
+        }
         if (res.valid && res.coupon) {
           this.validatedCoupon = res.coupon;
           this.couponError = '';
@@ -872,7 +913,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
   clearCoupon(): void {
     this.couponCode = '';
-    this.cpf = '';
     this.validatedCoupon = null;
     this.couponError = '';
   }
@@ -1117,13 +1157,27 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.purchasingEnglish = true;
     this.error = null;
 
+    this.promptCpfIfMissing(
+      () => this.executeEnglishPurchase(),
+      () => {
+        this.purchasingEnglish = false;
+      }
+    );
+  }
+
+  private executeEnglishPurchase(): void {
+    if (!this.result?.analysisId || !this.userId) {
+      this.purchasingEnglish = false;
+      return;
+    }
+
     this.analyzerService
       .createPaymentSession(
         'english',
         this.userId,
         this.currentUser?.email || '',
         null,
-        null,
+        this.getUserCpfDigits() || null,
         false,
         this.result.analysisId
       )
@@ -1135,7 +1189,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             return;
           }
           if (response.success && response.checkoutUrl) {
-            window.location.href = response.checkoutUrl;
+            this.openCheckout(response.checkoutUrl);
           } else {
             this.error = response.error || response.message || 'Erro ao iniciar pagamento';
           }

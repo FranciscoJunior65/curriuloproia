@@ -1,0 +1,36 @@
+<div class="cpf-modal">
+  <button type="button" class="cpf-modal__close" (click)="close()" aria-label="Fechar">
+    <mat-icon>close</mat-icon>
+  </button>
+
+  <div class="cpf-modal__header">
+    <mat-icon class="cpf-modal__icon">badge</mat-icon>
+    <h2>CPF necessário</h2>
+    <p>Cadastre o CPF da sua conta para continuar com cupons e pagamento. Ele ficará vinculado ao seu perfil.</p>
+  </div>
+
+  <mat-form-field appearance="outline" class="w-full">
+    <mat-label>CPF</mat-label>
+    <input
+      matInput
+      type="text"
+      inputmode="numeric"
+      maxlength="14"
+      [(ngModel)]="cpf"
+      (input)="onCpfInput()"
+      (keydown)="onCpfKeydown($event)"
+      placeholder="000.000.000-00"
+      autocomplete="off"
+    />
+  </mat-form-field>
+
+  <p *ngIf="error" class="cpf-modal__error">{{ error }}</p>
+
+  <div class="cpf-modal__actions">
+    <button type="button" mat-stroked-button (click)="close()" [disabled]="loading">Cancelar</button>
+    <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+      <mat-spinner *ngIf="loading" diameter="18" class="cpf-modal__spinner"></mat-spinner>
+      <span>{{ loading ? 'Salvando...' : 'Salvar e continuar' }}</span>
+    </button>
+  </div>
+</div>

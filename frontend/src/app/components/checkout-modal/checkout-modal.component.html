@@ -1,0 +1,35 @@
+<div class="checkout-modal">
+  <button type="button" class="checkout-modal__close" (click)="close()" aria-label="Fechar">
+    <mat-icon>close</mat-icon>
+  </button>
+
+  <div class="checkout-modal__header">
+    <mat-icon class="checkout-modal__icon">lock</mat-icon>
+    <h2>Pagamento seguro</h2>
+    <p>
+      O checkout do <strong>{{ data.providerLabel }}</strong> abriu em uma janela separada.
+      Você pode continuar nesta página enquanto finaliza o pagamento.
+    </p>
+  </div>
+
+  <div *ngIf="popupBlocked" class="checkout-modal__alert">
+    O navegador bloqueou a janela de pagamento. Clique abaixo para abrir manualmente.
+  </div>
+
+  <div class="checkout-modal__actions">
+    <button type="button" mat-stroked-button (click)="openPopup()">
+      Reabrir janela de pagamento
+    </button>
+    <button type="button" mat-stroked-button (click)="openInNewTab()">
+      Abrir em nova aba
+    </button>
+    <button type="button" mat-flat-button color="primary" (click)="close()">
+      Voltar aos planos
+    </button>
+  </div>
+
+  <p class="checkout-modal__hint">
+    Após pagar, use «Voltar à loja» no {{ data.providerLabel }} ou feche a janela de pagamento.
+    Seus créditos serão atualizados automaticamente.
+  </p>
+</div>

@@ -1,0 +1,62 @@
+.cpf-modal {
+  position: relative;
+  padding: 1.5rem;
+}
+
+.cpf-modal__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.cpf-modal__header {
+  text-align: center;
+  margin-bottom: 1rem;
+
+  h2 {
+    margin: 0.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #4b5563;
+    line-height: 1.5;
+  }
+}
+
+.cpf-modal__icon {
+  font-size: 2rem;
+  width: 2rem;
+  height: 2rem;
+  color: #4f46e5;
+}
+
+.cpf-modal__error {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.875rem;
+}
+
+.cpf-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.cpf-modal__spinner {
+  display: inline-block;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}

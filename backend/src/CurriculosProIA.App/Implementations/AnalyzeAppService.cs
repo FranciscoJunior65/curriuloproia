@@ -1484,25 +1484,22 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         try
         {
-            var result = await _data.ValidateCouponAsync(couponCode.Trim(), couponCpf?.Trim(), cancellationToken);
-            if (!result.Valid)
-            {
-                return Ok(new { success = true, valid = false, message = result.Message ?? "Cupom inválido ou inativo." });
-            }
-
-            if (string.IsNullOrWhiteSpace(couponCpf))
+            var resolvedCpf = await ResolveAuthenticatedUserCpfAsync(couponCpf, cancellationToken);
+            if (resolvedCpf == string.Empty)
             {
                 return Ok(new
                 {
                     success = true,
-                    valid = true,
-                    coupon = new
-                    {
-                        nome = result.Coupon?.Nome,
-                        porcentagem_desconto = result.Coupon?.PorcentagemDesconto
-                    },
-                    message = "Informe seu CPF antes de finalizar a compra para usar este cupom."
+                    valid = false,
+                    message = "Cadastre seu CPF no perfil antes de validar o cupom.",
+                    code = "CPF_REQUIRED"
                 });
+            }
+
+            var result = await _data.ValidateCouponAsync(couponCode.Trim(), resolvedCpf, cancellationToken);
+            if (!result.Valid)
+            {
+                return Ok(new { success = true, valid = false, message = result.Message ?? "Cupom inválido ou inativo." });
             }
 
             return Ok(new
@@ -1569,10 +1566,26 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 return BadRequest(new { success = false, error = "Plano inválido" });
             }
 
+            var user = await _data.GetUserProfileAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return NotFound(new { success = false, error = "Usuário não encontrado" });
+            }
+
+            var cpf = ResolveProfileCpf(user);
+            if (string.IsNullOrEmpty(cpf))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Cadastre seu CPF em Meus dados antes de comprar.",
+                    code = "CPF_REQUIRED"
+                });
+            }
+
             var frontendUrl = _http.HttpContext!.Request.Headers.Origin.FirstOrDefault()
                 ?? _configuration["FRONTEND_URL"];
             var couponCode = string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim();
-            var cpf = body.Cpf?.Trim();
             var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
 
             var result = await _paymentProvider.CreateProviderCheckoutAsync(
@@ -2223,6 +2236,39 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             analysisId,
             englishPaid: planId == "english",
             freeCheckout: true);
+    }
+
+    private async Task<string?> ResolveAuthenticatedUserCpfAsync(string? fallbackCpf, CancellationToken cancellationToken)
+    {
+        var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            var normalized = string.IsNullOrWhiteSpace(fallbackCpf)
+                ? null
+                : Regex.Replace(fallbackCpf, @"\D", string.Empty);
+            return normalized?.Length == 11 ? normalized : null;
+        }
+
+        var user = await _data.GetUserProfileAsync(userId, cancellationToken);
+        var profileCpf = user == null ? null : ResolveProfileCpf(user);
+        if (!string.IsNullOrEmpty(profileCpf))
+        {
+            return profileCpf;
+        }
+
+        return string.Empty;
+    }
+
+    private static string? ResolveProfileCpf(UserProfile user)
+    {
+        var cpf = user.Cpf?.Trim();
+        if (string.IsNullOrWhiteSpace(cpf))
+        {
+            return null;
+        }
+
+        var normalized = Regex.Replace(cpf, @"\D", string.Empty);
+        return normalized.Length == 11 ? normalized : null;
     }
 
 }

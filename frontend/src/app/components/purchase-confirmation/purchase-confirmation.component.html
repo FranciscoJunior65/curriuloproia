@@ -77,8 +77,8 @@
         class="purchase-confirmation__btn"
         (click)="retryPurchase()"
       >
-        <mat-icon>shopping_cart</mat-icon>
-        Tentar novamente
+        <mat-icon>{{ outcome === 'cancelled' ? 'arrow_back' : 'shopping_cart' }}</mat-icon>
+        {{ outcome === 'cancelled' ? 'Voltar aos planos' : 'Tentar novamente' }}
       </button>
 
       <button

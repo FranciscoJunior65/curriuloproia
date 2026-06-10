@@ -218,26 +218,18 @@
             <mat-icon class="text-amber-600">local_offer</mat-icon>
             Cupom de desconto
           </h3>
-          <p class="text-sm text-gray-600 mb-3">Tem um cupom? Informe o código e seu CPF (cada cupom pode ser usado apenas uma vez por CPF) e valide antes de comprar.</p>
+          <p class="text-sm text-gray-600 mb-3">
+            Tem um cupom? Informe o código e valide antes de comprar.
+            O desconto será vinculado ao CPF da sua conta (cada cupom pode ser usado apenas uma vez por CPF).
+          </p>
           <div class="flex flex-wrap items-end gap-3">
-            <div class="flex-1 min-w-[140px]">
+            <div class="flex-1 min-w-[200px]">
               <label class="block text-xs font-medium text-gray-600 mb-1">Código do cupom</label>
               <input
                 type="text"
                 [(ngModel)]="couponCode"
                 (ngModelChange)="couponError = ''; validatedCoupon = null"
                 placeholder="Ex: TESTE100"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div class="flex-1 min-w-[140px]">
-              <label class="block text-xs font-medium text-gray-600 mb-1">CPF (obrigatório para cupom e PIX)</label>
-              <input
-                type="text"
-                [(ngModel)]="cpf"
-                (ngModelChange)="couponError = ''; validatedCoupon = null"
-                placeholder="Somente números"
-                maxlength="14"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
@@ -266,6 +258,28 @@
           </div>
         </mat-card>
       </div>
+
+      <p
+        *ngIf="checkoutHint"
+        class="mb-4 max-w-3xl mx-auto rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 text-center"
+      >
+        {{ checkoutHint }}
+      </p>
+
+      <details
+        *ngIf="paymentProvider === 'mercadopago'"
+        class="mb-4 max-w-3xl mx-auto rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+      >
+        <summary class="cursor-pointer font-semibold">Como testar pagamento no sandbox (Mercado Pago)</summary>
+        <ul class="mt-2 space-y-1 list-disc pl-5 text-xs leading-relaxed">
+          <li>Use <strong>MERCADOPAGO_MODE=test</strong> e o <strong>Access Token de teste</strong> no backend.</li>
+          <li>Crie uma conta <strong>Comprador</strong> em Suas integrações → Contas de teste (veja a <a href="https://www.mercadopago.com.br/developers/pt/docs/your-integrations/test/accounts" target="_blank" rel="noopener noreferrer" class="underline">documentação</a>).</li>
+          <li>No checkout, prefira <strong>Cartão</strong> (não use sua conta real do Mercado Pago).</li>
+          <li>Cartão teste: <strong>5031 4332 1540 6351</strong>, CVV <strong>123</strong>, validade <strong>11/30</strong>.</li>
+          <li>Nome do titular: <strong>APRO</strong> e CPF <strong>12345678909</strong> para pagamento aprovado.</li>
+          <li>Erro de CSP no console costuma ser da página do MP (extensão do navegador) — teste em aba anônima.</li>
+        </ul>
+      </details>
 
       <div *ngIf="!loadingPlans && plans.length" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
         <mat-card
@@ -362,7 +376,7 @@
 
             <button
               (click)="purchasePlan(plan); $event.stopPropagation()"
-              [disabled]="processingPayment"
+              [disabled]="processingPaymentPlanId !== null"
               class="w-full py-4 px-6 text-base font-bold rounded-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg hover:shadow-xl"
               [class.bg-gradient-to-r]="selectedPlan?.id === plan.id"
               [class.from-indigo-600]="selectedPlan?.id === plan.id"
@@ -374,15 +388,15 @@
             >
               <span class="flex items-center justify-center gap-2">
                 <mat-spinner
-                  *ngIf="processingPayment"
+                  *ngIf="processingPaymentPlanId === plan.id"
                   diameter="20"
                   class="inline-block"
                 ></mat-spinner>
-                <mat-icon *ngIf="!processingPayment" class="text-lg"
+                <mat-icon *ngIf="processingPaymentPlanId !== plan.id" class="text-lg"
                   >shopping_cart</mat-icon
                 >
                 <span>{{
-                  processingPayment ? "Processando..." : "Comprar Agora"
+                  processingPaymentPlanId === plan.id ? "Processando..." : "Comprar Agora"
                 }}</span>
               </span>
             </button>

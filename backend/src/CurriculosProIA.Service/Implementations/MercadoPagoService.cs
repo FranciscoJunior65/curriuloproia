@@ -23,7 +23,6 @@ public class MercadoPagoService : IMercadoPagoService
     private readonly IConfiguration _configuration;
     private readonly ISettingsService _settings;
     private readonly ILogger<MercadoPagoService> _logger;
-    private bool? _cachedLiveMode;
     private string? _cachedMode;
 
     public MercadoPagoService(
@@ -103,14 +102,16 @@ public class MercadoPagoService : IMercadoPagoService
             baseUrl, PaymentReturnUrls.SuccessPath, "mercadopago", userId,
             ctx.Metadata.GetValueOrDefault("analysisId"),
             englishPaid: planId == "english");
+        // failure = abandono do checkout (botão «Voltar à loja» no Mercado Pago)
         var failureUrl = PaymentReturnUrls.Build(
-            baseUrl, PaymentReturnUrls.FailurePath, "mercadopago", userId,
+            baseUrl, PaymentReturnUrls.CancelledPath, "mercadopago", userId,
             ctx.Metadata.GetValueOrDefault("analysisId"));
         var pendingUrl = PaymentReturnUrls.Build(
             baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
             ctx.Metadata.GetValueOrDefault("analysisId"));
 
         var isProduction = await ResolveIsProductionModeAsync(cancellationToken);
+        var payerEmail = ResolvePayerEmail(email, isProduction);
 
         var body = new Dictionary<string, object?>
         {
@@ -140,7 +141,7 @@ public class MercadoPagoService : IMercadoPagoService
         };
 
         var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
-        var payer = BuildPayer(email, cpfNormalized);
+        var payer = BuildPayer(payerEmail, cpfNormalized);
         if (payer != null)
         {
             body["payer"] = payer;
@@ -363,7 +364,6 @@ public class MercadoPagoService : IMercadoPagoService
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var liveMode = root.TryGetProperty("live_mode", out var lm) && lm.GetBoolean();
-            _cachedLiveMode = liveMode;
             var mode = liveMode ? "production" : "test";
             var checkoutTarget = liveMode ? "init_point" : "sandbox_init_point";
             var paymentMethods = await GetAvailablePaymentMethodsAsync(client, cancellationToken);
@@ -395,7 +395,11 @@ public class MercadoPagoService : IMercadoPagoService
                     frontendUrl,
                     paymentProvider = _configuration["PAYMENT_PROVIDER"] ?? "stripe",
                     configuredMode,
+                    modeAligned = (configuredMode == MercadoPagoConfigHelper.ModeProduction) == liveMode,
                     config = MercadoPagoConfigHelper.GetDebugInfo(_configuration, configuredMode),
+                    sandboxHint = !liveMode
+                        ? "Use sandbox_init_point, pague com Cartão (não login real) e titular APRO + CPF 12345678909."
+                        : null,
                     pixHint = pixAvailable
                         ? "Se PIX não aparecer no checkout, use sandbox_init_point e informe CPF do pagador."
                         : "Cadastre uma chave PIX em mercadopago.com.br → Seu negócio → Chaves PIX."
@@ -427,13 +431,24 @@ public class MercadoPagoService : IMercadoPagoService
 
     private async Task<bool> ResolveIsProductionModeAsync(CancellationToken cancellationToken)
     {
-        if (!_cachedLiveMode.HasValue)
+        var mode = await ResolveModeAsync(cancellationToken);
+        return MercadoPagoConfigHelper.IsProductionMode(_configuration, mode);
+    }
+
+    private string? ResolvePayerEmail(string? email, bool isProduction)
+    {
+        if (isProduction)
         {
-            var mode = await ResolveModeAsync(cancellationToken);
-            _cachedLiveMode = mode == MercadoPagoConfigHelper.ModeProduction;
+            return email;
         }
 
-        return _cachedLiveMode.Value;
+        var testPayer = _configuration["MERCADOPAGO_TEST_PAYER_EMAIL"]?.Trim();
+        if (!string.IsNullOrEmpty(testPayer) && IsValidEmail(testPayer))
+        {
+            return testPayer;
+        }
+
+        return email;
     }
 
     private static string? ResolveCheckoutInitPoint(JsonElement root, bool isProduction)
