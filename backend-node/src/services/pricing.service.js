@@ -161,7 +161,7 @@ export const PRICING_PLANS = {
   english: {
     id: 'english',
     name: 'Currículo em Inglês',
-    description: 'Geração de currículo profissional em inglês (apenas PDF e WORD, sem análise)',
+    description: 'Currículo em inglês vinculado à análise — PDF e Word inclusos na compra',
     analyses: 0, // Não adiciona créditos, é apenas serviço
     priceBRL: 17.90, // Preço normal quando comprado separadamente
     priceBRLBundle: 5.90, // Preço promocional quando comprado junto com análise
@@ -169,7 +169,8 @@ export const PRICING_PLANS = {
     features: [
       'Currículo traduzido e adaptado para padrões internacionais',
       'Formatação ATS-friendly',
-      'Download em PDF ou WORD',
+      'Download em PDF e Word (ambos inclusos)',
+      'Baixe quantas vezes quiser, em qualquer formato',
       'Otimizado para vagas globais',
       'Adaptação cultural profissional'
     ]

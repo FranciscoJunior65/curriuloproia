@@ -5,10 +5,23 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CurriculosProIA.Service.Implementations;
 
+/// <summary>Word com o mesmo layout visual do PDF (QuestPDF).</summary>
 public static class ResumeDocxBuilder
 {
+    // Alinhado ao QuestPDF: Blue/Grey palette
+    private const string ColorName = "1565C0";       // Blue.Darken3
+    private const string ColorContact = "616161";    // Grey.Darken1
+    private const string ColorBody = "424242";       // Grey.Darken3
+    private const string ColorSectionText = "1976D2"; // Blue.Darken2
+    private const string ColorBullet = "1E88E5";     // Blue.Medium
+    private const string ColorSectionBg = "E3F2FD";  // Blue.Lighten5
+    private const string ColorSectionBorder = "90CAF9"; // Blue.Lighten3
+    private const string FontFamily = "Arial";
+
     public static byte[] BuildFromText(string resumeText)
     {
+        var layout = ResumeLayoutHelper.Parse(resumeText);
+
         using var stream = new MemoryStream();
         using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, true))
         {
@@ -16,34 +29,37 @@ public static class ResumeDocxBuilder
             mainPart.Document = new Document(new Body());
             var body = mainPart.Document.Body!;
 
-            foreach (var line in NormalizeLines(resumeText))
+            AppendName(body, layout.Name);
+            if (!string.IsNullOrWhiteSpace(layout.Contact))
             {
-                if (string.IsNullOrWhiteSpace(line))
+                AppendContact(body, layout.Contact);
+            }
+
+            AppendHorizontalRule(body);
+
+            foreach (var section in layout.Sections)
+            {
+                if (!string.IsNullOrWhiteSpace(section.Title))
                 {
-                    continue;
+                    AppendSectionHeader(body, section.Title);
                 }
 
-                var paragraph = new Paragraph();
-                var run = new Run();
-                var props = new RunProperties();
-
-                if (IsSectionHeader(line))
+                foreach (var line in section.Lines)
                 {
-                    props.Append(new Bold());
-                    props.Append(new FontSize { Val = "24" });
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    if (ResumeLayoutHelper.IsBulletLine(line))
+                    {
+                        AppendBulletLine(body, ResumeLayoutHelper.StripBulletPrefix(line));
+                    }
+                    else
+                    {
+                        AppendBodyLine(body, line);
+                    }
                 }
-
-                run.Append(props);
-                run.Append(new Text(line) { Space = SpaceProcessingModeValues.Preserve });
-                paragraph.Append(run);
-
-                if (IsSectionHeader(line))
-                {
-                    paragraph.ParagraphProperties = new ParagraphProperties(
-                        new SpacingBetweenLines { Before = "240", After = "120" });
-                }
-
-                body.Append(paragraph);
             }
 
             mainPart.Document.Save();
@@ -52,32 +68,121 @@ public static class ResumeDocxBuilder
         return stream.ToArray();
     }
 
-    private static IEnumerable<string> NormalizeLines(string resumeText)
+    private static void AppendName(Body body, string name)
     {
-        return (resumeText ?? string.Empty)
-            .Replace("\r", string.Empty)
-            .Split('\n')
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s));
+        var paragraph = new Paragraph(
+            new ParagraphProperties(new SpacingBetweenLines { After = "60" }),
+            CreateRun(name, 42, bold: true, color: ColorName));
+        body.Append(paragraph);
     }
 
-    private static bool IsSectionHeader(string line)
+    private static void AppendContact(Body body, string contact)
     {
-        var t = line.Trim().TrimEnd(':');
-        if (t.Length > 48)
+        var paragraph = new Paragraph(
+            new ParagraphProperties(new SpacingBetweenLines { After = "120" }),
+            CreateRun(contact, 19, color: ColorContact));
+        body.Append(paragraph);
+    }
+
+    private static void AppendHorizontalRule(Body body)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new ParagraphBorders(
+                    new BottomBorder
+                    {
+                        Val = BorderValues.Single,
+                        Size = 6,
+                        Color = ColorSectionBorder,
+                        Space = 1
+                    }),
+                new SpacingBetweenLines { Before = "120", After = "120" }));
+        body.Append(paragraph);
+    }
+
+    private static void AppendSectionHeader(Body body, string title)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Shading
+                {
+                    Val = ShadingPatternValues.Clear,
+                    Color = "auto",
+                    Fill = ColorSectionBg
+                },
+                new ParagraphBorders(
+                    new TopBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new LeftBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new RightBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new BottomBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder }),
+                new Indentation { Left = "80", Right = "80" },
+                new SpacingBetweenLines { Before = "140", After = "80" }),
+            CreateRun(title.ToUpperInvariant(), 20, bold: true, color: ColorSectionText));
+
+        body.Append(paragraph);
+    }
+
+    private static void AppendBodyLine(Body body, string text)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { After = "40", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
+            CreateRun(text, 21, color: ColorBody));
+        body.Append(paragraph);
+    }
+
+    private static void AppendBulletLine(Body body, string text)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Indentation { Left = "360", Hanging = "180" },
+                new SpacingBetweenLines { After = "40", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
+            CreateRun("•", 22, color: ColorBullet),
+            CreateRun(" " + SanitizeXmlText(text), 21, color: ColorBody));
+
+        body.Append(paragraph);
+    }
+
+    private static Run CreateRun(string text, int halfPoints, bool bold = false, string? color = null)
+    {
+        var props = new RunProperties(
+            new RunFonts { Ascii = FontFamily, HighAnsi = FontFamily },
+            new FontSize { Val = halfPoints.ToString() });
+
+        if (bold)
         {
-            return false;
+            props.Append(new Bold());
         }
 
-        var upper = t.ToUpperInvariant();
-        if (t == upper && t.Length >= 3 && t.Any(char.IsLetter))
+        if (!string.IsNullOrEmpty(color))
         {
-            return true;
+            props.Append(new Color { Val = color });
         }
 
-        return upper is "CONTACT" or "PROFESSIONAL SUMMARY" or "SUMMARY" or "EXPERIENCE" or "WORK EXPERIENCE"
-            or "EDUCATION" or "SKILLS" or "LANGUAGES" or "OBJECTIVE" or "PROFILE"
-            or "CONTATO" or "RESUMO" or "EXPERIÊNCIA" or "EXPERIENCIA" or "FORMAÇÃO" or "FORMACAO"
-            or "HABILIDADES" or "OBJETIVO";
+        return new Run(props, new Text(SanitizeXmlText(text)) { Space = SpaceProcessingModeValues.Preserve });
+    }
+
+    private static string SanitizeXmlText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            if (char.IsSurrogate(ch))
+            {
+                continue;
+            }
+
+            if (ch is '\t' or '\n' or '\r' || (ch >= 0x20 && ch <= 0xD7FF) || (ch >= 0xE000 && ch <= 0xFFFD))
+            {
+                sb.Append(ch);
+            }
+        }
+
+        return sb.ToString();
     }
 }

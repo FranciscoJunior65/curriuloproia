@@ -210,18 +210,26 @@ public static class EnvFileLoader
             }
         }
 
-        if (normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith("/backend/app.env", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (normalized.EndsWith("/backend/app.env", StringComparison.OrdinalIgnoreCase))
         {
             return 1;
         }
 
-        if (normalized.EndsWith("/backend-node/.env", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith("/backend-node/app.env", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("/backend-node/.env", StringComparison.OrdinalIgnoreCase))
         {
             return 2;
         }
 
-        return 3;
+        if (normalized.EndsWith("/backend-node/app.env", StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        return 4;
     }
 }

@@ -142,7 +142,11 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   pendingAnalysesCount = 0;
 
   private updateShowPlans(): void {
-    this.showPlans = this.userCredits === 0 && !this.result;
+    if (this.result || this.analysisCompleted) {
+      this.showPlans = false;
+      return;
+    }
+    this.showPlans = this.userCredits === 0;
   }
 
   private scrollToResults(): void {
@@ -220,8 +224,29 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     return !!this.result?.servicos?.curriculo_ingles_pago;
   }
 
+  hasEnglishPdfGenerated(): boolean {
+    const s = this.result?.servicos;
+    if (!s) return false;
+    if (s.curriculo_ingles_pdf) return true;
+    // Legado: só existia curriculo_ingles_gerado (contava como os dois)
+    if (s.curriculo_ingles_gerado && !s.curriculo_ingles_pdf && !s.curriculo_ingles_word) {
+      return true;
+    }
+    return false;
+  }
+
+  hasEnglishWordGenerated(): boolean {
+    const s = this.result?.servicos;
+    if (!s) return false;
+    if (s.curriculo_ingles_word) return true;
+    if (s.curriculo_ingles_gerado && !s.curriculo_ingles_pdf && !s.curriculo_ingles_word) {
+      return true;
+    }
+    return false;
+  }
+
   hasEnglishGenerated(): boolean {
-    return !!this.result?.servicos?.curriculo_ingles_gerado;
+    return this.hasEnglishPdfGenerated() && this.hasEnglishWordGenerated();
   }
 
   get interviewAlreadyDone(): boolean {
@@ -237,12 +262,25 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     if (!this.result || !servicos) {
       return;
     }
+    const prev = this.result.servicos;
+    const pagoFromApi = servicos.curriculo_ingles_pago ?? servicos.CurriculoInglesPago;
+    const pdfFromApi = servicos.curriculo_ingles_pdf ?? servicos.CurriculoInglesPdf;
+    const wordFromApi = servicos.curriculo_ingles_word ?? servicos.CurriculoInglesWord;
+    const geradoFromApi = servicos.curriculo_ingles_gerado ?? servicos.CurriculoInglesGerado;
+
     this.result = {
       ...this.result,
       servicos: {
-        curriculo_ingles_pago: servicos.curriculo_ingles_pago ?? servicos.CurriculoInglesPago,
-        curriculo_ingles_gerado: servicos.curriculo_ingles_gerado ?? servicos.CurriculoInglesGerado,
-        itens: servicos.itens ?? servicos.Itens
+        // Nunca rebaixa "pago" após refresh (API pode vir sem a flag ainda)
+        curriculo_ingles_pago: pagoFromApi === true || prev?.curriculo_ingles_pago === true,
+        curriculo_ingles_pdf: pdfFromApi === true || prev?.curriculo_ingles_pdf === true,
+        curriculo_ingles_word: wordFromApi === true || prev?.curriculo_ingles_word === true,
+        curriculo_ingles_gerado:
+          geradoFromApi === true ||
+          prev?.curriculo_ingles_gerado === true ||
+          ((pdfFromApi === true || prev?.curriculo_ingles_pdf) &&
+            (wordFromApi === true || prev?.curriculo_ingles_word)),
+        itens: servicos.itens ?? servicos.Itens ?? prev?.itens
       }
     };
   }
@@ -337,11 +375,10 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           this.creditsLoadedForUserId = user.id;
           this.checkCredits();
         }
-        this.loadLinkedReferralCoupon();
       } else {
         this.userId = '';
         this.userCredits = 0;
-        this.showPlans = true;
+        this.updateShowPlans();
         this.isAdmin = false;
         this.creditsLoadedForUserId = null;
       }
@@ -366,7 +403,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       }
       console.log('Usuário inicial:', currentUser);
       console.log('isAdmin inicial:', this.isAdmin);
-      this.loadLinkedReferralCoupon();
     }
 
     this.loadPlans();
@@ -389,25 +425,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       error: () => {
         this.paymentProvider = 'stripe';
       }
-    });
-  }
-
-  loadLinkedReferralCoupon(): void {
-    if (!this.isAuthenticated) return;
-
-    this.authService.getReferralCoupon().subscribe({
-      next: (res) => {
-        if (!res.success || !res.referralCoupon) return;
-
-        const referral = res.referralCoupon;
-        this.couponCode = referral.couponCode;
-        this.validatedCoupon = {
-          nome: referral.couponCode,
-          porcentagem_desconto: referral.discountPercent
-        };
-        this.couponError = '';
-      },
-      error: () => {}
     });
   }
 
@@ -486,12 +503,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
               ? {
                   curriculo_ingles_pago: response.servicos.curriculo_ingles_pago,
                   curriculo_ingles_gerado: response.servicos.curriculo_ingles_gerado,
+                  curriculo_ingles_pdf: response.servicos.curriculo_ingles_pdf,
+                  curriculo_ingles_word: response.servicos.curriculo_ingles_word,
                   itens: response.servicos.itens
                 }
               : analysis.servicos
                 ? {
                     curriculo_ingles_pago: analysis.servicos.curriculo_ingles_pago,
                     curriculo_ingles_gerado: analysis.servicos.curriculo_ingles_gerado,
+                    curriculo_ingles_pdf: analysis.servicos.curriculo_ingles_pdf,
+                    curriculo_ingles_word: analysis.servicos.curriculo_ingles_word,
                     itens: analysis.servicos.itens
                   }
                 : undefined
@@ -613,7 +634,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   checkCredits(): void {
     if (!this.isAuthenticated || !this.userId) {
       this.userCredits = 0;
-      this.showPlans = true;
+      this.updateShowPlans();
       return;
     }
 
@@ -636,7 +657,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       error: () => {
         this.creditsFetchInFlight = false;
         this.userCredits = 0;
-        this.showPlans = true;
+        this.updateShowPlans();
       }
     });
   }
@@ -748,6 +769,28 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   private openCheckout(checkoutUrl: string): void {
     this.processingPaymentPlanId = null;
     this.checkoutHint = null;
+
+    // Checkout Pro do Mercado Pago: redirect na mesma aba (evita popup + extensões no console).
+    if (this.paymentProvider === 'mercadopago') {
+      const isSandbox = /sandbox\.mercadopago/i.test(checkoutUrl);
+      if (isSandbox) {
+        const proceed = window.confirm(
+          'Pagamento em SANDBOX (teste)\n\n' +
+            '1. E-mail: use SOMENTE o @testuser.com do Comprador de teste (configurado no backend/.env).\n' +
+            '   NÃO use Gmail, Outlook ou e-mail real — isso gera "Uma das partes é de teste".\n\n' +
+            '2. Cartão DE TESTE (obrigatório): 5031 4332 1540 6351\n' +
+            '   CVV 123 | Validade 11/30 | Titular APRO | CPF 12345678909\n' +
+            '   Cartão real (ex: terminado em 8720) NÃO funciona no sandbox.\n\n' +
+            '3. Aba anônima, sem login na sua conta real do Mercado Pago.\n\n' +
+            'Continuar para o checkout?'
+        );
+        if (!proceed) {
+          return;
+        }
+      }
+      window.location.assign(checkoutUrl);
+      return;
+    }
 
     const ref = this.dialog.open(CheckoutModalComponent, {
       data: {
@@ -1100,33 +1143,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.selectedSiteId || undefined,
       this.result.analysisId || undefined
     ).subscribe({
-      next: (response: any) => {
-        // Se retornar blob (arquivo)
-        if (response instanceof Blob) {
-          const url = window.URL.createObjectURL(response);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        } else if (response.changes) {
-          // Se retornar mudanças
-          this.resumeChanges = response;
-          // Se também tiver blob, faz download
-          if (response.blob) {
-            const url = window.URL.createObjectURL(response.blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-          }
-        }
-        
+      next: (blob: Blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
         if (format === 'pdf') {
           this.generatingPDF = false;
         } else {
@@ -1244,13 +1270,28 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           } else {
             this.generatingEnglishWord = false;
           }
+          this.showPlans = false;
+          this.analysisCompleted = true;
           if (this.result?.analysisId) {
-            this.refreshAnalysisServicos(this.result.analysisId);
+            const patch: Record<string, boolean> = {
+              curriculo_ingles_pago: true
+            };
+            if (format === 'pdf') {
+              patch['curriculo_ingles_pdf'] = true;
+            } else {
+              patch['curriculo_ingles_word'] = true;
+            }
             this.applyServicos({
               ...this.result.servicos,
-              curriculo_ingles_pago: true,
-              curriculo_ingles_gerado: true
+              ...patch
             });
+            if (this.hasEnglishGenerated()) {
+              this.applyServicos({
+                ...this.result.servicos,
+                curriculo_ingles_gerado: true
+              });
+            }
+            this.refreshAnalysisServicos(this.result.analysisId);
           }
         },
         error: (err: any) => {
@@ -1263,10 +1304,12 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             this.error =
               err.error?.message ||
               'Compre o currículo em inglês para esta análise antes de gerar.';
-            this.applyServicos({
-              ...this.result?.servicos,
-              curriculo_ingles_pago: false
-            });
+            if (!this.isAdmin) {
+              this.applyServicos({
+                ...this.result?.servicos,
+                curriculo_ingles_pago: false
+              });
+            }
           } else {
             this.error = err?.error?.message || 'Erro ao gerar currículo em inglês';
           }

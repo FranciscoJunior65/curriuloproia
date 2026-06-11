@@ -53,7 +53,11 @@ public static class AnalysisServicesStatusHelper
         var pendentes = AnalysisBundledServiceKeys.Optional.Count(k => !status.GetValueOrDefault(k));
 
         var inglesPago = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoInglesPago);
-        var inglesGerado = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoIngles);
+        var inglesLegacy = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoIngles);
+        var inglesPdf = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoInglesPdf) || inglesLegacy;
+        var inglesWord = status.GetValueOrDefault(AnalysisBundledServiceKeys.CurriculoInglesWord) || inglesLegacy;
+        var inglesGerado = inglesPdf && inglesWord;
+
         itens.Add(new AnalysisServiceItemDto
         {
             Key = AnalysisBundledServiceKeys.CurriculoInglesPago,
@@ -64,10 +68,18 @@ public static class AnalysisServicesStatusHelper
         });
         itens.Add(new AnalysisServiceItemDto
         {
-            Key = AnalysisBundledServiceKeys.CurriculoIngles,
-            Label = AnalysisBundledServiceKeys.Labels[AnalysisBundledServiceKeys.CurriculoIngles],
-            Usado = inglesGerado,
-            Pendente = inglesPago && !inglesGerado,
+            Key = AnalysisBundledServiceKeys.CurriculoInglesPdf,
+            Label = AnalysisBundledServiceKeys.Labels[AnalysisBundledServiceKeys.CurriculoInglesPdf],
+            Usado = inglesPdf,
+            Pendente = inglesPago && !inglesPdf,
+            Ilimitado = false
+        });
+        itens.Add(new AnalysisServiceItemDto
+        {
+            Key = AnalysisBundledServiceKeys.CurriculoInglesWord,
+            Label = AnalysisBundledServiceKeys.Labels[AnalysisBundledServiceKeys.CurriculoInglesWord],
+            Usado = inglesWord,
+            Pendente = inglesPago && !inglesWord,
             Ilimitado = false
         });
 
@@ -77,7 +89,9 @@ public static class AnalysisServicesStatusHelper
             ServicosPendentes = pendentes,
             PacoteConcluido = pendentes == 0,
             CurriculoInglesPago = inglesPago,
-            CurriculoInglesGerado = inglesGerado
+            CurriculoInglesGerado = inglesGerado,
+            CurriculoInglesPdf = inglesPdf,
+            CurriculoInglesWord = inglesWord
         };
     }
 

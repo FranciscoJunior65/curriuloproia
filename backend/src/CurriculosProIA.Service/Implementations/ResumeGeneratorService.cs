@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CurriculosProIA.Domain.Dtos;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -13,7 +12,6 @@ namespace CurriculosProIA.Service.Implementations;
 
 public class ResumeGeneratorService : IResumeGeneratorService
 {
-    private sealed record ResumeSection(string Title, List<string> Lines);
     private readonly IAiService _aiService;
     private readonly IJobSitesService _jobSites;
 
@@ -53,6 +51,8 @@ public class ResumeGeneratorService : IResumeGeneratorService
             - Melhore a formatação e organização
             - Use linguagem profissional e clara
             - Mantenha a estrutura padrão de currículo (Dados Pessoais, Objetivo, Experiência, Formação, Habilidades)
+            - Cabeçalhos de seção em MAIÚSCULAS, uma linha cada
+            - Use linhas com "- " para conquistas e responsabilidades
             - Não invente informações que não estavam no original
             - Otimize o currículo para passar por sistemas ATS e análise de IA
             {(siteKeywords.Count > 0 ? $"- Use naturalmente as seguintes palavras-chave estratégicas relevantes para o site: {string.Join(", ", siteKeywords)}" : "")}
@@ -80,7 +80,7 @@ public class ResumeGeneratorService : IResumeGeneratorService
             {(siteKeywords.Count > 0 ? $"6. Incorpora naturalmente as palavras-chave estratégicas: {string.Join(", ", siteKeywords)}" : "")}
             8. É otimizado para passar por sistemas ATS e análise de IA de recrutadores
 
-            Retorne APENAS o texto do currículo melhorado, sem explicações adicionais.
+            Retorne APENAS o texto do currículo melhorado, linha a linha, com cabeçalhos de seção e bullets — pronto para exportação PDF/Word.
             """;
 
         var improved = await _aiService.GenerateTextAsync($"{systemPrompt}\n\n{userPrompt}", 0.7, 3000, cancellationToken);
@@ -141,9 +141,7 @@ public class ResumeGeneratorService : IResumeGeneratorService
 
     public byte[] GenerateResumePdf(string resumeText)
     {
-        var lines = NormalizeResumeLines(resumeText);
-        var profile = ExtractProfile(lines);
-        var sections = BuildSections(lines, profile);
+        var layout = ResumeLayoutHelper.Parse(resumeText);
 
         return Document.Create(container =>
         {
@@ -156,14 +154,14 @@ public class ResumeGeneratorService : IResumeGeneratorService
                 page.Content().Column(column =>
                 {
                     column.Spacing(5);
-                    column.Item().Text(profile.Name).FontSize(21).SemiBold().FontColor(Colors.Blue.Darken3);
-                    if (!string.IsNullOrWhiteSpace(profile.Contact))
+                    column.Item().Text(layout.Name).FontSize(21).SemiBold().FontColor(Colors.Blue.Darken3);
+                    if (!string.IsNullOrWhiteSpace(layout.Contact))
                     {
-                        column.Item().Text(profile.Contact).FontSize(9.5f).FontColor(Colors.Grey.Darken1);
+                        column.Item().Text(layout.Contact).FontSize(9.5f).FontColor(Colors.Grey.Darken1);
                     }
                     column.Item().PaddingTop(8).PaddingBottom(2).LineHorizontal(1).LineColor(Colors.Blue.Lighten3);
 
-                    foreach (var section in sections)
+                    foreach (var section in layout.Sections)
                     {
                         if (!string.IsNullOrWhiteSpace(section.Title))
                         {
@@ -184,11 +182,13 @@ public class ResumeGeneratorService : IResumeGeneratorService
                         foreach (var line in section.Lines)
                         {
                             if (string.IsNullOrWhiteSpace(line))
-                                continue;
-
-                            if (IsBullet(line))
                             {
-                                var bulletText = line.TrimStart('-', '*', '•', ' ').Trim();
+                                continue;
+                            }
+
+                            if (ResumeLayoutHelper.IsBulletLine(line))
+                            {
+                                var bulletText = ResumeLayoutHelper.StripBulletPrefix(line);
                                 column.Item().PaddingBottom(2).Row(row =>
                                 {
                                     row.Spacing(6);
@@ -209,119 +209,6 @@ public class ResumeGeneratorService : IResumeGeneratorService
 
     public byte[] GenerateResumeDocx(string resumeText) =>
         ResumeDocxBuilder.BuildFromText(resumeText);
-
-    private static List<string> NormalizeResumeLines(string resumeText)
-    {
-        return (resumeText ?? string.Empty)
-            .Replace("\r", string.Empty)
-            .Split('\n')
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .ToList();
-    }
-
-    private static (string Name, string Contact) ExtractProfile(List<string> lines)
-    {
-        var name = lines
-            .Select(StripMarkdown)
-            .FirstOrDefault(l =>
-                !string.IsNullOrWhiteSpace(l) &&
-                !IsLikelySectionTitle(l) &&
-                l.Length <= 70 &&
-                Regex.IsMatch(l, @"^[\p{L}\s\.'\-]+$", RegexOptions.CultureInvariant)) ?? "Currículo Profissional";
-
-        var contact = lines
-            .Select(StripMarkdown)
-            .FirstOrDefault(l =>
-                l.Contains("@", StringComparison.OrdinalIgnoreCase) ||
-                l.Contains("|", StringComparison.OrdinalIgnoreCase) ||
-                Regex.IsMatch(l, @"\(\d{2}\)|\d{8,}", RegexOptions.CultureInvariant)) ?? string.Empty;
-
-        return (name, contact);
-    }
-
-    private static string StripMarkdown(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return string.Empty;
-
-        var cleaned = text.Trim();
-        cleaned = cleaned.Replace("**", string.Empty).Replace("__", string.Empty);
-        cleaned = Regex.Replace(cleaned, @"^\*\s*", string.Empty);
-        cleaned = Regex.Replace(cleaned, @"^\-\s*", "- ");
-        cleaned = Regex.Replace(cleaned, @"(?<!\*)\*(?!\*)", string.Empty);
-        cleaned = Regex.Replace(cleaned, @"\[(.*?)\]\((.*?)\)", "$1");
-        cleaned = Regex.Replace(cleaned, @"\s{2,}", " ");
-        return cleaned.Trim();
-    }
-
-    private static bool IsLikelySectionTitle(string line)
-    {
-        var candidate = StripMarkdown(line).Trim(':', ' ', '-');
-        if (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 42)
-            return false;
-
-        var normalized = candidate.ToUpperInvariant();
-        return candidate == normalized ||
-               normalized.Contains("RESUMO") ||
-               normalized.Contains("EXPERI") ||
-               normalized.Contains("FORMA") ||
-               normalized.Contains("HABIL") ||
-               normalized.Contains("IDIOMA") ||
-               normalized.Contains("OBJETIVO") ||
-               normalized.Contains("INFORMA") ||
-               normalized.Contains("SUMMARY") ||
-               normalized.Contains("EXPERIENCE") ||
-               normalized.Contains("EDUCATION") ||
-               normalized.Contains("SKILLS") ||
-               normalized.Contains("CONTACT") ||
-               normalized.Contains("PROFILE");
-    }
-
-    private static bool IsBullet(string line)
-    {
-        var t = line.TrimStart();
-        return t.StartsWith("- ") || t.StartsWith("* ") || t.StartsWith("• ");
-    }
-
-    private static List<ResumeSection> BuildSections(List<string> lines, (string Name, string Contact) profile)
-    {
-        var sections = new List<ResumeSection>();
-        var currentTitle = "Resumo";
-        var currentLines = new List<string>();
-
-        foreach (var raw in lines)
-        {
-            var line = StripMarkdown(raw);
-            if (string.IsNullOrWhiteSpace(line) ||
-                line.Equals(profile.Name, StringComparison.OrdinalIgnoreCase) ||
-                line.Equals(profile.Contact, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (IsLikelySectionTitle(line))
-            {
-                if (currentLines.Count > 0)
-                {
-                    sections.Add(new ResumeSection(currentTitle, currentLines));
-                }
-
-                currentTitle = line.Trim(':', ' ');
-                currentLines = new List<string>();
-                continue;
-            }
-
-            currentLines.Add(line);
-        }
-
-        if (currentLines.Count > 0)
-        {
-            sections.Add(new ResumeSection(currentTitle, currentLines));
-        }
-
-        return sections;
-    }
 
     private async Task<string> BuildSiteInfoAsync(string? siteId, CancellationToken cancellationToken)
     {

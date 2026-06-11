@@ -236,7 +236,7 @@ public class PricingService : IPricingService
             {
                 Id = "english",
                 Name = "Currículo em Inglês",
-                Description = "Geração de currículo profissional em inglês (apenas PDF e WORD, sem análise)",
+                Description = "Currículo em inglês vinculado à análise — download em PDF e Word (ambos inclusos na compra)",
                 Analyses = 0,
                 PriceBRL = config.EnglishPriceBRL,
                 PriceBRLBundle = config.EnglishBundlePriceBRL,
@@ -245,7 +245,8 @@ public class PricingService : IPricingService
                 [
                     "Currículo traduzido e adaptado para padrões internacionais",
                     "Formatação ATS-friendly",
-                    "Download em PDF ou WORD",
+                    "Download em PDF e Word (ambos inclusos)",
+                    "Baixe quantas vezes quiser, em qualquer formato",
                     "Otimizado para vagas globais",
                     "Adaptação cultural profissional"
                 ]

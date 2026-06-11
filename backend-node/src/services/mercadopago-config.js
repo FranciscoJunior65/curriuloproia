@@ -60,7 +60,7 @@ export const getMercadoPagoDebugInfo = () => {
   };
 };
 
-/** Sandbox: cartão e conta MP. Produção: cartão, conta MP e PIX. Sempre sem boleto/débito. */
+/** Sandbox: cartão (sem PIX). Produção: cartão, conta MP e PIX. Sempre sem boleto/débito. */
 export const buildCheckoutPaymentMethods = (isProduction) => {
   const excludedPaymentTypes = [
     { id: 'ticket' },
