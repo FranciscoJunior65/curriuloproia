@@ -144,7 +144,7 @@ public static class MercadoPagoConfigHelper
     }
 
     /// <summary>
-    /// Sandbox: cartão de crédito e conta Mercado Pago.
+    /// Sandbox: cartão de crédito (PIX e boleto excluídos).
     /// Produção: cartão, conta Mercado Pago e PIX.
     /// Sempre exclui boleto e cartões de débito (incl. Caixa virtual).
     /// </summary>

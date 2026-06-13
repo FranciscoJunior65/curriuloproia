@@ -371,6 +371,11 @@ public static class EnvFileLoader
             return 2;
         }
 
-        return 3;
+        if (normalized.EndsWith("/backend-node/app.env", StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        return 4;
     }
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpResponse } from '@angular/common/http';
+import { Observable, from, of, throwError } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface AnalysisResult {
@@ -21,6 +22,8 @@ export interface AnalysisResult {
   servicos?: {
     curriculo_ingles_pago?: boolean;
     curriculo_ingles_gerado?: boolean;
+    curriculo_ingles_pdf?: boolean;
+    curriculo_ingles_word?: boolean;
     itens?: Array<{ key: string; usado: boolean; pendente: boolean }>;
   };
   metadata?: {
@@ -49,6 +52,44 @@ export class AnalyzerService {
     return headers;
   }
 
+  /** POST que retorna arquivo; se a API responder JSON de erro, propaga mensagem legível. */
+  private postFileDownload(url: string, body: unknown): Observable<Blob> {
+    return this.http
+      .post(url, body, {
+        headers: this.getAuthHeaders(),
+        observe: 'response',
+        responseType: 'blob'
+      })
+      .pipe(
+        switchMap((response: HttpResponse<Blob>) => {
+          const blob = response.body;
+          const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+          if (!blob || response.status >= 400 || contentType.includes('application/json')) {
+            return from(blob?.text() ?? Promise.resolve('')).pipe(
+              switchMap((text) => {
+                let message = 'Erro ao gerar arquivo';
+                try {
+                  const json = JSON.parse(text);
+                  message = json.message || json.error || message;
+                } catch {
+                  if (text?.trim()) {
+                    message = text.trim();
+                  }
+                }
+                return throwError(() => ({
+                  status: response.status,
+                  error: { message }
+                }));
+              })
+            );
+          }
+
+          return of(blob);
+        })
+      );
+  }
+
 
   generateEnglishResume(
     originalText: string,
@@ -68,14 +109,7 @@ export class AnalyzerService {
       body.analysisId = analysisId;
     }
 
-    return this.http.post(
-      `${this.apiUrl}/analyze/generate-english`,
-      body,
-      {
-        headers: this.getAuthHeaders(),
-        responseType: 'blob'
-      }
-    );
+    return this.postFileDownload(`${this.apiUrl}/analyze/generate-english`, body);
   }
 
   generateImprovedResume(
@@ -84,7 +118,7 @@ export class AnalyzerService {
     format: 'pdf' | 'word' = 'pdf',
     siteId?: string,
     analysisId?: string
-  ): Observable<Blob | any> {
+  ): Observable<Blob> {
     const body: any = { originalText, analysis, format };
     if (siteId) {
       body.siteId = siteId;
@@ -92,28 +126,8 @@ export class AnalyzerService {
     if (analysisId) {
       body.analysisId = analysisId;
     }
-    
-    const headers = this.getAuthHeaders();
-    
-    if (format === 'pdf') {
-      return this.http.post(
-        `${this.apiUrl}/analyze/generate-improved`,
-        body,
-        { 
-          headers,
-          responseType: 'blob'
-        }
-      ) as Observable<Blob>;
-    } else {
-      return this.http.post(
-        `${this.apiUrl}/analyze/generate-improved`,
-        body,
-        { 
-          headers,
-          responseType: 'json'
-        }
-      );
-    }
+
+    return this.postFileDownload(`${this.apiUrl}/analyze/generate-improved`, body);
   }
 
   getPlans(): Observable<any> {

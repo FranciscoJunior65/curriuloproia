@@ -17,6 +17,8 @@ namespace CurriculosProIA.Service.Implementations;
 
 public class MercadoPagoService : IMercadoPagoService
 {
+    private const string SandboxTestCpf = "12345678909";
+
     private readonly IPaymentCheckoutService _checkout;
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -113,6 +115,17 @@ public class MercadoPagoService : IMercadoPagoService
         var isProduction = await ResolveIsProductionModeAsync(cancellationToken);
         var payerEmail = ResolvePayerEmail(email, isProduction);
 
+        var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
+        if (!isProduction)
+        {
+            cpfNormalized = SandboxTestCpf;
+            if (string.IsNullOrEmpty(payerEmail))
+            {
+                _logger.LogWarning(
+                    "Sandbox MP: MERCADOPAGO_TEST_PAYER_EMAIL não definido. No checkout use e-mail @testuser.com do Comprador de teste e cartão 5031 4332 1540 6351.");
+            }
+        }
+
         var body = new Dictionary<string, object?>
         {
             ["items"] = new[]
@@ -140,7 +153,6 @@ public class MercadoPagoService : IMercadoPagoService
             ["payment_methods"] = MercadoPagoConfigHelper.BuildCheckoutPaymentMethods(isProduction)
         };
 
-        var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
         var payer = BuildPayer(payerEmail, cpfNormalized);
         if (payer != null)
         {
@@ -448,7 +460,13 @@ public class MercadoPagoService : IMercadoPagoService
             return testPayer;
         }
 
-        return email;
+        if (IsValidEmail(email)
+            && email!.Trim().EndsWith("@testuser.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return email.Trim();
+        }
+
+        return null;
     }
 
     private static string? ResolveCheckoutInitPoint(JsonElement root, bool isProduction)

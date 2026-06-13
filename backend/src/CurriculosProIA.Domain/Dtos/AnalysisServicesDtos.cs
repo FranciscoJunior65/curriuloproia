@@ -13,7 +13,13 @@ public static class AnalysisBundledServiceKeys
     /// <summary>Compra à parte: direito de gerar currículo em inglês nesta análise.</summary>
     public const string CurriculoInglesPago = "curriculo_ingles_pago";
 
-    /// <summary>Currículo em inglês já gerado (PDF/Word).</summary>
+    /// <summary>Currículo em inglês — PDF já baixado nesta análise.</summary>
+    public const string CurriculoInglesPdf = "curriculo_ingles_pdf";
+
+    /// <summary>Currículo em inglês — Word já baixado nesta análise.</summary>
+    public const string CurriculoInglesWord = "curriculo_ingles_word";
+
+    /// <summary>Legado: ambos formatos gerados (preferir pdf/word).</summary>
     public const string CurriculoIngles = "curriculo_ingles";
 
     /// <summary>Serviços de uso único por análise paga (carta, currículo melhorado, entrevista).</summary>
@@ -38,6 +44,8 @@ public static class AnalysisBundledServiceKeys
         [Entrevista] = "Simulação de entrevista",
         [BuscaVagas] = "Busca de vagas",
         [CurriculoInglesPago] = "Currículo em inglês (comprado)",
+        [CurriculoInglesPdf] = "Currículo em inglês (PDF)",
+        [CurriculoInglesWord] = "Currículo em inglês (Word)",
         [CurriculoIngles] = "Currículo em inglês (gerado)"
     };
 
@@ -49,6 +57,8 @@ public static class AnalysisBundledServiceKeys
         [Entrevista] = false,
         [BuscaVagas] = false,
         [CurriculoInglesPago] = false,
+        [CurriculoInglesPdf] = false,
+        [CurriculoInglesWord] = false,
         [CurriculoIngles] = false
     };
 }
@@ -87,6 +97,12 @@ public class AnalysisServicesStatusDto
 
     [JsonPropertyName("curriculo_ingles_gerado")]
     public bool CurriculoInglesGerado { get; set; }
+
+    [JsonPropertyName("curriculo_ingles_pdf")]
+    public bool CurriculoInglesPdf { get; set; }
+
+    [JsonPropertyName("curriculo_ingles_word")]
+    public bool CurriculoInglesWord { get; set; }
 }
 
 public class PendingServicesSummaryDto

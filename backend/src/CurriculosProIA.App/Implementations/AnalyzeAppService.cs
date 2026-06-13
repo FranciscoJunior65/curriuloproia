@@ -269,6 +269,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         CancellationToken cancellationToken)
     {
         var startTime = DateTime.UtcNow;
+        var format = (body.Format ?? "pdf").Trim().ToLowerInvariant();
 
         try
         {
@@ -315,6 +316,20 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 ctx.Analysis,
                 ctx.SiteId ?? body.SiteId,
                 cancellationToken);
+
+            if (format == "word")
+            {
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(improvedResume);
+                await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
+
+                var wordTime = (DateTime.UtcNow - startTime).TotalSeconds;
+                _logger.LogInformation("Currículo melhorado (Word) gerado em {Seconds:F2}s", wordTime);
+
+                return File(
+                    docxBuffer,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "curriculo-melhorado.docx");
+            }
 
             var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume);
             await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
@@ -380,10 +395,14 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 ctx.SiteId ?? body.SiteId,
                 cancellationToken);
 
+            var formatKey = format == "word"
+                ? AnalysisBundledServiceKeys.CurriculoInglesWord
+                : AnalysisBundledServiceKeys.CurriculoInglesPdf;
+
             if (format == "word")
             {
                 var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume);
-                await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoIngles, cancellationToken);
+                await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
                 return File(
                     docxBuffer,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -391,7 +410,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             }
 
             var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume);
-            await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoIngles, cancellationToken);
+            await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
             _logger.LogInformation("Currículo em inglês (PDF) gerado em {Seconds:F2}s", processingTime);
@@ -2044,7 +2063,51 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             return;
         }
 
-        await _analysis.MarkServiceUsedAsync(analysisId, serviceKey, cancellationToken);
+        try
+        {
+            await _analysis.MarkServiceUsedAsync(analysisId, serviceKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Não foi possível marcar serviço {ServiceKey} na análise {AnalysisId}",
+                serviceKey,
+                analysisId);
+        }
+    }
+
+    private async Task TryMarkEnglishFormatUsedAsync(
+        string? analysisId,
+        string formatKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(analysisId))
+        {
+            return;
+        }
+
+        try
+        {
+            await _analysis.MarkServiceUsedAsync(analysisId, formatKey, cancellationToken);
+
+            var status = await _analysis.GetServicesStatusAsync(analysisId, cancellationToken);
+            if (status.CurriculoInglesPdf && status.CurriculoInglesWord)
+            {
+                await _analysis.MarkServiceUsedAsync(
+                    analysisId,
+                    AnalysisBundledServiceKeys.CurriculoIngles,
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Não foi possível marcar formato inglês {FormatKey} na análise {AnalysisId}",
+                formatKey,
+                analysisId);
+        }
     }
 
     private async Task<string?> ResolveAnalysisIdForInterviewAsync(
@@ -2136,6 +2199,21 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         if (!await _analysis.HasEnglishPaidAsync(analysisId, cancellationToken))
         {
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var profile = await _data.GetUserProfileAsync(userId, cancellationToken);
+                if (profile?.UserType == "admin")
+                {
+                    await _analysis.GrantEnglishPaidAsync(analysisId.Trim(), cancellationToken);
+                    _logger.LogInformation(
+                        "Admin {UserId}: inglês liberado automaticamente para análise {AnalysisId}",
+                        userId,
+                        analysisId);
+                    return null;
+                }
+            }
+
             return StatusCode(402, new
             {
                 success = false,
