@@ -3,7 +3,7 @@ using DotNetEnv;
 namespace CurriculosProIA.Api.Infrastructure;
 
 /// <summary>
-/// Carrega variáveis do .env (pasta da API no IIS, backend/ ou backend-node/ no desenvolvimento).
+/// Carrega variáveis do .env (pasta da API no IIS/Plesk, backend/ ou backend-node/ no desenvolvimento).
 /// </summary>
 public static class EnvFileLoader
 {
@@ -12,33 +12,91 @@ public static class EnvFileLoader
     public static string? LoadedPath { get; private set; }
     public static IReadOnlyList<string> LastSearchedPaths { get; private set; } = Array.Empty<string>();
 
-    /// <summary>Carrega na inicialização (antes do WebApplication.CreateBuilder).</summary>
-    public static string? Load() => LoadFromRoots(CollectSearchRoots(null));
-
-    /// <summary>Segunda tentativa com ContentRoot do IIS/Plesk.</summary>
-    public static string? TryLoadContentRoot(string? contentRootPath)
+    /// <summary>
+    /// Carrega após <see cref="WebApplication.CreateBuilder"/> — prioriza ContentRoot (pasta do site no IIS/Plesk).
+    /// </summary>
+    public static void Configure(WebApplicationBuilder builder)
     {
-        if (string.IsNullOrWhiteSpace(contentRootPath))
+        var roots = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(builder.Environment.ContentRootPath))
         {
-            return LoadedPath;
+            roots.Add(builder.Environment.ContentRootPath);
         }
 
-        return LoadFromRoots(CollectSearchRoots(contentRootPath));
+        roots.Add(AppContext.BaseDirectory);
+
+        var assemblyDir = Path.GetDirectoryName(typeof(EnvFileLoader).Assembly.Location);
+        if (!string.IsNullOrWhiteSpace(assemblyDir))
+        {
+            roots.Add(assemblyDir);
+        }
+
+        roots.Add(Directory.GetCurrentDirectory());
+
+        foreach (var root in roots.Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (TryLoadFromDirectory(root, preferFileOverEmptyEnv: true))
+            {
+                break;
+            }
+        }
+
+        if (LoadedPath == null)
+        {
+            TryLoadFromRepositoryRoots();
+        }
+
+        builder.Configuration.AddEnvironmentVariables();
+
+        LogStartupStatus();
     }
 
     public static bool HasSupabaseEnvironmentVariables() =>
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SUPABASE_URL")) &&
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY"));
 
-    private static string? LoadFromRoots(IEnumerable<string> roots)
+    public static object GetDiagnostics(string? contentRoot = null) => new
     {
-        if (!string.IsNullOrEmpty(LoadedPath) && File.Exists(LoadedPath))
+        loadedPath = LoadedPath,
+        loadedFileExists = LoadedPath != null && File.Exists(LoadedPath),
+        contentRoot = contentRoot ?? Directory.GetCurrentDirectory(),
+        appBaseDirectory = AppContext.BaseDirectory,
+        hasSupabase = HasSupabaseEnvironmentVariables(),
+        hasMercadoPagoTestToken = HasNonEmptyEnv("MERCADOPAGO_ACCESS_TOKEN_TEST"),
+        hasMercadoPagoProductionToken = HasNonEmptyEnv("MERCADOPAGO_ACCESS_TOKEN_PRODUCTION"),
+        mercadoPagoMode = Environment.GetEnvironmentVariable("MERCADOPAGO_MODE") ?? "(não definido)",
+        paymentProvider = Environment.GetEnvironmentVariable("PAYMENT_PROVIDER") ?? "(não definido)",
+        searchedPaths = LastSearchedPaths.Take(12)
+    };
+
+    private static bool TryLoadFromDirectory(string root, bool preferFileOverEmptyEnv)
+    {
+        var dir = Path.GetFullPath(root);
+        var candidates = EnvFileNames
+            .Select(name => Path.Combine(dir, name))
+            .Where(File.Exists)
+            .Select(Path.GetFullPath)
+            .OrderBy(GetPriority)
+            .ToList();
+
+        LastSearchedPaths = candidates;
+
+        var found = candidates.FirstOrDefault();
+        if (found == null)
         {
-            return LoadedPath;
+            return false;
         }
 
+        ApplyEnvFile(found, preferFileOverEmptyEnv);
+        LoadedPath = found;
+        return true;
+    }
+
+    private static void TryLoadFromRepositoryRoots()
+    {
         var candidates = new List<string>();
-        foreach (var root in roots.Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var root in CollectSearchRoots(null))
         {
             var dir = Path.GetFullPath(root);
             foreach (var name in EnvFileNames)
@@ -65,30 +123,127 @@ public static class EnvFileLoader
 
         if (found == null)
         {
-            if (HasSupabaseEnvironmentVariables())
+            return;
+        }
+
+        ApplyEnvFile(found, preferFileOverEmptyEnv: false);
+        LoadedPath = found;
+    }
+
+    private static void ApplyEnvFile(string path, bool preferFileOverEmptyEnv)
+    {
+        if (preferFileOverEmptyEnv)
+        {
+            // Pasta do site (IIS/Plesk): valores do arquivo prevalecem sobre variáveis vazias do painel.
+            foreach (var (key, value) in ParseEnvEntries(path))
             {
-                Console.WriteLine("✅ [env] SUPABASE_* definidas nas variáveis de ambiente do sistema (sem arquivo .env).");
-                return null;
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                var existing = Environment.GetEnvironmentVariable(key);
+                if (string.IsNullOrWhiteSpace(existing))
+                {
+                    Environment.SetEnvironmentVariable(key, value);
+                }
+            }
+        }
+
+        // DotNetEnv: não sobrescreve variáveis já definidas no sistema (Plesk com valores reais).
+        Env.Load(path, new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: true));
+
+        // Segunda passagem: garante chaves vazias no sistema preenchidas pelo arquivo.
+        if (preferFileOverEmptyEnv)
+        {
+            foreach (var (key, value) in ParseEnvEntries(path))
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                var current = Environment.GetEnvironmentVariable(key);
+                if (string.IsNullOrWhiteSpace(current))
+                {
+                    Environment.SetEnvironmentVariable(key, value);
+                }
+            }
+        }
+
+        Console.WriteLine($"✅ [env] Carregado: {path}");
+    }
+
+    private static IEnumerable<(string Key, string Value)> ParseEnvEntries(string path)
+    {
+        foreach (var rawLine in File.ReadAllLines(path))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith('#'))
+            {
+                continue;
             }
 
-            Console.WriteLine("⚠️ [env] Nenhum arquivo de ambiente encontrado.");
-            Console.WriteLine("   IIS/Plesk: coloque .env ou app.env na pasta do site (mesma pasta do .dll).");
-            Console.WriteLine("   Dev: backend/.env ou backend-node/.env");
-            Console.WriteLine("   BaseDirectory: " + AppContext.BaseDirectory);
-            Console.WriteLine("   CurrentDirectory: " + Directory.GetCurrentDirectory());
-            return null;
+            var eq = line.IndexOf('=');
+            if (eq <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..eq].Trim();
+            var value = line[(eq + 1)..].Trim();
+
+            if (value.Length >= 2 &&
+                ((value.StartsWith('"') && value.EndsWith('"')) ||
+                 (value.StartsWith('\'') && value.EndsWith('\''))))
+            {
+                value = value[1..^1];
+            }
+
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                yield return (key, value);
+            }
+        }
+    }
+
+    private static void LogStartupStatus()
+    {
+        if (LoadedPath == null)
+        {
+            if (HasSupabaseEnvironmentVariables())
+            {
+                Console.WriteLine("✅ [env] Variáveis do sistema (sem arquivo .env/app.env).");
+            }
+            else
+            {
+                Console.WriteLine("⚠️ [env] Nenhum arquivo de ambiente encontrado.");
+                Console.WriteLine("   IIS/Plesk: coloque app.env na pasta do site (mesma pasta do .dll).");
+                Console.WriteLine("   BaseDirectory: " + AppContext.BaseDirectory);
+                Console.WriteLine("   CurrentDirectory: " + Directory.GetCurrentDirectory());
+            }
         }
 
-        Env.Load(found, new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: true));
-        LoadedPath = found;
-
-        Console.WriteLine($"✅ [env] Carregado: {found}");
         if (!HasSupabaseEnvironmentVariables())
         {
-            Console.WriteLine("⚠️ [env] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausentes ou vazios no arquivo.");
+            Console.WriteLine("⚠️ [env] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausentes.");
         }
 
-        return found;
+        var mpMode = Environment.GetEnvironmentVariable("MERCADOPAGO_MODE") ?? "test";
+        var mpKey = string.Equals(mpMode, "production", StringComparison.OrdinalIgnoreCase)
+            ? "MERCADOPAGO_ACCESS_TOKEN_PRODUCTION"
+            : "MERCADOPAGO_ACCESS_TOKEN_TEST";
+
+        if (!HasNonEmptyEnv(mpKey) && !HasNonEmptyEnv("MERCADOPAGO_ACCESS_TOKEN"))
+        {
+            Console.WriteLine($"⚠️ [env] {mpKey} ausente (modo Mercado Pago: {mpMode}).");
+        }
+    }
+
+    private static bool HasNonEmptyEnv(string key)
+    {
+        var value = Environment.GetEnvironmentVariable(key);
+        return !string.IsNullOrWhiteSpace(value);
     }
 
     private static IEnumerable<string> CollectSearchRoots(string? contentRootPath)
@@ -200,24 +355,18 @@ public static class EnvFileLoader
         var normalized = path.Replace('\\', '/');
         var fileName = Path.GetFileName(normalized);
 
-        if (string.Equals(fileName, ".env", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(fileName, "app.env", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(fileName, "app.env", StringComparison.OrdinalIgnoreCase))
         {
-            if (!normalized.Contains("/backend/", StringComparison.OrdinalIgnoreCase)
-                && !normalized.Contains("/backend-node/", StringComparison.OrdinalIgnoreCase))
-            {
-                return 0;
-            }
+            return 0;
         }
 
-        if (normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith("/backend/app.env", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(fileName, ".env", StringComparison.OrdinalIgnoreCase))
         {
             return 1;
         }
 
-        if (normalized.EndsWith("/backend-node/.env", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith("/backend-node/app.env", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("/backend/app.env", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase))
         {
             return 2;
         }

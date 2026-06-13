@@ -536,7 +536,7 @@ public class MercadoPagoService : IMercadoPagoService
         var mode = await ResolveModeAsync(cancellationToken);
         var token = MercadoPagoConfigHelper.GetAccessToken(_configuration, mode)
             ?? throw new InvalidOperationException(
-                "Mercado Pago não configurado. Defina os tokens _TEST/_PRODUCTION no .env");
+                MercadoPagoConfigHelper.BuildMissingTokenMessage(mode));
 
         var client = _httpClientFactory.CreateClient("MercadoPago");
         client.BaseAddress = new Uri("https://api.mercadopago.com/");

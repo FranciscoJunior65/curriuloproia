@@ -10,15 +10,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 
-EnvFileLoader.Load();
-
 var builder = WebApplication.CreateBuilder(args);
 
-// IIS/Plesk: ContentRoot = pasta do site (ex.: api.curriculoproia.com.br)
-EnvFileLoader.TryLoadContentRoot(builder.Environment.ContentRootPath);
-
-// DotNetEnv já definiu process env; reforça no IConfiguration
-builder.Configuration.AddEnvironmentVariables();
+// IIS/Plesk: ContentRoot = pasta do site (ex.: api.curriculoproia.com.br) — prioriza app.env/.env ali
+EnvFileLoader.Configure(builder);
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

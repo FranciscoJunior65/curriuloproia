@@ -13,6 +13,7 @@ public class TestController : ControllerBase
     private readonly ISupabaseConnectionTester _supabase;
     private readonly IAiService _ai;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ISettingsService _settings;
     private readonly IConfiguration _configuration;
     private readonly IHostEnvironment _hostEnvironment;
 
@@ -20,14 +21,40 @@ public class TestController : ControllerBase
         ISupabaseConnectionTester supabase,
         IAiService ai,
         IMercadoPagoService mercadoPago,
+        ISettingsService settings,
         IConfiguration configuration,
         IHostEnvironment hostEnvironment)
     {
         _supabase = supabase;
         _ai = ai;
         _mercadoPago = mercadoPago;
+        _settings = settings;
         _configuration = configuration;
         _hostEnvironment = hostEnvironment;
+    }
+
+    /// <summary>Diagnóstico do carregamento do .env / app.env (deploy IIS/Plesk).</summary>
+    [HttpGet("env")]
+    public IActionResult TestEnv()
+    {
+        var diagnostics = EnvFileLoader.GetDiagnostics(_hostEnvironment.ContentRootPath);
+        var loaded = EnvFileLoader.LoadedPath != null && System.IO.File.Exists(EnvFileLoader.LoadedPath);
+
+        return Ok(new
+        {
+            success = loaded || EnvFileLoader.HasSupabaseEnvironmentVariables(),
+            message = loaded
+                ? $"Arquivo de ambiente carregado: {EnvFileLoader.LoadedPath}"
+                : "Nenhum app.env/.env encontrado na pasta do site. Copie backend/.env para a pasta do .dll como app.env",
+            diagnostics,
+            help = new[]
+            {
+                "1. No servidor: backend/.env → pasta do site como app.env (mesma pasta do CurriculosProIA.Api.dll)",
+                "2. Ou rode: .\\scripts\\copy-env-to-publish.ps1 antes de subir o publish",
+                "3. Reinicie o app pool / site após alterar",
+                "4. GET /api/test/mercadopago — testa token conforme modo (admin ou MERCADOPAGO_MODE)"
+            }
+        });
     }
 
     /// <summary>Testa conexão com Supabase (equivalente ao GET /api/test/supabase da API Node).</summary>
@@ -183,16 +210,21 @@ public class TestController : ControllerBase
     [HttpGet("mercadopago")]
     public async Task<IActionResult> TestMercadoPago(CancellationToken cancellationToken)
     {
-        var token = MercadoPagoConfigHelper.GetAccessToken(_configuration)?.Trim() ?? string.Empty;
+        var resolvedMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
+        var token = MercadoPagoConfigHelper.GetAccessToken(_configuration, resolvedMode)?.Trim() ?? string.Empty;
+        var tokenKey = MercadoPagoConfigHelper.GetAccessTokenEnvKey(resolvedMode);
         var debug = new
         {
             hasAccessToken = !string.IsNullOrWhiteSpace(token),
             tokenPreview = string.IsNullOrWhiteSpace(token) ? "não definido" : MercadoPagoConfigHelper.MaskToken(token),
-            paymentProvider = _configuration["PAYMENT_PROVIDER"] ?? "stripe",
+            resolvedMode,
+            requiredEnvKey = tokenKey,
+            paymentProvider = await _settings.GetPaymentProviderAsync(cancellationToken),
             publicApiUrl = _configuration["PUBLIC_API_URL"]?.Trim() ?? "(localhost)",
             frontendUrl = _configuration["FRONTEND_URL"]?.Trim() ?? "http://localhost:4200",
-            mercadoPago = MercadoPagoConfigHelper.GetDebugInfo(_configuration),
-            envFile = EnvFileLoader.LoadedPath
+            mercadoPago = MercadoPagoConfigHelper.GetDebugInfo(_configuration, resolvedMode),
+            envFile = EnvFileLoader.LoadedPath,
+            envDiagnostics = EnvFileLoader.GetDiagnostics(_hostEnvironment.ContentRootPath)
         };
 
         if (string.IsNullOrWhiteSpace(token))
@@ -202,13 +234,14 @@ public class TestController : ControllerBase
                 success = false,
                 connected = false,
                 error = "Mercado Pago não configurado",
-                message = "Configure MERCADOPAGO_MODE=test|production e os tokens _TEST/_PRODUCTION no .env",
+                message = MercadoPagoConfigHelper.BuildMissingTokenMessage(resolvedMode),
                 debug,
                 help = new[]
                 {
-                    "1. MERCADOPAGO_MODE=test (desenvolvimento) ou production (pagamentos reais)",
-                    "2. Preencha MERCADOPAGO_ACCESS_TOKEN_TEST e MERCADOPAGO_ACCESS_TOKEN_PRODUCTION",
-                    "3. Reinicie o backend"
+                    $"1. Modo ativo: {resolvedMode} (painel admin ou MERCADOPAGO_MODE no app.env)",
+                    $"2. Defina {tokenKey} no app.env na pasta do site",
+                    "3. Rode GET /api/test/env para ver se o arquivo foi encontrado",
+                    "4. Reinicie o site / app pool após alterar"
                 }
             });
         }

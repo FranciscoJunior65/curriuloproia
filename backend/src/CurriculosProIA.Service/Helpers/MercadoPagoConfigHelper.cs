@@ -55,11 +55,29 @@ public static class MercadoPagoConfigHelper
         }
 
         var mode = GetMode(configuration, overrideMode);
-        var key = mode == ModeProduction
+        var key = GetAccessTokenEnvKey(mode);
+        var token = configuration[key]?.Trim();
+
+        return IsPlaceholderToken(token) ? null : token;
+    }
+
+    public static string GetAccessTokenEnvKey(string mode) =>
+        mode == ModeProduction
             ? "MERCADOPAGO_ACCESS_TOKEN_PRODUCTION"
             : "MERCADOPAGO_ACCESS_TOKEN_TEST";
 
-        return configuration[key]?.Trim();
+    public static bool IsPlaceholderToken(string? token) =>
+        string.IsNullOrWhiteSpace(token)
+        || token.Contains("seu-access-token", StringComparison.OrdinalIgnoreCase)
+        || token.StartsWith("APP_USR-seu", StringComparison.OrdinalIgnoreCase);
+
+    public static string BuildMissingTokenMessage(string mode)
+    {
+        var key = GetAccessTokenEnvKey(mode);
+        return mode == ModeProduction
+            ? $"Mercado Pago em modo produção: defina {key} no app.env (pasta do site no servidor). " +
+              "Se o painel admin está em «Produção», o token de produção é obrigatório."
+            : $"Mercado Pago em modo teste: defina {key} no app.env.";
     }
 
     public static string? GetPublicKey(IConfiguration configuration, string? overrideMode = null)
