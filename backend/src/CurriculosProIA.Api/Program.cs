@@ -37,36 +37,46 @@ var allowedOrigins = new List<string>
     "http://localhost:58438",
     "https://curriculoproia.com.br",
     "https://www.curriculoproia.com.br",
+    "https://site.curriculoproia.com.br",
+    "https://www.site.curriculoproia.com.br",
     "https://curriculosproia.getpushtecnologia.com.br",
     "https://www.curriculosproia.getpushtecnologia.com.br"
 };
 var frontendUrl = builder.Configuration["FRONTEND_URL"]?.TrimEnd('/');
 if (!string.IsNullOrEmpty(frontendUrl) && !allowedOrigins.Contains(frontendUrl))
     allowedOrigins.Add(frontendUrl);
+var landingPageUrl = builder.Configuration["LANDING_PAGE_URL"]?.TrimEnd('/');
+if (!string.IsNullOrEmpty(landingPageUrl) && !allowedOrigins.Contains(landingPageUrl))
+    allowedOrigins.Add(landingPageUrl);
+
+static bool IsAllowedCorsOrigin(string? origin, IReadOnlyList<string> origins)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+        return false;
+
+    var normalized = origin.TrimEnd('/');
+    if (origins.Any(o => string.Equals(o.TrimEnd('/'), normalized, StringComparison.OrdinalIgnoreCase)))
+        return true;
+
+    return System.Text.RegularExpressions.Regex.IsMatch(
+               normalized,
+               @"^https://([a-z0-9-]+\.)*curriculoproia\.com\.br$",
+               System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+           || System.Text.RegularExpressions.Regex.IsMatch(
+               normalized,
+               @"^https://([a-z0-9-]+\.)*getpushtecnologia\.com\.br$",
+               System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+}
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.SetIsOriginAllowed(origin =>
-            {
-                if (string.IsNullOrEmpty(origin)) return true;
-                var normalized = origin.TrimEnd('/');
-                if (allowedOrigins.Any(o => string.Equals(o.TrimEnd('/'), normalized, StringComparison.OrdinalIgnoreCase)))
-                    return true;
-                if (System.Text.RegularExpressions.Regex.IsMatch(
-                    origin,
-                    @"^https://(www\.)?curriculoproia\.com\.br$",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-                    return true;
-                return System.Text.RegularExpressions.Regex.IsMatch(
-                    origin,
-                    @"^https://([a-z0-9-]+\.)*getpushtecnologia\.com\.br$",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            })
+        policy.SetIsOriginAllowed(origin => IsAllowedCorsOrigin(origin, allowedOrigins))
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials();
+            .AllowCredentials()
+            .SetPreflightMaxAge(TimeSpan.FromHours(2));
     });
 });
 
@@ -125,6 +135,31 @@ var enableSwagger = app.Environment.IsDevelopment()
 
 app.UseForwardedHeaders();
 
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers.Origin.ToString();
+    if (IsAllowedCorsOrigin(origin, allowedOrigins))
+    {
+        var normalizedOrigin = origin.TrimEnd('/');
+        context.Response.Headers["Access-Control-Allow-Origin"] = normalizedOrigin;
+        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With";
+        context.Response.Headers.Vary = "Origin";
+
+        if (HttpMethods.IsOptions(context.Request.Method))
+        {
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+    }
+
+    await next();
+});
+
+app.UseRouting();
+app.UseCors();
+
 if (enableSwagger)
 {
     app.UseSwagger();
@@ -138,8 +173,6 @@ if (enableSwagger)
 app.MapGet("/", () => enableSwagger
     ? Results.Redirect("/swagger")
     : Results.Json(new { status = "ok", docs = "/api/health" }));
-
-app.UseCors();
 
 app.Use(async (context, next) =>
 {

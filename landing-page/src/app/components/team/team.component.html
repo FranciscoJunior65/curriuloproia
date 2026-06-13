@@ -1,0 +1,48 @@
+<section id="team" class="py-24 lg:py-32 section-elevated">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-16 max-w-3xl mx-auto">
+      <p class="section-label">Squad CurriculosPro_</p>
+      <h2 class="section-title mb-4">
+        Os nomes por trás da plataforma.
+      </h2>
+      <p class="section-subtitle mx-auto">
+        Cada funcionalidade passa pelo mesmo time que construiu a infraestrutura de IA — é esse squad que entra na sua jornada profissional.
+      </p>
+    </div>
+
+    <div class="space-y-6 lg:space-y-8 max-w-5xl mx-auto">
+      <article
+        *ngFor="let member of members; let i = index"
+        class="team-card flex flex-col overflow-hidden rounded-[1.75rem] bg-[#111111] border border-neutral-800/80 glow-border"
+        [ngClass]="i === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'"
+      >
+        <div class="team-card__photo relative shrink-0 lg:w-[42%] aspect-[4/5] lg:aspect-auto lg:min-h-[22rem] overflow-hidden bg-[#0a0a0a]">
+          <img
+            [src]="member.image"
+            [alt]="member.name + ', ' + member.role + ' do CurriculosPro IA'"
+            class="absolute inset-0 w-full h-full object-cover team-card__photo-img"
+            [style.object-position]="member.imagePosition || 'center'"
+            [style.transform-origin]="member.imagePosition || 'center'"
+            loading="lazy"
+          />
+          <div class="team-card__photo-glow absolute inset-0 pointer-events-none" aria-hidden="true"></div>
+        </div>
+
+        <div class="p-8 sm:p-10 lg:p-12 flex flex-col justify-center lg:w-[58%]">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.25em] text-neutral-500 mb-4">
+            Squad CurriculosPro_
+          </p>
+          <h3 class="team-card__name text-3xl sm:text-[2rem] font-serif mb-2 leading-tight">
+            {{ member.name }}
+          </h3>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-6">
+            {{ member.role }}
+          </p>
+          <blockquote class="team-card__quote text-neutral-300 text-base sm:text-lg leading-relaxed">
+            “{{ member.quote }}”
+          </blockquote>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>

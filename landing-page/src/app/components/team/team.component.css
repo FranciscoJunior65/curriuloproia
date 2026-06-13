@@ -1,0 +1,27 @@
+.team-card__photo-img {
+  transform: scale(0.92);
+}
+
+.team-card__photo-glow {
+  background:
+    linear-gradient(to top, rgba(17, 17, 17, 0.5) 0%, transparent 15%),
+    radial-gradient(ellipse at 85% 30%, rgba(230, 155, 93, 0.12) 0%, transparent 55%);
+}
+
+@media (min-width: 1024px) {
+  .team-card__photo-glow {
+    background:
+      radial-gradient(ellipse at 85% 30%, rgba(230, 155, 93, 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse at 15% 70%, rgba(212, 175, 55, 0.08) 0%, transparent 50%);
+  }
+}
+
+.team-card__name {
+  font-family: 'Playfair Display', Georgia, serif;
+  color: #d4af37;
+}
+
+.team-card__quote {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+}

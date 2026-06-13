@@ -18,11 +18,18 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   'http://localhost:4200',
   'http://localhost:58438',
+  'https://curriculoproia.com.br',
+  'https://www.curriculoproia.com.br',
+  'https://site.curriculoproia.com.br',
   'https://curriculosproia.getpushtecnologia.com.br',
   'https://www.curriculosproia.getpushtecnologia.com.br'
 ];
 if (process.env.FRONTEND_URL) {
   const url = process.env.FRONTEND_URL.replace(/\/$/, '');
+  if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
+}
+if (process.env.LANDING_PAGE_URL) {
+  const url = process.env.LANDING_PAGE_URL.replace(/\/$/, '');
   if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
 }
 app.use(cors({
@@ -31,6 +38,9 @@ app.use(cors({
     const normalized = origin.replace(/\/$/, '');
     const allowed = allowedOrigins.some(allowed => normalized === allowed.replace(/\/$/, ''));
     if (allowed) return callback(null, origin);
+    if (/^https:\/\/([a-z0-9-]+\.)*curriculoproia\.com\.br$/i.test(origin)) {
+      return callback(null, origin);
+    }
     if (/^https:\/\/([a-z0-9-]+\.)*getpushtecnologia\.com\.br$/i.test(origin)) {
       return callback(null, origin);
     }

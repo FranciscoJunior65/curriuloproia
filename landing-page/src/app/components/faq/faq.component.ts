@@ -33,7 +33,7 @@ export class FaqComponent {
     },
     {
       question: 'O pagamento é seguro?',
-      answer: 'Sim. Todos os pagamentos são processados via Stripe, com criptografia de ponta a ponta. Não armazenamos dados de cartão.',
+      answer: 'Sim. Utilizamos processamento seguro com criptografia de ponta a ponta. Não armazenamos dados de cartão.',
     },
   ];
 

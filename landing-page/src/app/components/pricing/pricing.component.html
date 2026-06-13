@@ -6,124 +6,100 @@
         O próximo passo.
       </h2>
       <p class="section-subtitle mx-auto max-w-xl">
-        Sem mensalidade. Escolha o plano e comece em minutos — pagamento seguro via Stripe.
+        Sem mensalidade. Escolha o plano e comece em minutos.
       </p>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-4 max-w-5xl mx-auto mb-12">
-      <!-- Plano Single -->
-      <div class="card-dark-hover p-8 flex flex-col">
-        <p class="text-xs uppercase tracking-widest text-neutral-500 mb-4">Análise Única</p>
-        <div class="flex items-baseline gap-1 mb-6">
-          <span class="text-sm text-neutral-500">R$</span>
-          <span class="text-5xl font-bold text-white">7</span>
-          <span class="text-xl text-neutral-500">,90</span>
-        </div>
-        <ul class="space-y-3 mb-8 flex-1">
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-primary-400 mt-0.5">✓</span>
-            <span><strong class="text-neutral-200">1</strong> análise completa com IA</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-primary-400 mt-0.5">✓</span>
-            <span>Otimização para sites de vagas</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-primary-400 mt-0.5">✓</span>
-            <span>Currículo PDF ou WORD</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-primary-400 mt-0.5">✓</span>
-            <span>Simulador de entrevista com IA</span>
-          </li>
-        </ul>
-        <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-outline w-full !py-3 !text-xs">
-          Começar
-        </a>
-      </div>
+    <p *ngIf="loading" class="text-center text-neutral-500 mb-12">Carregando planos...</p>
 
-      <!-- Plano Pack 3 -->
-      <div class="relative p-8 flex flex-col rounded-2xl bg-gradient-accent border border-primary-500/30 glow-primary scale-[1.02]">
-        <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+    <div *ngIf="!loading && analysisPlans.length" class="grid md:grid-cols-3 gap-4 max-w-5xl mx-auto mb-12">
+      <div
+        *ngFor="let plan of analysisPlans"
+        class="p-8 flex flex-col"
+        [ngClass]="isPopularPlan(plan)
+          ? 'relative rounded-2xl bg-gradient-accent border border-primary-500/30 glow-primary scale-[1.02]'
+          : 'card-dark-hover'"
+      >
+        <div *ngIf="isPopularPlan(plan)" class="absolute -top-3 left-1/2 -translate-x-1/2">
           <span class="bg-white text-black px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
             Mais popular
           </span>
         </div>
-        <p class="text-xs uppercase tracking-widest text-white/70 mb-4">Pacote 3 Análises</p>
-        <div class="flex items-baseline gap-1 mb-6">
-          <span class="text-sm text-white/60">R$</span>
-          <span class="text-5xl font-bold text-white">27</span>
-          <span class="text-xl text-white/60">,90</span>
-        </div>
-        <ul class="space-y-3 mb-8 flex-1">
-          <li class="flex items-start gap-3 text-sm text-white/90">
-            <span class="mt-0.5">✓</span>
-            <span><strong>3</strong> análises completas com IA</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-white/80">
-            <span class="mt-0.5">✓</span>
-            <span>Otimização para sites de vagas</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-white/80">
-            <span class="mt-0.5">✓</span>
-            <span>Currículo PDF ou WORD</span>
-          </li>
-          <li class="flex items-start gap-3 text-sm text-white/80">
-            <span class="mt-0.5">✓</span>
-            <span>Simulador de entrevista com IA</span>
-          </li>
-        </ul>
-        <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-primary w-full !py-3 !text-xs">
-          Começar Agora
-        </a>
-      </div>
 
-      <!-- Plano Pack 5 -->
-      <div class="card-dark-hover p-8 flex flex-col">
-        <p class="text-xs uppercase tracking-widest text-neutral-500 mb-4">Pacote 5 Análises</p>
+        <p
+          class="text-xs uppercase tracking-widest mb-4"
+          [ngClass]="isPopularPlan(plan) ? 'text-white/70' : 'text-neutral-500'"
+        >
+          {{ plan.name }}
+        </p>
+
         <div class="flex items-baseline gap-1 mb-6">
-          <span class="text-sm text-neutral-500">R$</span>
-          <span class="text-5xl font-bold text-white">37</span>
-          <span class="text-xl text-neutral-500">,90</span>
+          <span class="text-sm" [ngClass]="isPopularPlan(plan) ? 'text-white/60' : 'text-neutral-500'">R$</span>
+          <span class="text-5xl font-bold text-white">{{ priceParts(plan.priceBRL).reais }}</span>
+          <span class="text-xl" [ngClass]="isPopularPlan(plan) ? 'text-white/60' : 'text-neutral-500'">
+            ,{{ priceParts(plan.priceBRL).cents }}
+          </span>
         </div>
+
         <ul class="space-y-3 mb-8 flex-1">
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-secondary-400 mt-0.5">✓</span>
-            <span><strong class="text-neutral-200">5</strong> análises completas com IA</span>
+          <li
+            class="flex items-start gap-3 text-sm"
+            [ngClass]="isPopularPlan(plan) ? 'text-white/90' : 'text-neutral-400'"
+          >
+            <span [ngClass]="isPopularPlan(plan) ? 'mt-0.5' : 'text-primary-400 mt-0.5'">✓</span>
+            <span>
+              <strong [ngClass]="isPopularPlan(plan) ? '' : 'text-neutral-200'">{{ plan.analyses }}</strong>
+              {{ plan.analyses === 1 ? 'análise completa com IA' : 'análises completas com IA' }}
+            </span>
           </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-secondary-400 mt-0.5">✓</span>
+          <li
+            class="flex items-start gap-3 text-sm"
+            [ngClass]="isPopularPlan(plan) ? 'text-white/80' : 'text-neutral-400'"
+          >
+            <span [ngClass]="isPopularPlan(plan) ? 'mt-0.5' : 'text-primary-400 mt-0.5'">✓</span>
             <span>Otimização para sites de vagas</span>
           </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-secondary-400 mt-0.5">✓</span>
+          <li
+            class="flex items-start gap-3 text-sm"
+            [ngClass]="isPopularPlan(plan) ? 'text-white/80' : 'text-neutral-400'"
+          >
+            <span [ngClass]="isPopularPlan(plan) ? 'mt-0.5' : 'text-primary-400 mt-0.5'">✓</span>
             <span>Currículo PDF ou WORD</span>
           </li>
-          <li class="flex items-start gap-3 text-sm text-neutral-400">
-            <span class="text-secondary-400 mt-0.5">✓</span>
+          <li
+            class="flex items-start gap-3 text-sm"
+            [ngClass]="isPopularPlan(plan) ? 'text-white/80' : 'text-neutral-400'"
+          >
+            <span [ngClass]="isPopularPlan(plan) ? 'mt-0.5' : 'text-primary-400 mt-0.5'">✓</span>
             <span>Simulador de entrevista com IA</span>
           </li>
         </ul>
-        <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-outline w-full !py-3 !text-xs">
-          Começar
+
+        <a
+          href="https://curriculoproia.com.br/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="w-full !py-3 !text-xs"
+          [ngClass]="isPopularPlan(plan) ? 'btn-primary' : 'btn-outline'"
+        >
+          {{ isPopularPlan(plan) ? 'Começar Agora' : 'Começar' }}
         </a>
       </div>
     </div>
 
-    <!-- Plano Especial -->
-    <div class="max-w-3xl mx-auto card-dark p-8 border border-secondary-800/50">
+    <div *ngIf="!loading && englishPlan" class="max-w-3xl mx-auto card-dark p-8 border border-secondary-800/50">
       <div class="flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="text-center md:text-left">
           <span class="text-xs font-bold uppercase tracking-widest text-secondary-400 mb-2 block">Serviço especial</span>
-          <h3 class="text-xl font-bold text-white mb-2">Currículo em Inglês</h3>
+          <h3 class="text-xl font-bold text-white mb-2">{{ englishPlan.name }}</h3>
           <p class="text-sm text-neutral-500">Tradução profissional com PDF e Word inclusos — baixe os dois formatos.</p>
         </div>
         <div class="flex items-center gap-6">
           <div class="text-center">
             <div class="flex items-baseline gap-1">
               <span class="text-sm text-neutral-500">R$</span>
-              <span class="text-3xl font-bold text-gradient">17</span>
-              <span class="text-lg text-neutral-500">,90</span>
+              <span class="text-3xl font-bold text-gradient">{{ priceParts(englishPlan.priceBRL).reais }}</span>
+              <span class="text-lg text-neutral-500">,{{ priceParts(englishPlan.priceBRL).cents }}</span>
             </div>
           </div>
           <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-gradient whitespace-nowrap !py-3 !px-6 !text-xs">

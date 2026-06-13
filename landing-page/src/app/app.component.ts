@@ -9,6 +9,7 @@ import { FooterComponent } from './components/footer/footer.component';
 import { ProcessComponent } from './components/process/process.component';
 import { CtaComponent } from './components/cta/cta.component';
 import { FaqComponent } from './components/faq/faq.component';
+import { TeamComponent } from './components/team/team.component';
 
 @Component({
   selector: 'app-root',
@@ -20,6 +21,7 @@ import { FaqComponent } from './components/faq/faq.component';
     ProcessComponent,
     FeaturesComponent,
     PricingComponent,
+    TeamComponent,
     TestimonialsComponent,
     FaqComponent,
     CtaComponent,
