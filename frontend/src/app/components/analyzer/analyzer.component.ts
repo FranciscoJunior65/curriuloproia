@@ -787,6 +787,19 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         if (!proceed) {
           return;
         }
+      } else {
+        const proceed = window.confirm(
+          'Pagamento REAL (Mercado Pago — produção)\n\n' +
+            '• Cobrança de verdade (PIX paga valor real).\n' +
+            '• NÃO entre com a conta do VENDEDOR no Mercado Pago — use outro e-mail/convidado.\n' +
+            '• CPF cadastrado em Meus dados deve ser válido.\n' +
+            '• Erro de CSP no console (TrackBuilder/content.js) é da página do MP — pode ignorar se o QR Code aparecer.\n' +
+            '• No localhost os créditos podem não entrar sozinhos (sem webhook); após pagar, volte ao app ou use o servidor publicado.\n\n' +
+            'Continuar para o checkout?'
+        );
+        if (!proceed) {
+          return;
+        }
       }
       window.location.assign(checkoutUrl);
       return;

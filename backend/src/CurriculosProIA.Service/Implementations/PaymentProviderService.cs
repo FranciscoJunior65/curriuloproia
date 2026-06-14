@@ -138,6 +138,7 @@ public class PaymentProviderService : IPaymentProviderService
             CouponName = result.CouponName,
             DiscountPercent = result.DiscountPercent,
             OriginalPrice = result.OriginalPrice,
-            CpfNormalized = result.CpfNormalized
+            CpfNormalized = result.CpfNormalized,
+            LiveMode = result.LiveMode
         };
 }

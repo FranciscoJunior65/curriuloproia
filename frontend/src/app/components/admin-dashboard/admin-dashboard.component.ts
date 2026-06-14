@@ -66,6 +66,7 @@ export class AdminDashboardComponent implements OnInit {
     test: 'Teste (sandbox)',
     production: 'Produção (cobrança real)'
   };
+  mercadoPagoProductionHint = '';
   paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago'];
   paymentProviderLabels: Record<PaymentProvider, string> = {
     stripe: 'Stripe',
@@ -343,6 +344,9 @@ export class AdminDashboardComponent implements OnInit {
           if (response.mercadoPagoModeLabels) {
             this.mercadoPagoModeLabels = { ...this.mercadoPagoModeLabels, ...response.mercadoPagoModeLabels };
           }
+          if (response.mercadoPagoProductionHint) {
+            this.mercadoPagoProductionHint = response.mercadoPagoProductionHint;
+          }
           if (response.labels) {
             this.paymentProviderLabels = { ...this.paymentProviderLabels, ...response.labels };
           }
@@ -372,6 +376,9 @@ export class AdminDashboardComponent implements OnInit {
             this.mercadoPagoMode = response.mercadoPagoMode;
           }
           this.paymentSettingsMessage = response.message || 'Meio de pagamento atualizado.';
+          if (response.warning) {
+            this.paymentSettingsError = response.warning;
+          }
         }
       },
       error: (error) => {

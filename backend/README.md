@@ -19,14 +19,13 @@ backend/
 
 ```bash
 cd backend
-# Criar .env (ou copie as variáveis do backend-node/.env que já funciona)
 ./scripts/setup-env.ps1
-# Edite .env: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (Supabase → Settings → API)
+# Edite backend/.env — único arquivo de configuração (localhost e servidor)
 
 dotnet run --project src/CurriculosProIA.Api/CurriculosProIA.Api.csproj
 ```
 
-A API carrega `.env` de `backend/.env` ou, em fallback, `backend-node/.env` (mesmo padrão da API Node).
+A API carrega `backend/.env` (dev) ou `.env` na pasta do site (produção — o mesmo arquivo do publish).
 
 Teste Supabase: `GET http://localhost:3000/api/test/supabase`
 
@@ -34,33 +33,32 @@ Porta padrão: **http://localhost:3000**
 
 ## Publicar no IIS / Plesk (Windows)
 
-1. Mantenha suas chaves em `backend/app.env` (ou `backend/.env`) — **não vão para o Git** (`.gitignore`).
-2. `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`  
-   O publish **copia automaticamente** `backend/app.env` (ou `.env`) para a pasta `publish/` como `app.env`.
-3. Copie a pasta `publish` inteira para o site `api.curriculoproia.com.br` (deve conter `CurriculosProIA.Api.dll`, `web.config` e **`app.env`**).
-4. No Plesk: site ASP.NET Core, runtime **.NET 8**, pool **Sem código gerenciado** (ou integrado, conforme o módulo)
-5. **Variáveis no servidor** — confira `app.env` na mesma pasta do `.dll` (FTP costuma preferir `app.env` em vez de `.env`):
+**Um único arquivo:** `backend/.env` — edite só ele. O publish leva o mesmo `.env` para o servidor.
 
-   ```bash
-   # macOS/Linux (opcional, se o publish não trouxe o arquivo)
-   dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish
-   ./scripts/copy-env-to-publish.sh ./publish
-   ```
+```powershell
+cd backend
+copy ENV_EXAMPLE.env .env   # primeira vez
+# Edite .env com todas as chaves
 
-   ```powershell
-   # Windows
-   dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish
-   .\scripts\copy-env-to-publish.ps1 -PublishDir ".\publish"
-   ```
+.\scripts\publish-production.ps1
+```
 
-   Inclua `SERPAPI_KEY=...` no `backend/app.env` junto com Supabase, Gemini, etc.
+Ou: `dotnet publish src/CurriculosProIA.Api/CurriculosProIA.Api.csproj -c Release -o ./publish`
 
-   Alternativa: variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no painel Plesk → ASP.NET Core → Variáveis de ambiente.
+Suba a pasta `publish/` para `api.curriculoproia.com.br` (contém `CurriculosProIA.Api.dll`, `web.config` e **`.env`**).
 
-5. Defina `ENABLE_SWAGGER=true` e `ASPNETCORE_ENVIRONMENT=Production`
-6. Teste: `https://api.curriculoproia.com.br/api/test/supabase`
+No Plesk: runtime **.NET 8**, reinicie o app pool após publicar.
 
-Se `/api/health` responder mas Supabase falhar, o `.env` não está na pasta do site ou as chaves estão vazias.
+Teste: `https://api.curriculoproia.com.br/api/test/env`
+
+### Mercado Pago no `.env`
+
+| `MERCADOPAGO_MODE` | Token |
+|--------------------|-------|
+| `test` | `MERCADOPAGO_ACCESS_TOKEN_TEST` |
+| `production` | `MERCADOPAGO_ACCESS_TOKEN_PRODUCTION` |
+
+O valor no `.env` só é usado se o admin não tiver modo salvo. O **token** sempre vem do `.env`.
 
 ## Camadas
 

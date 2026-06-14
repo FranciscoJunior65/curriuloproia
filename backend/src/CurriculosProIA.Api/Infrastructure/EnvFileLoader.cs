@@ -3,11 +3,11 @@ using DotNetEnv;
 namespace CurriculosProIA.Api.Infrastructure;
 
 /// <summary>
-/// Carrega variáveis do .env (pasta da API no IIS/Plesk, backend/ ou backend-node/ no desenvolvimento).
+/// Carrega variáveis de backend/.env — o mesmo arquivo no localhost e no servidor (IIS/Plesk).
 /// </summary>
 public static class EnvFileLoader
 {
-    private static readonly string[] EnvFileNames = [".env", "app.env", "production.env"];
+    private const string EnvFileName = ".env";
 
     public static string? LoadedPath { get; private set; }
     public static IReadOnlyList<string> LastSearchedPaths { get; private set; } = Array.Empty<string>();
@@ -73,23 +73,16 @@ public static class EnvFileLoader
     private static bool TryLoadFromDirectory(string root, bool preferFileOverEmptyEnv)
     {
         var dir = Path.GetFullPath(root);
-        var candidates = EnvFileNames
-            .Select(name => Path.Combine(dir, name))
-            .Where(File.Exists)
-            .Select(Path.GetFullPath)
-            .OrderBy(GetPriority)
-            .ToList();
+        var path = Path.Combine(dir, EnvFileName);
+        LastSearchedPaths = [path];
 
-        LastSearchedPaths = candidates;
-
-        var found = candidates.FirstOrDefault();
-        if (found == null)
+        if (!File.Exists(path))
         {
             return false;
         }
 
-        ApplyEnvFile(found, preferFileOverEmptyEnv);
-        LoadedPath = found;
+        ApplyEnvFile(path, preferFileOverEmptyEnv);
+        LoadedPath = Path.GetFullPath(path);
         return true;
     }
 
@@ -99,10 +92,7 @@ public static class EnvFileLoader
         foreach (var root in CollectSearchRoots(null))
         {
             var dir = Path.GetFullPath(root);
-            foreach (var name in EnvFileNames)
-            {
-                candidates.Add(Path.Combine(dir, name));
-            }
+            candidates.Add(Path.Combine(dir, EnvFileName));
         }
 
         candidates.AddRange(CollectRepositoryCandidates());
@@ -213,12 +203,12 @@ public static class EnvFileLoader
         {
             if (HasSupabaseEnvironmentVariables())
             {
-                Console.WriteLine("✅ [env] Variáveis do sistema (sem arquivo .env/app.env).");
+                Console.WriteLine("✅ [env] Variáveis do sistema (sem arquivo .env).");
             }
             else
             {
-                Console.WriteLine("⚠️ [env] Nenhum arquivo de ambiente encontrado.");
-                Console.WriteLine("   IIS/Plesk: coloque app.env na pasta do site (mesma pasta do .dll).");
+                Console.WriteLine("⚠️ [env] backend/.env não encontrado.");
+                Console.WriteLine("   Crie backend/.env (copie ENV_EXAMPLE.env) — mesmo arquivo no localhost e no servidor.");
                 Console.WriteLine("   BaseDirectory: " + AppContext.BaseDirectory);
                 Console.WriteLine("   CurrentDirectory: " + Directory.GetCurrentDirectory());
             }
@@ -292,7 +282,7 @@ public static class EnvFileLoader
             return list;
         }
 
-        foreach (var name in EnvFileNames)
+        foreach (var name in new[] { EnvFileName })
         {
             list.Add(Path.Combine(repoRoot, "backend", name));
             list.Add(Path.Combine(repoRoot, "backend-node", name));
@@ -353,29 +343,17 @@ public static class EnvFileLoader
     private static int GetPriority(string path)
     {
         var normalized = path.Replace('\\', '/');
-        var fileName = Path.GetFileName(normalized);
 
-        if (string.Equals(fileName, "app.env", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase))
         {
             return 0;
         }
 
-        if (string.Equals(fileName, ".env", StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("/backend-node/.env", StringComparison.OrdinalIgnoreCase))
         {
             return 1;
         }
 
-        if (normalized.EndsWith("/backend/app.env", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith("/backend/.env", StringComparison.OrdinalIgnoreCase))
-        {
-            return 2;
-        }
-
-        if (normalized.EndsWith("/backend-node/app.env", StringComparison.OrdinalIgnoreCase))
-        {
-            return 3;
-        }
-
-        return 4;
+        return 2;
     }
 }

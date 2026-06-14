@@ -12,7 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// IIS/Plesk: ContentRoot = pasta do site (ex.: api.curriculoproia.com.br) — prioriza app.env/.env ali
+// IIS/Plesk: ContentRoot = pasta do site — carrega .env (mesmo backend/.env do localhost)
 EnvFileLoader.Configure(builder);
 
 builder.Services.AddControllers()

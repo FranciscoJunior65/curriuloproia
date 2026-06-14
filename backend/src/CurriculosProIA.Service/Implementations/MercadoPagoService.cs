@@ -112,11 +112,13 @@ public class MercadoPagoService : IMercadoPagoService
             baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
             ctx.Metadata.GetValueOrDefault("analysisId"));
 
-        var isProduction = await ResolveIsProductionModeAsync(cancellationToken);
-        var payerEmail = ResolvePayerEmail(email, isProduction);
+        var configuredProduction = await ResolveIsProductionModeAsync(cancellationToken);
+        var tokenLiveMode = await ResolveTokenLiveModeAsync(cancellationToken);
+        EnsureTokenModeAlignedAsync(configuredProduction, tokenLiveMode, cancellationToken);
+        var payerEmail = ResolvePayerEmail(email, tokenLiveMode);
 
         var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
-        if (!isProduction)
+        if (!tokenLiveMode)
         {
             cpfNormalized = SandboxTestCpf;
             if (string.IsNullOrEmpty(payerEmail))
@@ -137,11 +139,13 @@ public class MercadoPagoService : IMercadoPagoService
                     description = ctx.Plan.Description + (ctx.CouponInfo != null
                         ? $" ({ctx.CouponInfo.CouponName}: {ctx.CouponInfo.DiscountPercent}% off)"
                         : string.Empty),
+                    category_id = "services",
                     quantity = 1,
                     unit_price = ctx.AmountBRL,
                     currency_id = "BRL"
                 }
             },
+            ["statement_descriptor"] = "CURRICULOSPRO IA",
             ["external_reference"] = externalReference,
             ["metadata"] = ctx.Metadata,
             ["back_urls"] = new Dictionary<string, string>
@@ -150,7 +154,7 @@ public class MercadoPagoService : IMercadoPagoService
                 ["failure"] = failureUrl,
                 ["pending"] = pendingUrl
             },
-            ["payment_methods"] = MercadoPagoConfigHelper.BuildCheckoutPaymentMethods(isProduction)
+            ["payment_methods"] = MercadoPagoConfigHelper.BuildCheckoutPaymentMethods(tokenLiveMode)
         };
 
         var payer = BuildPayer(payerEmail, cpfNormalized);
@@ -187,16 +191,19 @@ public class MercadoPagoService : IMercadoPagoService
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var initPoint = ResolveCheckoutInitPoint(root, isProduction);
+        var initPoint = ResolveCheckoutInitPoint(root);
 
         if (string.IsNullOrEmpty(initPoint))
         {
             throw new InvalidOperationException("Mercado Pago não retornou URL de checkout");
         }
 
+        var preferenceLiveMode = root.TryGetProperty("live_mode", out var liveModeProp) && liveModeProp.GetBoolean();
         _logger.LogInformation(
-            "Checkout Mercado Pago criado: modo={Mode}, url={CheckoutMode}",
-            isProduction ? "production" : "sandbox",
+            "Checkout Mercado Pago criado: configuredProduction={ConfiguredProduction}, tokenLiveMode={TokenLiveMode}, preferenceLiveMode={PreferenceLiveMode}, url={CheckoutMode}",
+            configuredProduction,
+            tokenLiveMode,
+            preferenceLiveMode,
             initPoint.Contains("sandbox", StringComparison.OrdinalIgnoreCase) ? "sandbox_init_point" : "init_point");
 
         var preferenceId = root.GetProperty("id").GetString();
@@ -204,7 +211,8 @@ public class MercadoPagoService : IMercadoPagoService
         {
             SessionId = preferenceId,
             Url = initPoint,
-            PreferenceId = preferenceId
+            PreferenceId = preferenceId,
+            LiveMode = preferenceLiveMode
         };
     }
 
@@ -378,18 +386,34 @@ public class MercadoPagoService : IMercadoPagoService
             var liveMode = root.TryGetProperty("live_mode", out var lm) && lm.GetBoolean();
             var mode = liveMode ? "production" : "test";
             var checkoutTarget = liveMode ? "init_point" : "sandbox_init_point";
+            var modeAligned = (configuredMode == MercadoPagoConfigHelper.ModeProduction) == liveMode;
             var paymentMethods = await GetAvailablePaymentMethodsAsync(client, cancellationToken);
             var pixAvailable = paymentMethods.Any(m =>
                 string.Equals(m, "pix", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(m, "bank_transfer", StringComparison.OrdinalIgnoreCase));
 
+            string message;
+            if (!modeAligned)
+            {
+                message = configuredMode == MercadoPagoConfigHelper.ModeProduction
+                    ? "CONFIGURAÇÃO INVÁLIDA: MERCADOPAGO_MODE=production no backend/.env, mas o token é de TESTE. " +
+                      "Cole o token de produção em MERCADOPAGO_ACCESS_TOKEN_PRODUCTION e republique, " +
+                      "ou defina MERCADOPAGO_MODE=test."
+                    : "CONFIGURAÇÃO INVÁLIDA: MERCADOPAGO_MODE=test no backend/.env, mas o token é de PRODUÇÃO. " +
+                      "Use MERCADOPAGO_ACCESS_TOKEN_TEST e republique.";
+            }
+            else
+            {
+                message = pixAvailable
+                    ? $"Conexão com Mercado Pago OK (modo {mode}). PIX disponível na conta."
+                    : $"Conexão com Mercado Pago OK (modo {mode}). PIX não encontrado nos meios da conta — verifique chave PIX.";
+            }
+
             return new PaymentProviderTestResult
             {
-                Connected = true,
+                Connected = modeAligned,
                 Provider = "mercadopago",
-                Message = pixAvailable
-                    ? $"Conexão com Mercado Pago OK (modo {mode}). PIX disponível na conta."
-                    : $"Conexão com Mercado Pago OK (modo {mode}). PIX não encontrado nos meios da conta — verifique chave PIX.",
+                Message = message,
                 Details = new
                 {
                     mode,
@@ -407,14 +431,16 @@ public class MercadoPagoService : IMercadoPagoService
                     frontendUrl,
                     paymentProvider = _configuration["PAYMENT_PROVIDER"] ?? "stripe",
                     configuredMode,
-                    modeAligned = (configuredMode == MercadoPagoConfigHelper.ModeProduction) == liveMode,
+                    modeAligned,
                     config = MercadoPagoConfigHelper.GetDebugInfo(_configuration, configuredMode),
                     sandboxHint = !liveMode
-                        ? "Use sandbox_init_point, pague com Cartão (não login real) e titular APRO + CPF 12345678909."
+                        ? "Sandbox: use cartão de teste (5031 4332 1540 6351), titular APRO, CPF 12345678909. PIX desabilitado no sandbox."
                         : null,
-                    pixHint = pixAvailable
-                        ? "Se PIX não aparecer no checkout, use sandbox_init_point e informe CPF do pagador."
-                        : "Cadastre uma chave PIX em mercadopago.com.br → Seu negócio → Chaves PIX."
+                    pixHint = !liveMode
+                        ? "PIX só funciona em produção com token e chave PIX reais."
+                        : pixAvailable
+                            ? "Pague como convidado (não use a conta vendedor dgomesoliveira81@gmail.com)."
+                            : "Cadastre uma chave PIX em mercadopago.com.br → Seu negócio → Chaves PIX."
                 }
             };
         }
@@ -469,11 +495,46 @@ public class MercadoPagoService : IMercadoPagoService
         return null;
     }
 
-    private static string? ResolveCheckoutInitPoint(JsonElement root, bool isProduction)
+    private static string? ResolveCheckoutInitPoint(JsonElement root)
     {
         var production = root.TryGetProperty("init_point", out var ip) ? ip.GetString() : null;
         var sandbox = root.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null;
-        return isProduction ? production ?? sandbox : sandbox ?? production;
+        var liveMode = root.TryGetProperty("live_mode", out var lm) && lm.GetBoolean();
+
+        // Usa live_mode retornado pela preferência (reflete o token real), não só o admin.
+        return liveMode ? production ?? sandbox : sandbox ?? production;
+    }
+
+    private static void EnsureTokenModeAlignedAsync(bool configuredProduction, bool tokenLiveMode, CancellationToken _)
+    {
+        if (configuredProduction && !tokenLiveMode)
+        {
+            throw new InvalidOperationException(
+                "Mercado Pago: MERCADOPAGO_MODE=production no backend/.env, mas MERCADOPAGO_ACCESS_TOKEN_PRODUCTION " +
+                "é um token de TESTE. Cole o Access Token de produção em backend/.env e republique, " +
+                "ou defina MERCADOPAGO_MODE=test para sandbox (cartão 5031 4332 1540 6351).");
+        }
+
+        if (!configuredProduction && tokenLiveMode)
+        {
+            throw new InvalidOperationException(
+                "Mercado Pago: MERCADOPAGO_MODE=test no backend/.env, mas MERCADOPAGO_ACCESS_TOKEN_TEST " +
+                "é um token de PRODUÇÃO. Use o token de teste em backend/.env e republique.");
+        }
+    }
+
+    private async Task<bool> ResolveTokenLiveModeAsync(CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(cancellationToken);
+        using var response = await client.GetAsync("users/me", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return false;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("live_mode", out var lm) && lm.GetBoolean();
     }
 
     private static object? BuildPayer(string? email, string? cpfNormalized)

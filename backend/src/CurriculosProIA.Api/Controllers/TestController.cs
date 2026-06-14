@@ -33,7 +33,7 @@ public class TestController : ControllerBase
         _hostEnvironment = hostEnvironment;
     }
 
-    /// <summary>Diagnóstico do carregamento do .env / app.env (deploy IIS/Plesk).</summary>
+    /// <summary>Diagnóstico do carregamento do backend/.env (mesmo arquivo no localhost e no servidor).</summary>
     [HttpGet("env")]
     public IActionResult TestEnv()
     {
@@ -44,15 +44,15 @@ public class TestController : ControllerBase
         {
             success = loaded || EnvFileLoader.HasSupabaseEnvironmentVariables(),
             message = loaded
-                ? $"Arquivo de ambiente carregado: {EnvFileLoader.LoadedPath}"
-                : "Nenhum app.env/.env encontrado na pasta do site. Copie backend/.env para a pasta do .dll como app.env",
+                ? $"Arquivo carregado: {EnvFileLoader.LoadedPath}"
+                : "backend/.env não encontrado. Crie em backend/.env (copie ENV_EXAMPLE.env) e republique.",
             diagnostics,
             help = new[]
             {
-                "1. No servidor: backend/.env → pasta do site como app.env (mesma pasta do CurriculosProIA.Api.dll)",
-                "2. Ou rode: .\\scripts\\copy-env-to-publish.ps1 antes de subir o publish",
-                "3. Reinicie o app pool / site após alterar",
-                "4. GET /api/test/mercadopago — testa token conforme modo (admin ou MERCADOPAGO_MODE)"
+                "1. Um único arquivo: backend/.env (localhost e servidor)",
+                "2. Publish inclui automaticamente como .env na pasta do site",
+                "3. Reinicie o app pool após publicar",
+                "4. GET /api/test/mercadopago — valida Mercado Pago"
             }
         });
     }
@@ -86,8 +86,8 @@ public class TestController : ControllerBase
                 appBaseDirectory = AppContext.BaseDirectory,
                 help = new[]
                 {
-                    "SERVIDOR (IIS/Plesk): copie backend/.env para a pasta do site como .env ou app.env",
-                    "  Ex.: F:\\Inetpub\\vhosts\\...\\api.curriculoproia.com.br\\app.env (mesma pasta do .dll)",
+                    "SERVIDOR: backend/.env vai no publish como .env (mesma pasta do .dll)",
+                    "  Ex.: F:\\Inetpub\\vhosts\\...\\api.curriculoproia.com.br\\.env",
                     "  Ou defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente do Plesk",
                     "DEV: edite backend/.env com os valores do Supabase → Settings → API",
                     "Reinicie o site / app pool após alterar"
@@ -165,7 +165,7 @@ public class TestController : ControllerBase
                 {
                     "1. Acesse https://aistudio.google.com/apikey",
                     "2. Crie uma API key (grátis)",
-                    "3. No servidor: edite app.env — GEMINI_API_KEY=chave real (https://aistudio.google.com/apikey)",
+                    "3. Edite backend/.env — GEMINI_API_KEY=chave real (https://aistudio.google.com/apikey)",
                     "4. USE_MOCK_AI=false (opcional em Production; mock já é desligado automaticamente)",
                     "5. Reinicie o site / app pool no Plesk"
                 }
@@ -238,8 +238,8 @@ public class TestController : ControllerBase
                 debug,
                 help = new[]
                 {
-                    $"1. Modo ativo: {resolvedMode} (painel admin ou MERCADOPAGO_MODE no app.env)",
-                    $"2. Defina {tokenKey} no app.env na pasta do site",
+                    $"1. Modo ativo: {resolvedMode} (MERCADOPAGO_MODE no backend/.env)",
+                    $"2. Defina {tokenKey} no backend/.env",
                     "3. Rode GET /api/test/env para ver se o arquivo foi encontrado",
                     "4. Reinicie o site / app pool após alterar"
                 }
@@ -249,16 +249,25 @@ public class TestController : ControllerBase
         var result = await _mercadoPago.TestConnectionAsync(cancellationToken);
         if (!result.Connected)
         {
-            return StatusCode(500, new
+            var misconfigured = result.Message.Contains("CONFIGURAÇÃO INVÁLIDA", StringComparison.Ordinal);
+            return StatusCode(misconfigured ? 503 : 500, new
             {
                 success = false,
                 connected = false,
                 provider = result.Provider,
-                error = "Falha na integração Mercado Pago",
+                error = misconfigured ? "Mercado Pago mal configurado" : "Falha na integração Mercado Pago",
                 message = result.Message,
                 details = result.Details,
                 debug,
-                connection = "ERRO"
+                connection = "ERRO",
+                fix = misconfigured
+                    ? new[]
+                    {
+                        "1. Painel admin → Produção (ou MERCADOPAGO_MODE=production no .env)",
+                        "2. backend/.env → MERCADOPAGO_ACCESS_TOKEN_PRODUCTION com token REAL de produção",
+                        "3. Republique a API e reinicie o app pool"
+                    }
+                    : null
             });
         }
 

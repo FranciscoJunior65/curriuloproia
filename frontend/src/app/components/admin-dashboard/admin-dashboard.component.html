@@ -146,7 +146,8 @@
           </select>
           <p class="settings-description settings-description--inline">
             <ng-container *ngIf="mercadoPagoMode === 'test'">Pagamentos simulados — sem cobrança real.</ng-container>
-            <ng-container *ngIf="mercadoPagoMode === 'production'">Cobrança real — use apenas em produção.</ng-container>
+            <ng-container *ngIf="mercadoPagoMode === 'production'">Cobrança real — PIX e cartão de verdade.</ng-container>
+            <br><small *ngIf="mercadoPagoProductionHint">{{ mercadoPagoProductionHint }}</small>
           </p>
         </ng-container>
 

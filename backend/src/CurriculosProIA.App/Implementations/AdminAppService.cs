@@ -94,7 +94,9 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             labels = new { stripe = "Stripe", mercadopago = "Mercado Pago" },
             mercadoPagoMode,
             mercadoPagoModes = _settings.GetValidMercadoPagoModes(),
-            mercadoPagoModeLabels = new { test = "Teste (sandbox)", production = "Produção (cobrança real)" }
+            mercadoPagoModeLabels = new { test = "Teste (sandbox)", production = "Produção (cobrança real)" },
+            mercadoPagoProductionHint =
+                "Produção exige MERCADOPAGO_ACCESS_TOKEN_PRODUCTION no backend/.env (token real, diferente do de teste)."
         });
     }
 
@@ -125,14 +127,26 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             if (savedMpMode != null)
             {
                 message += confirmedMpMode == "production"
-                    ? " Ambiente Mercado Pago: produção."
-                    : " Ambiente Mercado Pago: teste.";
+                    ? " Ambiente Mercado Pago: produção (cobrança real)."
+                    : " Ambiente Mercado Pago: teste (sandbox).";
+            }
+
+            string? warning = null;
+            if (confirmed == "mercadopago" && confirmedMpMode == "production")
+            {
+                var mpTest = await _mercadoPago.TestConnectionAsync(cancellationToken);
+                if (!mpTest.Connected)
+                {
+                    warning = mpTest.Message +
+                              " Configure MERCADOPAGO_ACCESS_TOKEN_PRODUCTION no backend/.env com o token de produção e republique a API.";
+                }
             }
 
             return Ok(new
             {
                 success = true,
                 message,
+                warning,
                 provider = confirmed,
                 mercadoPagoMode = confirmedMpMode
             });

@@ -1,27 +1,70 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+
+
   <PropertyGroup>
+
     <TargetFramework>net8.0</TargetFramework>
+
     <Nullable>enable</Nullable>
+
     <ImplicitUsings>enable</ImplicitUsings>
+
   </PropertyGroup>
 
-  <ItemGroup>
-    <Content Include="..\..\ENV_EXAMPLE.env" Link="app.env.example" CopyToPublishDirectory="PreserveNewest" />
-    <!-- app.env / .env na pasta backend/ — copiados no publish para o IIS/Plesk (não versionados no Git) -->
-    <Content Include="..\..\app.env" Link="app.env" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\app.env')" />
-    <Content Include="..\..\.env" Link=".env" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\.env')" />
-  </ItemGroup>
+
 
   <ItemGroup>
+
+    <!-- Mesmo backend/.env do localhost — vai no publish como .env na pasta do site -->
+
+    <Content Include="..\..\.env" CopyToPublishDirectory="PreserveNewest" Link=".env" Condition="Exists('..\..\.env')" />
+
+    <Content Include="..\..\ENV_EXAMPLE.env" Link=".env.example" CopyToPublishDirectory="PreserveNewest" />
+
+  </ItemGroup>
+
+
+
+  <Target Name="RequireEnvForPublish" BeforeTargets="ComputeFilesToPublish" Condition="'$(PublishDir)' != ''">
+
+    <PropertyGroup>
+
+      <_BackendEnvFile>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\.env'))</_BackendEnvFile>
+
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_BackendEnvFile)')"
+
+           Text="Publish cancelado: crie backend/.env (copie ENV_EXAMPLE.env). É o mesmo arquivo usado no localhost e no servidor." />
+
+    <Message Importance="high" Text="Incluindo backend/.env no publish (mesmo arquivo do localhost)." />
+
+  </Target>
+
+
+
+  <ItemGroup>
+
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
+
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.11" />
+
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+
   </ItemGroup>
 
+
+
   <ItemGroup>
+
     <ProjectReference Include="..\CurriculosProIA.App\CurriculosProIA.App.csproj" />
+
   </ItemGroup>
+
+
 
 </Project>
+

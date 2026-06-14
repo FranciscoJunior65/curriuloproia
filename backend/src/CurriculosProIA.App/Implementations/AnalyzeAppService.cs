@@ -1654,7 +1654,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 provider = result.Provider,
                 sessionId = result.SessionId,
                 checkoutUrl = result.Url,
-                preferenceId = result.PreferenceId
+                preferenceId = result.PreferenceId,
+                mercadoPagoLiveMode = result.LiveMode
             });
         }
         catch (Exception ex)

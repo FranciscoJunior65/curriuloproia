@@ -74,6 +74,7 @@ public class CheckoutSessionResult
     public decimal? DiscountPercent { get; set; }
     public decimal? OriginalPrice { get; set; }
     public string? CpfNormalized { get; set; }
+    public bool? LiveMode { get; set; }
 }
 
 public class PaymentVerificationResult
@@ -135,6 +136,7 @@ public class ProviderCheckoutResult
     public decimal? DiscountPercent { get; set; }
     public decimal? OriginalPrice { get; set; }
     public string? CpfNormalized { get; set; }
+    public bool? LiveMode { get; set; }
 }
 
 public class PaymentProviderTestResult

@@ -75,9 +75,8 @@ public static class MercadoPagoConfigHelper
     {
         var key = GetAccessTokenEnvKey(mode);
         return mode == ModeProduction
-            ? $"Mercado Pago em modo produção: defina {key} no app.env (pasta do site no servidor). " +
-              "Se o painel admin está em «Produção», o token de produção é obrigatório."
-            : $"Mercado Pago em modo teste: defina {key} no app.env.";
+            ? $"Mercado Pago em modo produção: defina {key} em backend/.env e republique."
+            : $"Mercado Pago em modo teste: defina {key} em backend/.env.";
     }
 
     public static string? GetPublicKey(IConfiguration configuration, string? overrideMode = null)

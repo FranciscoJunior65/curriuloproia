@@ -270,15 +270,14 @@
         *ngIf="paymentProvider === 'mercadopago'"
         class="mb-4 max-w-3xl mx-auto rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
       >
-        <summary class="cursor-pointer font-semibold">Como testar pagamento no sandbox (Mercado Pago)</summary>
+        <summary class="cursor-pointer font-semibold">Mercado Pago — sandbox e produção (PIX)</summary>
         <ul class="mt-2 space-y-1 list-disc pl-5 text-xs leading-relaxed">
-          <li>Use <strong>MERCADOPAGO_MODE=test</strong> e o <strong>Access Token de teste</strong> no backend.</li>
-          <li><strong>Não entre</strong> com sua conta real do Mercado Pago — isso gera o erro <em>“Uma das partes é de teste”</em>. Use aba anônima se já estiver logado no MP.</li>
-          <li>No checkout, escolha <strong>Cartão de crédito</strong> como convidado (sem login no Mercado Pago).</li>
-          <li>Cartão teste: <strong>5031 4332 1540 6351</strong>, CVV <strong>123</strong>, validade <strong>11/30</strong>.</li>
-          <li>Nome do titular: <strong>APRO</strong> e CPF <strong>12345678909</strong> para pagamento aprovado.</li>
-          <li>Opcional: crie um <strong>Comprador</strong> de teste em Suas integrações → Contas de teste e defina <strong>MERCADOPAGO_TEST_PAYER_EMAIL</strong> no backend (veja a <a href="https://www.mercadopago.com.br/developers/pt/docs/your-integrations/test/accounts" target="_blank" rel="noopener noreferrer" class="underline">documentação</a>).</li>
-          <li>Erro de CSP com <strong>content.js</strong> no console vem de <strong>extensão do navegador</strong> na página do Mercado Pago — não é bug do app. Teste em aba anônima ou desative extensões (AdBlock, tradutores, etc.).</li>
+          <li><strong>Sandbox:</strong> em <strong>backend/.env</strong> use <strong>MERCADOPAGO_MODE=test</strong> + token de teste. Cartão 5031 4332 1540 6351, titular APRO. PIX não funciona no sandbox.</li>
+          <li><strong>Produção:</strong> <strong>MERCADOPAGO_MODE=production</strong> + token real em <strong>MERCADOPAGO_ACCESS_TOKEN_PRODUCTION</strong> (diferente do de teste). Chave PIX na conta vendedora.</li>
+          <li><strong>Não use</strong> a mesma conta Mercado Pago do vendedor para pagar — gera erro no checkout.</li>
+          <li>Erro <strong>CSP / TrackBuilder</strong> no console é da página do Mercado Pago, não do app. Se o QR Code PIX aparecer, prossiga.</li>
+          <li>No <strong>localhost</strong>, após pagar PIX, os créditos podem não entrar automaticamente (webhook). Teste no servidor publicado ou confirme em <strong>/compra/pendente</strong>.</li>
+          <li>Diagnóstico da API: <strong>GET /api/test/mercadopago</strong> — confira <code>liveMode</code> e <code>modeAligned</code>.</li>
         </ul>
       </details>
 
