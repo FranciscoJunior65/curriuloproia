@@ -20,9 +20,99 @@
         Análise profissional, currículo otimizado e simulação de entrevista com inteligência artificial. Tudo calibrado para o mercado brasileiro.
       </p>
 
-      <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-primary mb-20">
+      <div class="hero-video mb-10 mx-auto max-w-3xl">
+        <div class="hero-video-player">
+          <video
+            #heroVideo
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Demonstração do CurriculosPro IA"
+          >
+            <source src="assets/video/video-venda.mp4" type="video/mp4" />
+          </video>
+
+          <div class="hero-video-controls">
+            <button
+              type="button"
+              class="hero-video-btn"
+              (click)="toggleMute($event)"
+              [attr.aria-label]="isMuted() ? 'Ativar som' : 'Silenciar vídeo'"
+            >
+              @if (isMuted() || volume() === 0) {
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                </svg>
+              } @else if (volume() < 50) {
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                </svg>
+              } @else {
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                </svg>
+              }
+            </button>
+
+            <input
+              type="range"
+              class="hero-video-volume"
+              min="0"
+              max="100"
+              [value]="volume()"
+              (input)="onVolumeChange($event)"
+              aria-label="Volume do vídeo"
+            />
+          </div>
+        </div>
+      </div>
+
+      <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-primary mb-10">
         Começar Agora
       </a>
+
+      <div #terminalSection class="terminal-window mb-20 text-left">
+        <div class="terminal-header">
+          <div class="terminal-dots" aria-hidden="true">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <svg class="terminal-expand w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+          </svg>
+        </div>
+
+        <div class="terminal-body">
+          <p class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span>{{ displayedCommand() }}</span>
+            @if (showCursor()) {
+              <span class="terminal-cursor">|</span>
+            }
+          </p>
+
+          @if (showSummary()) {
+            <p class="terminal-summary">{{ summaryText }}</p>
+          }
+
+          @for (card of cards; track card.label; let i = $index) {
+            @if (isCardVisible(i)) {
+              <div class="terminal-card">
+                <span class="terminal-card-prompt">&gt;</span>
+                <span class="terminal-card-label">{{ card.label }}</span>
+                <span class="terminal-card-bar">
+                  <span class="terminal-card-bar-fill" [style.width.%]="card.barWidth"></span>
+                </span>
+                <span class="terminal-card-desc">{{ card.description }}</span>
+              </div>
+            }
+          }
+        </div>
+      </div>
 
       <!-- Stats -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-800/60 rounded-2xl overflow-hidden border border-neutral-800">
