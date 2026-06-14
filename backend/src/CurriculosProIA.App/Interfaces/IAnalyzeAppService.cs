@@ -16,7 +16,7 @@ public interface IAnalyzeAppService
     Task<IActionResult> FinishInterview(FinishInterviewSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> ListUserInterviews(CancellationToken cancellationToken = default);
     Task<IActionResult> GetInterview(string simulationId, CancellationToken cancellationToken = default);
-    Task<IActionResult> DownloadInterview(string simulationId, CancellationToken cancellationToken = default);
+    Task<IActionResult> DownloadInterview(string simulationId, string? format = null, CancellationToken cancellationToken = default);
     Task<IActionResult> StartVoiceInterview(VoiceInterviewStartSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> VoiceInterviewTurn(VoiceInterviewTurnSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> FinishVoiceInterview(VoiceInterviewFinishSignature body, CancellationToken cancellationToken = default);

@@ -512,11 +512,15 @@ export class AnalyzerService {
     );
   }
 
-  downloadInterview(simulationId: string): Observable<Blob> {
+  downloadInterview(
+    simulationId: string,
+    format: 'txt' | 'pdf' | 'docx' = 'txt'
+  ): Observable<Blob> {
     return this.http.get(
       `${this.apiUrl}/analyze/interview/${simulationId}/download`,
-      { 
+      {
         headers: this.getAuthHeaders(),
+        params: { format },
         responseType: 'blob'
       }
     ) as Observable<Blob>;

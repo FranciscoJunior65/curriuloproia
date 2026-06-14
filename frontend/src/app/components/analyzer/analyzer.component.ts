@@ -94,7 +94,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   generatingEnglishWord = false;
   purchasingEnglish = false;
   generatingCoverLetter = false;
-  readonly personaImageUrl = 'assets/imagens/persona.jpeg';
+  readonly personaImageUrl = 'assets/imagens/avatar.png';
   readonly founderImageUrl = 'assets/imagens/david-oliveira.jpeg';
   readonly supportWhatsapp = '(71) 98309-6865';
   readonly supportWhatsappUrl = 'https://wa.me/5571983096865';

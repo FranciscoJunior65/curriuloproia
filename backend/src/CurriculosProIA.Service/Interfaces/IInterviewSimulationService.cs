@@ -40,4 +40,8 @@ public interface IInterviewSimulationService
     Task<List<SimulacaoEntrevistaRow>> GetUserInterviewsAsync(string userId, CancellationToken cancellationToken = default);
 
     string BuildInterviewDownloadContent(InterviewDetailDto interview);
+
+    byte[] GenerateInterviewPdf(InterviewDetailDto interview);
+
+    byte[] GenerateInterviewDocx(InterviewDetailDto interview);
 }

@@ -298,6 +298,9 @@ export class SimliAvatarService {
 
   private async streamPcmToSimli(pcm: Uint8Array): Promise<void> {
     const chunkSize = 6000;
+    const chunkDelayMs = 165;
+    const startedAt = performance.now();
+
     for (let offset = 0; offset < pcm.length; offset += chunkSize) {
       if (this.stopRequested) {
         break;
@@ -305,13 +308,18 @@ export class SimliAvatarService {
 
       const chunk = pcm.subarray(offset, Math.min(offset + chunkSize, pcm.length));
       this.client.sendAudioData(chunk);
-
-      // ~187ms por chunk de 6000 bytes @ 16kHz mono PCM16
-      await this.delay(170);
+      await this.delay(chunkDelayMs);
     }
 
-    // Aguarda avatar terminar de falar
-    await this.delay(400);
+    if (this.stopRequested) {
+      return;
+    }
+
+    // Aguarda duração real do áudio (16 kHz mono PCM16) + margem para lipsync
+    const totalDurationMs = (pcm.length / 2 / 16000) * 1000;
+    const elapsedMs = performance.now() - startedAt;
+    const remainingMs = Math.max(600, totalDurationMs - elapsedMs + 900);
+    await this.delay(remainingMs);
   }
 
   private delay(ms: number): Promise<void> {

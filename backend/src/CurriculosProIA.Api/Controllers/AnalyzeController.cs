@@ -58,8 +58,8 @@ public class AnalyzeController : ControllerBase
         _analyze.GetInterview(simulationId, ct);
 
     [HttpGet("interview/{simulationId}/download")]
-    public Task<IActionResult> DownloadInterview(string simulationId, CancellationToken ct) =>
-        _analyze.DownloadInterview(simulationId, ct);
+    public Task<IActionResult> DownloadInterview(string simulationId, [FromQuery] string? format, CancellationToken ct) =>
+        _analyze.DownloadInterview(simulationId, format, ct);
 
     [HttpPost("interview/voice/start")]
     public Task<IActionResult> StartVoiceInterview([FromBody] VoiceInterviewStartSignature body, CancellationToken ct) =>

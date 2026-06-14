@@ -47,9 +47,13 @@
         Ouvir feedback
       </button>
     </ng-container>
-    <button mat-raised-button color="primary" class="mt-4" (click)="downloadReport()" [disabled]="!simulationId">
-      <mat-icon>download</mat-icon>
-      Baixar relatório
+    <button mat-raised-button color="primary" class="mt-4" (click)="downloadReport('pdf')" [disabled]="!simulationId">
+      <mat-icon>picture_as_pdf</mat-icon>
+      Baixar PDF
+    </button>
+    <button mat-stroked-button class="mt-4 ml-2" (click)="downloadReport('docx')" [disabled]="!simulationId">
+      <mat-icon>description</mat-icon>
+      Baixar Word
     </button>
   </div>
 
@@ -90,9 +94,13 @@
     </button>
   </div>
 
-  <!-- Sessão ativa (vídeo + gravação) -->
-  <div *ngIf="persona && step !== 'idle' && step !== 'already_done' && step !== 'written_questions'" class="voice-interview__session">
+  <!-- Sessão ativa (vídeo intro + gravação + feedback em voz) -->
+  <div *ngIf="persona && step !== 'idle' && step !== 'already_done' && step !== 'written_questions' && step !== 'complete'" class="voice-interview__session">
+    <audio #simliAudio autoplay class="voice-interview__hidden-audio"></audio>
+
+    <!-- Vídeo (intro) e gravação -->
     <div
+      *ngIf="!isFeedbackAudioPhase"
       class="voice-interview__video-shell"
       [class.voice-interview__video-shell--expanded]="videoExpanded"
       [class.voice-interview__video-shell--recording-expanded]="videoExpanded && isRecordingPhase"
@@ -141,7 +149,6 @@
                 muted
               ></video>
             </div>
-            <audio #simliAudio autoplay></audio>
             <mat-spinner *ngIf="simliBootstrapping" diameter="36" class="voice-interview__simli-spinner"></mat-spinner>
             <img
               *ngIf="!simliStageVisible && !isVideoPhase && persona.avatarUrl"
@@ -223,8 +230,18 @@
       </div>
     </div>
 
+    <!-- Feedback em voz (sem vídeo) -->
+    <div *ngIf="isFeedbackAudioPhase" class="voice-interview__feedback-voice">
+      <img [src]="persona.avatarUrl" [alt]="persona.name" class="voice-interview__feedback-voice-avatar" />
+      <div class="voice-interview__feedback-voice-icon" aria-hidden="true">
+        <mat-icon>graphic_eq</mat-icon>
+      </div>
+      <p class="voice-interview__feedback-voice-label">{{ persona.name }}</p>
+      <p class="voice-interview__feedback-voice-status">{{ statusLabel }}</p>
+    </div>
+
     <!-- Transcript ao vivo (modo normal) -->
-    <div *ngIf="isRecordingPhase && !videoExpanded" class="voice-interview__live-transcript">
+    <div *ngIf="isRecordingPhase && !videoExpanded && !isFeedbackAudioPhase" class="voice-interview__live-transcript">
       <p class="voice-interview__live-label">
         <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
         O que você está dizendo:
@@ -246,36 +263,41 @@
 
   <!-- Resumo final -->
   <div *ngIf="step === 'complete' && summary" class="voice-interview__summary">
-    <mat-icon class="text-green-600" style="font-size: 48px; width: 48px; height: 48px;">check_circle</mat-icon>
-    <h4 class="text-xl font-bold text-gray-800 mt-2">Entrevista concluída</h4>
-    <p class="text-3xl font-bold text-indigo-600 mt-2">{{ summary.score }}/100</p>
-    <p class="text-gray-700 mt-4">{{ summary.overallFeedback }}</p>
-    <div *ngIf="summary.strengths?.length" class="mt-3">
-      <p class="font-semibold text-green-700 text-sm">Pontos positivos</p>
-      <ul class="text-sm text-gray-600 list-disc pl-5">
+    <mat-icon class="text-green-600 voice-interview__summary-icon">check_circle</mat-icon>
+    <h4 class="voice-interview__summary-title">Entrevista concluída</h4>
+    <p class="voice-interview__summary-score">{{ summary.score }}/100</p>
+    <p class="voice-interview__summary-feedback">{{ summary.overallFeedback }}</p>
+    <div *ngIf="summary.strengths?.length" class="voice-interview__summary-block">
+      <p class="voice-interview__summary-label voice-interview__summary-label--positive">Pontos positivos</p>
+      <ul class="voice-interview__summary-list">
         <li *ngFor="let s of summary.strengths">{{ s }}</li>
       </ul>
     </div>
-    <div *ngIf="summary.improvements?.length" class="mt-3">
-      <p class="font-semibold text-orange-700 text-sm">Pontos a melhorar</p>
-      <ul class="text-sm text-gray-600 list-disc pl-5">
+    <div *ngIf="summary.improvements?.length" class="voice-interview__summary-block">
+      <p class="voice-interview__summary-label voice-interview__summary-label--improve">Pontos a melhorar</p>
+      <ul class="voice-interview__summary-list">
         <li *ngFor="let i of summary.improvements">{{ i }}</li>
       </ul>
     </div>
-    <button
-      mat-stroked-button
-      type="button"
-      class="mt-4 mr-2"
-      (click)="replayFeedbackAudio()"
-      *ngIf="feedbackScript || summary?.feedbackScript"
-    >
-      <mat-icon>volume_up</mat-icon>
-      Ouvir feedback novamente
-    </button>
-    <button mat-raised-button color="primary" class="mt-4" (click)="downloadReport()" [disabled]="!simulationId">
-      <mat-icon>download</mat-icon>
-      Baixar relatório completo
-    </button>
+    <div class="voice-interview__summary-actions">
+      <button
+        mat-stroked-button
+        type="button"
+        (click)="replayFeedbackAudio()"
+        *ngIf="feedbackScript || summary?.feedbackScript"
+      >
+        <mat-icon>volume_up</mat-icon>
+        Ouvir feedback novamente
+      </button>
+      <button mat-raised-button color="primary" (click)="downloadReport('pdf')" [disabled]="!simulationId">
+        <mat-icon>picture_as_pdf</mat-icon>
+        PDF
+      </button>
+      <button mat-stroked-button (click)="downloadReport('docx')" [disabled]="!simulationId">
+        <mat-icon>description</mat-icon>
+        Word
+      </button>
+    </div>
   </div>
 
   <p *ngIf="error" class="voice-interview__error">{{ error }}</p>

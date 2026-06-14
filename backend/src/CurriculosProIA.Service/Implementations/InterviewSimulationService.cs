@@ -9,6 +9,7 @@ using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Domain.Dtos;
 
 using CurriculosProIA.Repository.Interfaces;
+using CurriculosProIA.Service.Helpers;
 
 namespace CurriculosProIA.Service.Implementations;
 
@@ -274,6 +275,12 @@ public class InterviewSimulationService : IInterviewSimulationService
 
         return sb.ToString();
     }
+
+    public byte[] GenerateInterviewPdf(InterviewDetailDto interview) =>
+        InterviewReportExporter.GeneratePdf(BuildInterviewDownloadContent(interview));
+
+    public byte[] GenerateInterviewDocx(InterviewDetailDto interview) =>
+        InterviewReportExporter.GenerateDocx(BuildInterviewDownloadContent(interview));
 
     private static int GetStatInt(JsonElement stats, string property)
     {

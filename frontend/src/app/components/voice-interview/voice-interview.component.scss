@@ -139,7 +139,7 @@
       .voice-interview__avatar-face--simli {
         width: 100%;
         max-width: none;
-        min-height: min(62vh, 580px);
+        min-height: min(72vh, 720px);
         border-radius: 1rem;
       }
 
@@ -182,7 +182,7 @@
     &--recording-expanded {
       .voice-interview__avatar--recording {
         width: 100%;
-        max-width: 440px;
+        max-width: 620px;
         aspect-ratio: 4 / 5;
         height: auto;
       }
@@ -201,7 +201,7 @@
 
       .voice-interview__live-transcript--in-expanded {
         width: 100%;
-        max-width: 440px;
+        max-width: 620px;
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 0.75rem;
@@ -275,18 +275,19 @@
 
   &__caption {
     width: 100%;
-    max-width: 560px;
+    max-width: 620px;
     background: rgba(15, 23, 42, 0.88);
     color: #f8fafc;
-    padding: 0.85rem 1rem;
+    padding: 0.65rem 0.85rem;
     border-radius: 0.75rem;
     text-align: center;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+    margin-top: 0.75rem;
 
     p {
-      margin: 0.4rem 0 0;
-      font-size: 0.95rem;
-      line-height: 1.55;
+      margin: 0.35rem 0 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
     }
   }
 
@@ -338,13 +339,12 @@
 
     &--simli {
       width: 100%;
-      max-width: 440px;
-      /* Plano médio: cabeça + pescoço + ombros (não close-up só no rosto) */
+      max-width: 620px;
       aspect-ratio: 4 / 5;
       height: auto;
       border-radius: 1rem;
       background: #0f172a;
-      --simli-crop-y: 34%;
+      --simli-crop-y: 32%;
     }
 
     &--interview {
@@ -366,7 +366,7 @@
 
   &__avatar--simli {
     width: 100%;
-    max-width: 440px;
+    max-width: 620px;
     height: auto;
     aspect-ratio: 4 / 5;
   }
@@ -527,7 +527,7 @@
     font-size: 0.8rem;
     line-height: 1.4;
     text-align: center;
-    max-width: 440px;
+    max-width: 620px;
   }
 
   &__avatar-photo {
@@ -686,11 +686,137 @@
     font-size: 0.875rem;
   }
 
+  &__hidden-audio {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &__feedback-voice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1rem 1rem 1.5rem;
+    gap: 0.85rem;
+    width: 100%;
+  }
+
+  &__feedback-voice-avatar {
+    width: min(320px, 92vw);
+    aspect-ratio: 4 / 5;
+    height: auto;
+    max-height: min(420px, 58vh);
+    border-radius: 1rem;
+    object-fit: cover;
+    object-position: center top;
+    box-shadow: 0 16px 40px rgba(79, 70, 229, 0.22);
+  }
+
+  &__feedback-voice-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #eef2ff;
+    color: #4f46e5;
+    animation: pulse-speak 1.2s ease-in-out infinite;
+
+    mat-icon {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  &__feedback-voice-label {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #1e293b;
+  }
+
+  &__feedback-voice-status {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
   &__summary {
     background: linear-gradient(160deg, #ecfdf5, #eff6ff);
     border-radius: 0.75rem;
-    padding: 1.25rem;
+    padding: 1rem;
     border: 1px solid #a7f3d0;
+    font-size: 0.8125rem;
+  }
+
+  &__summary-icon {
+    font-size: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  &__summary-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0.35rem 0 0;
+  }
+
+  &__summary-score {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4f46e5;
+    margin: 0.35rem 0 0;
+  }
+
+  &__summary-feedback {
+    color: #374151;
+    margin: 0.65rem 0 0;
+    line-height: 1.45;
+    font-size: 0.8125rem;
+  }
+
+  &__summary-block {
+    margin-top: 0.65rem;
+  }
+
+  &__summary-label {
+    font-weight: 600;
+    font-size: 0.75rem;
+    margin: 0 0 0.25rem;
+
+    &--positive {
+      color: #15803d;
+    }
+
+    &--improve {
+      color: #c2410c;
+    }
+  }
+
+  &__summary-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #4b5563;
+    font-size: 0.75rem;
+    line-height: 1.4;
+
+    li + li {
+      margin-top: 0.15rem;
+    }
+  }
+
+  &__summary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+    justify-content: center;
   }
 
   &__error {

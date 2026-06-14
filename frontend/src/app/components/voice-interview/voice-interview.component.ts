@@ -41,6 +41,7 @@ type InterviewStep =
   | "intro_video"
   | "phase1"
   | "loading_feedback"
+  | "feedback_audio"
   | "feedback_video"
   | "complete";
 
@@ -66,13 +67,7 @@ interface WrittenQuestion {
   options: string[];
 }
 
-const INTERVIEWER_AVATARS: Record<string, string> = {
-  AR: "assets/interviewers/ana-ribeiro.png",
-
-  CM: "assets/interviewers/carlos-mendes.png",
-
-  MC: "assets/interviewers/marina-costa.png",
-};
+const INTERVIEW_AVATAR = "assets/imagens/avatar.png";
 
 const PERSONA_GENDER: Record<string, VoiceGender> = {
   AR: "female",
@@ -239,6 +234,9 @@ export class VoiceInterviewComponent
       case "loading_feedback":
         return "Analisando respostas e gerando feedback...";
 
+      case "feedback_audio":
+        return "Ouvindo feedback da entrevista...";
+
       case "feedback_video":
         return "Feedback da entrevista...";
 
@@ -259,6 +257,10 @@ export class VoiceInterviewComponent
 
   get isVideoPhase(): boolean {
     return this.step === "intro_video" || this.simliBootstrapping;
+  }
+
+  get isFeedbackAudioPhase(): boolean {
+    return this.step === "feedback_audio";
   }
 
   get writtenQuestionsComplete(): boolean {
@@ -391,29 +393,24 @@ export class VoiceInterviewComponent
     this.voice.speak(script, undefined, { gender });
   }
 
-  downloadReport(): void {
+  downloadReport(format: "txt" | "pdf" | "docx" = "pdf"): void {
     if (!this.simulationId) {
       return;
     }
 
-    this.analyzer.downloadInterview(this.simulationId).subscribe({
+    this.analyzer.downloadInterview(this.simulationId, format).subscribe({
       next: (blob) => {
+        const ext = format === "docx" ? "docx" : format;
         const url = window.URL.createObjectURL(blob);
-
         const link = document.createElement("a");
-
         link.href = url;
-
-        link.download = `entrevista_${new Date().toISOString().split("T")[0]}.txt`;
-
+        link.download = `entrevista_${new Date().toISOString().split("T")[0]}.${ext}`;
         link.click();
-
         window.URL.revokeObjectURL(url);
       },
 
       error: () => {
         this.error = "Erro ao baixar relatório.";
-
         this.cdr.markForCheck();
       },
     });
@@ -609,9 +606,7 @@ export class VoiceInterviewComponent
           this.simulationId = res.simulationId ?? this.simulationId;
 
           if (this.feedbackScript?.trim()) {
-            void this.playFeedbackAudio(this.feedbackScript, () =>
-              this.onComplete(),
-            );
+            void this.playFeedbackAudio(this.feedbackScript, () => this.onComplete());
           } else {
             this.onComplete();
           }
@@ -753,6 +748,8 @@ export class VoiceInterviewComponent
 
     this.interviewerCaption = script.trim();
 
+    this.videoExpanded = true;
+
     this.voice.stopListening();
 
     const videoStep = this.inferVideoStep();
@@ -856,7 +853,9 @@ export class VoiceInterviewComponent
     script: string,
     onEnd: () => void,
   ): Promise<void> {
-    this.interviewerCaption = script.trim();
+    this.step = "feedback_audio";
+    this.videoExpanded = false;
+    this.interviewerCaption = "";
     this.cdr.markForCheck();
 
     void this.simli.stopSession();
@@ -963,7 +962,7 @@ export class VoiceInterviewComponent
 
       avatarColor: raw?.avatarColor ?? "#6366f1",
 
-      avatarUrl: INTERVIEWER_AVATARS[initials] ?? "assets/imagens/persona.jpeg",
+      avatarUrl: INTERVIEW_AVATAR,
 
       voiceGender: "female",
     };

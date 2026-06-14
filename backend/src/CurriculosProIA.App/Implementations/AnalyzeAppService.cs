@@ -864,7 +864,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
     }
 
-        public async Task<IActionResult> DownloadInterview(string simulationId, CancellationToken cancellationToken)
+        public async Task<IActionResult> DownloadInterview(string simulationId, string? format, CancellationToken cancellationToken)
     {
         try
         {
@@ -900,10 +900,31 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
-            var content = _interviewSimulation.BuildInterviewDownloadContent(interview);
-            var fileName = $"entrevista_{interview.Id}_{DateTime.UtcNow:yyyy-MM-dd}.txt";
-            var bytes = Encoding.UTF8.GetBytes(content);
-            return File(bytes, "text/plain; charset=utf-8", fileName);
+            var normalizedFormat = (format ?? "txt").Trim().ToLowerInvariant();
+            var dateSuffix = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var baseName = $"entrevista_{interview.Id}_{dateSuffix}";
+
+            return normalizedFormat switch
+            {
+                "pdf" => File(
+                    _interviewSimulation.GenerateInterviewPdf(interview),
+                    "application/pdf",
+                    $"{baseName}.pdf"),
+                "docx" or "word" => File(
+                    _interviewSimulation.GenerateInterviewDocx(interview),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    $"{baseName}.docx"),
+                "txt" or "text" => File(
+                    Encoding.UTF8.GetBytes(_interviewSimulation.BuildInterviewDownloadContent(interview)),
+                    "text/plain; charset=utf-8",
+                    $"{baseName}.txt"),
+                _ => BadRequest(new
+                {
+                    success = false,
+                    error = "Formato inválido",
+                    message = "Use format=txt, format=pdf ou format=docx"
+                })
+            };
         }
         catch (Exception ex)
         {
