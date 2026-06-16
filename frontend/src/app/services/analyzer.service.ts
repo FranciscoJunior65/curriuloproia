@@ -159,6 +159,62 @@ export class AnalyzerService {
     });
   }
 
+  processMercadoPagoCard(payload: {
+    planId: string;
+    userId: string;
+    email?: string;
+    couponCode?: string | null;
+    cpf?: string | null;
+    includeEnglish?: boolean;
+    analysisId?: string | null;
+    token: string;
+    paymentMethodId: string;
+    issuerId?: string;
+    installments?: number;
+  }): Observable<any> {
+    const body: Record<string, unknown> = {
+      planId: payload.planId,
+      userId: payload.userId,
+      email: payload.email || '',
+      token: payload.token,
+      paymentMethodId: payload.paymentMethodId,
+      installments: payload.installments ?? 1
+    };
+    if (payload.issuerId) body['issuerId'] = payload.issuerId;
+    if (payload.couponCode?.trim()) body['couponCode'] = payload.couponCode.trim();
+    if (payload.cpf != null && String(payload.cpf).trim()) body['cpf'] = String(payload.cpf).trim();
+    if (payload.includeEnglish) body['includeEnglish'] = true;
+    if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
+
+    return this.http.post(`${this.apiUrl}/analyze/payment/mercadopago/card`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  createMercadoPagoPix(payload: {
+    planId: string;
+    userId: string;
+    email?: string;
+    couponCode?: string | null;
+    cpf?: string | null;
+    includeEnglish?: boolean;
+    analysisId?: string | null;
+  }): Observable<any> {
+    const body: Record<string, unknown> = {
+      planId: payload.planId,
+      userId: payload.userId,
+      email: payload.email || ''
+    };
+    if (payload.couponCode?.trim()) body['couponCode'] = payload.couponCode.trim();
+    if (payload.cpf != null && String(payload.cpf).trim()) body['cpf'] = String(payload.cpf).trim();
+    if (payload.includeEnglish) body['includeEnglish'] = true;
+    if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
+
+    return this.http.post(`${this.apiUrl}/analyze/payment/mercadopago/pix`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   /**
    * Admin: adiciona créditos grátis para testes (sem pagamento).
    */

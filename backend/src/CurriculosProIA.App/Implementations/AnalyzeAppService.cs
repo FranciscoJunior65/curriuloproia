@@ -37,6 +37,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     private readonly IPricingService _pricing;
     private readonly ISettingsService _settings;
     private readonly IPaymentProviderService _paymentProvider;
+    private readonly IMercadoPagoService _mercadoPago;
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IResumeGeneratorService _resumeGenerator;
     private readonly ICoverLetterService _coverLetter;
@@ -55,6 +56,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         IPricingService pricing,
         ISettingsService settings,
         IPaymentProviderService paymentProvider,
+        IMercadoPagoService mercadoPago,
         IPaymentFulfillmentService fulfillment,
         IResumeGeneratorService resumeGenerator,
         ICoverLetterService coverLetter,
@@ -73,6 +75,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         _pricing = pricing;
         _settings = settings;
         _paymentProvider = paymentProvider;
+        _mercadoPago = mercadoPago;
         _fulfillment = fulfillment;
         _resumeGenerator = resumeGenerator;
         _coverLetter = coverLetter;
@@ -1673,15 +1676,128 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             {
                 success = true,
                 provider = result.Provider,
+                transparentCheckout = result.TransparentCheckout,
+                amountBRL = result.AmountBRL,
+                publicKey = result.PublicKey,
+                pixAvailable = result.PixAvailable,
+                planId = result.PlanId,
+                planName = result.PlanName,
                 sessionId = result.SessionId,
                 checkoutUrl = result.Url,
                 preferenceId = result.PreferenceId,
-                mercadoPagoLiveMode = result.LiveMode
+                mercadoPagoLiveMode = result.LiveMode,
+                payerEmail = result.PayerEmail
             });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { success = false, error = "Erro ao criar sessão de pagamento", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> ProcessMercadoPagoCard(
+        MercadoPagoCardPaymentSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var purchase = await ResolvePurchaseRequestAsync(body, cancellationToken);
+            if (purchase.ErrorResult != null)
+            {
+                return purchase.ErrorResult;
+            }
+
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+            var result = await _mercadoPago.ProcessCardPaymentAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                body.Email ?? string.Empty,
+                body.Token ?? string.Empty,
+                body.PaymentMethodId ?? string.Empty,
+                body.IssuerId,
+                body.Installments,
+                string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
+                purchase.Cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
+                cancellationToken);
+
+            if (result.Paid)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    paid = true,
+                    paymentId = result.PaymentId,
+                    status = result.Status,
+                    user = result.User,
+                    alreadyFulfilled = result.AlreadyFulfilled
+                });
+            }
+
+            return Ok(new
+            {
+                success = result.Success,
+                paid = false,
+                paymentId = result.PaymentId,
+                status = result.Status,
+                statusDetail = result.StatusDetail,
+                message = result.Message ?? "Pagamento não aprovado."
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao processar cartão", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> CreateMercadoPagoPix(
+        CreatePaymentSessionSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var purchase = await ResolvePurchaseRequestAsync(body, cancellationToken);
+            if (purchase.ErrorResult != null)
+            {
+                return purchase.ErrorResult;
+            }
+
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+            var result = await _mercadoPago.CreatePixPaymentAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                body.Email ?? string.Empty,
+                string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
+                purchase.Cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
+                cancellationToken);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = result.Message ?? "Erro ao gerar PIX"
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                paymentId = result.PaymentId,
+                status = result.Status,
+                qrCode = result.QrCode,
+                qrCodeBase64 = result.QrCodeBase64,
+                ticketUrl = result.TicketUrl,
+                expiration = result.Expiration,
+                amountBRL = result.AmountBRL
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao gerar PIX", message = ex.Message });
         }
     }
 
@@ -2320,6 +2436,104 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return msg;
+    }
+
+    private sealed class PurchaseRequestResolution
+    {
+        public string? UserId { get; init; }
+        public string? Cpf { get; init; }
+        public IActionResult? ErrorResult { get; init; }
+    }
+
+    private async Task<PurchaseRequestResolution> ResolvePurchaseRequestAsync(
+        CreatePaymentSessionSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(body.PlanId))
+        {
+            return new PurchaseRequestResolution
+            {
+                ErrorResult = BadRequest(new { success = false, error = "Plano inválido" })
+            };
+        }
+
+        var userId = body.UserId ?? JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return new PurchaseRequestResolution
+            {
+                ErrorResult = Unauthorized(new { success = false, error = "É necessário estar autenticado para realizar a compra" })
+            };
+        }
+
+        if (body.PlanId == "english")
+        {
+            if (string.IsNullOrWhiteSpace(body.AnalysisId))
+            {
+                return new PurchaseRequestResolution
+                {
+                    ErrorResult = BadRequest(new
+                    {
+                        success = false,
+                        error = "Análise obrigatória",
+                        message = "O currículo em inglês deve ser comprado para uma análise existente."
+                    })
+                };
+            }
+
+            if (!await _analysis.UserOwnsAnalysisAsync(userId, body.AnalysisId, cancellationToken))
+            {
+                return new PurchaseRequestResolution
+                {
+                    ErrorResult = StatusCode(403, new { success = false, error = "Análise não encontrada" })
+                };
+            }
+
+            if (await _analysis.HasEnglishPaidAsync(body.AnalysisId, cancellationToken))
+            {
+                return new PurchaseRequestResolution
+                {
+                    ErrorResult = BadRequest(new
+                    {
+                        success = false,
+                        error = "Já adquirido",
+                        message = "Esta análise já possui o currículo em inglês."
+                    })
+                };
+            }
+        }
+        else if (await _pricing.GetPlanAsync(body.PlanId, cancellationToken) == null)
+        {
+            return new PurchaseRequestResolution
+            {
+                ErrorResult = BadRequest(new { success = false, error = "Plano inválido" })
+            };
+        }
+
+        var user = await _data.GetUserProfileAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return new PurchaseRequestResolution
+            {
+                ErrorResult = NotFound(new { success = false, error = "Usuário não encontrado" })
+            };
+        }
+
+        var cpf = ResolveProfileCpf(user);
+        if (string.IsNullOrEmpty(cpf))
+        {
+            return new PurchaseRequestResolution
+            {
+                ErrorResult = BadRequest(new
+                {
+                    success = false,
+                    error = "Cadastre seu CPF em Meus dados antes de comprar.",
+                    code = "CPF_REQUIRED"
+                })
+            };
+        }
+
+        return new PurchaseRequestResolution { UserId = userId, Cpf = cpf };
     }
 
     private static string BuildPaymentRedirectUrl(

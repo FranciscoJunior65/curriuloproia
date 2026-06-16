@@ -127,6 +127,10 @@ public class PaymentProviderService : IPaymentProviderService
         {
             Provider = provider,
             FreeCheckout = result.FreeCheckout,
+            TransparentCheckout = result.TransparentCheckout,
+            AmountBRL = result.AmountBRL,
+            PublicKey = result.PublicKey,
+            PixAvailable = result.PixAvailable,
             SessionId = result.SessionId,
             Url = result.Url,
             PreferenceId = result.PreferenceId,
@@ -139,6 +143,7 @@ public class PaymentProviderService : IPaymentProviderService
             DiscountPercent = result.DiscountPercent,
             OriginalPrice = result.OriginalPrice,
             CpfNormalized = result.CpfNormalized,
-            LiveMode = result.LiveMode
+            LiveMode = result.LiveMode,
+            PayerEmail = result.PayerEmail
         };
 }

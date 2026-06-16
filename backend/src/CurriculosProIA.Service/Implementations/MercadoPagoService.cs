@@ -74,145 +74,182 @@ public class MercadoPagoService : IMercadoPagoService
             };
         }
 
-        var baseUrl = (frontendUrl ?? _configuration["FRONTEND_URL"] ?? "http://localhost:4200").TrimEnd('/');
-        var externalReference = JsonSerializer.Serialize(new
+        var mpCtx = await BuildPaymentContextAsync(
+            planId, userId, email, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+
+        var mode = await ResolveModeAsync(cancellationToken);
+        var publicKey = MercadoPagoConfigHelper.GetPublicKey(_configuration, mode)
+            ?? throw new InvalidOperationException("MERCADOPAGO_PUBLIC_KEY não configurada no backend/.env");
+
+        _logger.LogInformation(
+            "Checkout transparente Mercado Pago preparado: planId={PlanId}, amount={Amount}, liveMode={LiveMode}, pix={Pix}",
+            mpCtx.Ctx.PlanId,
+            mpCtx.Ctx.AmountBRL,
+            mpCtx.TokenLiveMode,
+            mpCtx.TokenLiveMode);
+
+        return new CheckoutSessionResult
         {
-            userId = ctx.UserId,
-            planId = ctx.PlanId,
-            planName = ctx.PlanName,
-            analyses = ctx.Analyses,
-            couponId = ctx.Metadata.GetValueOrDefault("couponId"),
-            couponName = ctx.Metadata.GetValueOrDefault("couponName"),
-            discountPercent = ctx.Metadata.GetValueOrDefault("discountPercent") != null
-                ? decimal.Parse(ctx.Metadata["discountPercent"], System.Globalization.CultureInfo.InvariantCulture)
-                : (decimal?)null,
-            originalPrice = ctx.Metadata.GetValueOrDefault("originalPrice") != null
-                ? decimal.Parse(ctx.Metadata["originalPrice"], System.Globalization.CultureInfo.InvariantCulture)
-                : (decimal?)null,
-            cpfNormalized = ctx.Metadata.GetValueOrDefault("cpfNormalized"),
-            amountBRL = ctx.AmountBRL,
-            includeEnglish = ctx.Metadata.GetValueOrDefault("includeEnglish") == "true",
-            englishPriceBRL = ctx.Metadata.TryGetValue("englishPriceBRL", out var ep) &&
-                decimal.TryParse(ep, System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out var epv)
-                ? epv
-                : 0m,
-            analysisId = ctx.Metadata.GetValueOrDefault("analysisId")
-        });
+            TransparentCheckout = true,
+            AmountBRL = mpCtx.Ctx.AmountBRL,
+            PublicKey = publicKey,
+            PixAvailable = mpCtx.TokenLiveMode,
+            UserId = mpCtx.Ctx.UserId,
+            PlanId = mpCtx.Ctx.PlanId,
+            PlanName = mpCtx.Ctx.PlanName,
+            Analyses = mpCtx.Ctx.Analyses,
+            CouponId = mpCtx.Ctx.CouponInfo?.CouponId,
+            CouponName = mpCtx.Ctx.CouponInfo?.CouponName,
+            DiscountPercent = mpCtx.Ctx.CouponInfo?.DiscountPercent,
+            OriginalPrice = mpCtx.Ctx.CouponInfo?.OriginalPrice,
+            CpfNormalized = mpCtx.CpfNormalized,
+            LiveMode = mpCtx.TokenLiveMode,
+            PayerEmail = mpCtx.PayerEmail ?? email
+        };
+    }
 
-        var successUrl = PaymentReturnUrls.Build(
-            baseUrl, PaymentReturnUrls.SuccessPath, "mercadopago", userId,
-            ctx.Metadata.GetValueOrDefault("analysisId"),
-            englishPaid: planId == "english");
-        // failure = abandono do checkout (botão «Voltar à loja» no Mercado Pago)
-        var failureUrl = PaymentReturnUrls.Build(
-            baseUrl, PaymentReturnUrls.CancelledPath, "mercadopago", userId,
-            ctx.Metadata.GetValueOrDefault("analysisId"));
-        var pendingUrl = PaymentReturnUrls.Build(
-            baseUrl, PaymentReturnUrls.PendingPath, "mercadopago", userId,
-            ctx.Metadata.GetValueOrDefault("analysisId"));
-
-        var configuredProduction = await ResolveIsProductionModeAsync(cancellationToken);
-        var tokenLiveMode = await ResolveTokenLiveModeAsync(cancellationToken);
-        EnsureTokenModeAlignedAsync(configuredProduction, tokenLiveMode, cancellationToken);
-        var payerEmail = ResolvePayerEmail(email, tokenLiveMode);
-
-        var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
-        if (!tokenLiveMode)
+    public async Task<MercadoPagoProcessPaymentResult> ProcessCardPaymentAsync(
+        string planId,
+        string userId,
+        string email,
+        string cardToken,
+        string paymentMethodId,
+        string? issuerId,
+        int installments,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(cardToken))
         {
-            cpfNormalized = SandboxTestCpf;
-            if (string.IsNullOrEmpty(payerEmail))
-            {
-                _logger.LogWarning(
-                    "Sandbox MP: MERCADOPAGO_TEST_PAYER_EMAIL não definido. No checkout use e-mail @testuser.com do Comprador de teste e cartão 5031 4332 1540 6351.");
-            }
+            throw new InvalidOperationException("Token do cartão é obrigatório");
         }
 
-        var body = new Dictionary<string, object?>
+        if (string.IsNullOrWhiteSpace(paymentMethodId))
         {
-            ["items"] = new[]
-            {
-                new
-                {
-                    id = ctx.PlanId,
-                    title = ctx.PlanName,
-                    description = ctx.Plan.Description + (ctx.CouponInfo != null
-                        ? $" ({ctx.CouponInfo.CouponName}: {ctx.CouponInfo.DiscountPercent}% off)"
-                        : string.Empty),
-                    category_id = "services",
-                    quantity = 1,
-                    unit_price = ctx.AmountBRL,
-                    currency_id = "BRL"
-                }
-            },
-            ["statement_descriptor"] = "CURRICULOSPRO IA",
-            ["external_reference"] = externalReference,
-            ["metadata"] = ctx.Metadata,
-            ["back_urls"] = new Dictionary<string, string>
-            {
-                ["success"] = successUrl,
-                ["failure"] = failureUrl,
-                ["pending"] = pendingUrl
-            },
-            ["payment_methods"] = MercadoPagoConfigHelper.BuildCheckoutPaymentMethods(tokenLiveMode)
+            throw new InvalidOperationException("payment_method_id é obrigatório");
+        }
+
+        var mpCtx = await BuildPaymentContextAsync(
+            planId, userId, email, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+
+        var body = new Dictionary<string, object>
+        {
+            ["transaction_amount"] = mpCtx.Ctx.AmountBRL,
+            ["token"] = cardToken.Trim(),
+            ["description"] = mpCtx.Ctx.PlanName,
+            ["installments"] = installments < 1 ? 1 : installments,
+            ["payment_method_id"] = paymentMethodId.Trim(),
+            ["external_reference"] = mpCtx.ExternalReference,
+            ["metadata"] = mpCtx.Ctx.Metadata,
+            ["statement_descriptor"] = "CURRICULOSPRO IA"
         };
 
-        var payer = BuildPayer(payerEmail, cpfNormalized);
+        var payer = BuildPayer(mpCtx.PayerEmail, mpCtx.CpfNormalized);
         if (payer != null)
         {
             body["payer"] = payer;
         }
 
-        // MP rejeita auto_return com localhost — só em produção/ngrok HTTPS
-        if (PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(successUrl))
+        if (!string.IsNullOrWhiteSpace(issuerId))
         {
-            body["auto_return"] = "approved";
+            body["issuer_id"] = issuerId.Trim();
         }
 
-        var notificationUrl = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook";
-        if (PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(notificationUrl))
+        AppendNotificationUrl(body);
+
+        var root = await PostPaymentAsync(body, $"card_{userId}_{Guid.NewGuid():N}", cancellationToken);
+        return await MapProcessPaymentResultAsync(root, cancellationToken);
+    }
+
+    public async Task<MercadoPagoPixPaymentResult> CreatePixPaymentAsync(
+        string planId,
+        string userId,
+        string email,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var mpCtx = await BuildPaymentContextAsync(
+            planId, userId, email, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+
+        if (!mpCtx.TokenLiveMode)
         {
-            body["notification_url"] = notificationUrl;
+            return new MercadoPagoPixPaymentResult
+            {
+                Success = false,
+                Message = "PIX disponível apenas em produção (MERCADOPAGO_MODE=production). No sandbox use cartão de teste."
+            };
         }
-        else
+
+        var body = new Dictionary<string, object>
         {
-            _logger.LogWarning(
-                "notification_url omitida (localhost ou HTTP). Webhook automático indisponível em dev local.");
+            ["transaction_amount"] = mpCtx.Ctx.AmountBRL,
+            ["description"] = mpCtx.Ctx.PlanName,
+            ["payment_method_id"] = "pix",
+            ["external_reference"] = mpCtx.ExternalReference,
+            ["metadata"] = mpCtx.Ctx.Metadata
+        };
+
+        var payer = BuildPayer(mpCtx.PayerEmail, mpCtx.CpfNormalized);
+        if (payer != null)
+        {
+            body["payer"] = payer;
         }
 
-        var client = await CreateClientAsync(cancellationToken);
-        using var response = await client.PostAsJsonAsync("checkout/preferences", body, cancellationToken);
-        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        AppendNotificationUrl(body);
 
-        if (!response.IsSuccessStatusCode)
+        var root = await PostPaymentAsync(body, $"pix_{userId}_{Guid.NewGuid():N}", cancellationToken);
+        var paymentId = root.TryGetProperty("id", out var idProp) ? idProp.GetRawText().Trim('"') : null;
+        var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
+
+        string? qrCode = null;
+        string? qrCodeBase64 = null;
+        string? ticketUrl = null;
+        DateTimeOffset? expiration = null;
+
+        if (root.TryGetProperty("point_of_interaction", out var poi)
+            && poi.TryGetProperty("transaction_data", out var txData))
         {
-            throw new InvalidOperationException($"Erro Mercado Pago: {json}");
+            if (txData.TryGetProperty("qr_code", out var qr))
+            {
+                qrCode = qr.GetString();
+            }
+
+            if (txData.TryGetProperty("qr_code_base64", out var qrB64))
+            {
+                qrCodeBase64 = qrB64.GetString();
+            }
+
+            if (txData.TryGetProperty("ticket_url", out var ticket))
+            {
+                ticketUrl = ticket.GetString();
+            }
         }
 
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        var initPoint = ResolveCheckoutInitPoint(root);
-
-        if (string.IsNullOrEmpty(initPoint))
+        if (root.TryGetProperty("date_of_expiration", out var expProp)
+            && DateTimeOffset.TryParse(expProp.GetString(), out var exp))
         {
-            throw new InvalidOperationException("Mercado Pago não retornou URL de checkout");
+            expiration = exp;
         }
 
-        var preferenceLiveMode = root.TryGetProperty("live_mode", out var liveModeProp) && liveModeProp.GetBoolean();
-        _logger.LogInformation(
-            "Checkout Mercado Pago criado: configuredProduction={ConfiguredProduction}, tokenLiveMode={TokenLiveMode}, preferenceLiveMode={PreferenceLiveMode}, url={CheckoutMode}",
-            configuredProduction,
-            tokenLiveMode,
-            preferenceLiveMode,
-            initPoint.Contains("sandbox", StringComparison.OrdinalIgnoreCase) ? "sandbox_init_point" : "init_point");
-
-        var preferenceId = root.GetProperty("id").GetString();
-        return new CheckoutSessionResult
+        return new MercadoPagoPixPaymentResult
         {
-            SessionId = preferenceId,
-            Url = initPoint,
-            PreferenceId = preferenceId,
-            LiveMode = preferenceLiveMode
+            Success = !string.IsNullOrEmpty(paymentId),
+            PaymentId = paymentId,
+            Status = status,
+            QrCode = qrCode,
+            QrCodeBase64 = qrCodeBase64,
+            TicketUrl = ticketUrl,
+            Expiration = expiration,
+            AmountBRL = mpCtx.Ctx.AmountBRL,
+            Message = string.IsNullOrEmpty(qrCode)
+                ? "Mercado Pago não retornou QR Code PIX. Verifique chave PIX na conta."
+                : null
         };
     }
 
@@ -609,6 +646,163 @@ public class MercadoPagoService : IMercadoPagoService
             return Array.Empty<string>();
         }
     }
+
+    private async Task<MpPaymentContext> BuildPaymentContextAsync(
+        string planId,
+        string userId,
+        string email,
+        string? couponCode,
+        string? cpf,
+        bool includeEnglish,
+        string? analysisId,
+        CancellationToken cancellationToken)
+    {
+        var ctx = await _checkout.BuildCheckoutContextAsync(
+            planId, userId, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+
+        var configuredProduction = await ResolveIsProductionModeAsync(cancellationToken);
+        var tokenLiveMode = await ResolveTokenLiveModeAsync(cancellationToken);
+        EnsureTokenModeAlignedAsync(configuredProduction, tokenLiveMode, cancellationToken);
+
+        var payerEmail = ResolvePayerEmail(email, tokenLiveMode);
+        var cpfNormalized = ctx.CpfNormalized ?? ctx.Metadata.GetValueOrDefault("cpfNormalized");
+        if (!tokenLiveMode)
+        {
+            cpfNormalized = SandboxTestCpf;
+            if (string.IsNullOrEmpty(payerEmail))
+            {
+                _logger.LogWarning(
+                    "Sandbox MP: MERCADOPAGO_TEST_PAYER_EMAIL não definido. Use e-mail @testuser.com e cartão 5031 4332 1540 6351.");
+            }
+        }
+
+        return new MpPaymentContext(
+            ctx,
+            BuildExternalReferenceJson(ctx),
+            payerEmail,
+            cpfNormalized,
+            tokenLiveMode);
+    }
+
+    private static string BuildExternalReferenceJson(CheckoutContext ctx) =>
+        JsonSerializer.Serialize(new
+        {
+            userId = ctx.UserId,
+            planId = ctx.PlanId,
+            planName = ctx.PlanName,
+            analyses = ctx.Analyses,
+            couponId = ctx.Metadata.GetValueOrDefault("couponId"),
+            couponName = ctx.Metadata.GetValueOrDefault("couponName"),
+            discountPercent = ctx.Metadata.GetValueOrDefault("discountPercent") != null
+                ? decimal.Parse(ctx.Metadata["discountPercent"], System.Globalization.CultureInfo.InvariantCulture)
+                : (decimal?)null,
+            originalPrice = ctx.Metadata.GetValueOrDefault("originalPrice") != null
+                ? decimal.Parse(ctx.Metadata["originalPrice"], System.Globalization.CultureInfo.InvariantCulture)
+                : (decimal?)null,
+            cpfNormalized = ctx.Metadata.GetValueOrDefault("cpfNormalized"),
+            amountBRL = ctx.AmountBRL,
+            includeEnglish = ctx.Metadata.GetValueOrDefault("includeEnglish") == "true",
+            englishPriceBRL = ctx.Metadata.TryGetValue("englishPriceBRL", out var ep) &&
+                decimal.TryParse(ep, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var epv)
+                ? epv
+                : 0m,
+            analysisId = ctx.Metadata.GetValueOrDefault("analysisId")
+        });
+
+    private void AppendNotificationUrl(Dictionary<string, object> body)
+    {
+        var notificationUrl = $"{GetApiBaseUrl()}/api/analyze/payment/mercadopago/webhook";
+        if (PaymentReturnUrls.SupportsMercadoPagoHttpsCallback(notificationUrl))
+        {
+            body["notification_url"] = notificationUrl;
+        }
+        else
+        {
+            _logger.LogWarning(
+                "notification_url omitida (localhost ou HTTP). Webhook automático indisponível em dev local.");
+        }
+    }
+
+    private async Task<JsonElement> PostPaymentAsync(
+        Dictionary<string, object> body,
+        string idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/payments");
+        request.Headers.TryAddWithoutValidation("X-Idempotency-Key", idempotencyKey);
+        request.Content = JsonContent.Create(body);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Erro Mercado Pago ao criar pagamento: {json}");
+        }
+
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
+    private async Task<MercadoPagoProcessPaymentResult> MapProcessPaymentResultAsync(
+        JsonElement root,
+        CancellationToken cancellationToken)
+    {
+        var paymentId = root.TryGetProperty("id", out var idProp) ? idProp.GetRawText().Trim('"') : null;
+        var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
+        var statusDetail = root.TryGetProperty("status_detail", out var sdProp) ? sdProp.GetString() : null;
+
+        if (status == "approved")
+        {
+            var verify = await VerifyPaymentAsync(paymentId ?? string.Empty, cancellationToken);
+            return new MercadoPagoProcessPaymentResult
+            {
+                Success = true,
+                Paid = true,
+                PaymentId = paymentId,
+                Status = status,
+                StatusDetail = statusDetail,
+                User = verify.User,
+                AlreadyFulfilled = verify.AlreadyFulfilled
+            };
+        }
+
+        var rejected = status is "rejected" or "cancelled";
+        return new MercadoPagoProcessPaymentResult
+        {
+            Success = !rejected,
+            Paid = false,
+            PaymentId = paymentId,
+            Status = status,
+            StatusDetail = statusDetail,
+            Message = rejected
+                ? MapStatusDetailMessage(statusDetail)
+                : status == "in_process" || status == "pending"
+                    ? "Pagamento em processamento. Aguarde a confirmação."
+                    : null
+        };
+    }
+
+    private static string? MapStatusDetailMessage(string? statusDetail) =>
+        statusDetail switch
+        {
+            "cc_rejected_insufficient_amount" => "Saldo insuficiente no cartão.",
+            "cc_rejected_bad_filled_security_code" => "CVV inválido.",
+            "cc_rejected_bad_filled_date" => "Data de validade inválida.",
+            "cc_rejected_bad_filled_card_number" => "Número do cartão inválido.",
+            "cc_rejected_call_for_authorize" => "Entre em contato com o banco para autorizar a compra.",
+            "cc_rejected_high_risk" => "Pagamento recusado por segurança.",
+            _ => statusDetail != null ? $"Pagamento recusado ({statusDetail})." : "Pagamento recusado."
+        };
+
+    private sealed record MpPaymentContext(
+        CheckoutContext Ctx,
+        string ExternalReference,
+        string? PayerEmail,
+        string? CpfNormalized,
+        bool TokenLiveMode);
 
     private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken)
     {

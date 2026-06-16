@@ -62,6 +62,10 @@ public class CheckoutCouponInfo
 public class CheckoutSessionResult
 {
     public bool FreeCheckout { get; set; }
+    public bool TransparentCheckout { get; set; }
+    public decimal? AmountBRL { get; set; }
+    public string? PublicKey { get; set; }
+    public bool? PixAvailable { get; set; }
     public string? SessionId { get; set; }
     public string? Url { get; set; }
     public string? PreferenceId { get; set; }
@@ -75,6 +79,32 @@ public class CheckoutSessionResult
     public decimal? OriginalPrice { get; set; }
     public string? CpfNormalized { get; set; }
     public bool? LiveMode { get; set; }
+    public string? PayerEmail { get; set; }
+}
+
+public class MercadoPagoProcessPaymentResult
+{
+    public bool Success { get; set; }
+    public bool Paid { get; set; }
+    public string? PaymentId { get; set; }
+    public string? Status { get; set; }
+    public string? StatusDetail { get; set; }
+    public PaymentUserSummary? User { get; set; }
+    public bool AlreadyFulfilled { get; set; }
+    public string? Message { get; set; }
+}
+
+public class MercadoPagoPixPaymentResult
+{
+    public bool Success { get; set; }
+    public string? PaymentId { get; set; }
+    public string? Status { get; set; }
+    public string? QrCode { get; set; }
+    public string? QrCodeBase64 { get; set; }
+    public string? TicketUrl { get; set; }
+    public DateTimeOffset? Expiration { get; set; }
+    public decimal AmountBRL { get; set; }
+    public string? Message { get; set; }
 }
 
 public class PaymentVerificationResult
@@ -124,6 +154,10 @@ public class ProviderCheckoutResult
 {
     public string Provider { get; set; } = string.Empty;
     public bool FreeCheckout { get; set; }
+    public bool TransparentCheckout { get; set; }
+    public decimal? AmountBRL { get; set; }
+    public string? PublicKey { get; set; }
+    public bool? PixAvailable { get; set; }
     public string? SessionId { get; set; }
     public string? Url { get; set; }
     public string? PreferenceId { get; set; }
@@ -137,6 +171,7 @@ public class ProviderCheckoutResult
     public decimal? OriginalPrice { get; set; }
     public string? CpfNormalized { get; set; }
     public bool? LiveMode { get; set; }
+    public string? PayerEmail { get; set; }
 }
 
 public class PaymentProviderTestResult

@@ -116,6 +116,14 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> CreatePaymentSession([FromBody] CreatePaymentSessionSignature body, CancellationToken ct) =>
         _analyze.CreatePaymentSession(body, ct);
 
+    [HttpPost("payment/mercadopago/card")]
+    public Task<IActionResult> ProcessMercadoPagoCard([FromBody] MercadoPagoCardPaymentSignature body, CancellationToken ct) =>
+        _analyze.ProcessMercadoPagoCard(body, ct);
+
+    [HttpPost("payment/mercadopago/pix")]
+    public Task<IActionResult> CreateMercadoPagoPix([FromBody] CreatePaymentSessionSignature body, CancellationToken ct) =>
+        _analyze.CreateMercadoPagoPix(body, ct);
+
     [HttpPost("payment/admin-free-credits")]
     public Task<IActionResult> AdminFreeCredits([FromBody] AdminFreeCreditsSignature body, CancellationToken ct) =>
         _analyze.AdminFreeCredits(body, ct);

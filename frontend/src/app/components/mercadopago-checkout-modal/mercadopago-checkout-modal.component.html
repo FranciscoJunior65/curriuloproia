@@ -1,0 +1,80 @@
+<div class="mp-checkout">
+  <button type="button" class="mp-checkout__close" (click)="close()" aria-label="Fechar">
+    <mat-icon>close</mat-icon>
+  </button>
+
+  <div class="mp-checkout__header">
+    <mat-icon color="primary">lock</mat-icon>
+    <h2>Pagamento seguro</h2>
+    <p>{{ data.planName }}</p>
+    <div class="mp-checkout__amount">{{ data.amountBRL | currency:'BRL':'symbol':'1.2-2' }}</div>
+  </div>
+
+  <div *ngIf="!data.liveMode" class="mp-checkout__alert mp-checkout__alert--info">
+    Modo teste: cartão <strong>5031 4332 1540 6351</strong>, CVV 123, validade 11/30, titular <strong>APRO</strong>.
+    PIX indisponível no sandbox.
+  </div>
+
+  <div *ngIf="errorMessage" class="mp-checkout__alert mp-checkout__alert--error">
+    {{ errorMessage }}
+  </div>
+
+  <div *ngIf="successMessage" class="mp-checkout__alert mp-checkout__alert--success">
+    {{ successMessage }}
+  </div>
+
+  <div class="mp-checkout__tabs">
+    <button
+      type="button"
+      class="mp-checkout__tab"
+      [class.mp-checkout__tab--active]="activeTab === 'card'"
+      (click)="setTab('card')">
+      Cartão de crédito
+    </button>
+    <button
+      type="button"
+      class="mp-checkout__tab"
+      [class.mp-checkout__tab--active]="activeTab === 'pix'"
+      [disabled]="!data.pixAvailable"
+      (click)="setTab('pix')">
+      PIX
+    </button>
+  </div>
+
+  <div *ngIf="activeTab === 'card'">
+    <div *ngIf="loadingCard" class="mp-checkout__loading">Carregando formulário seguro...</div>
+    <div id="mp-card-payment-container" class="mp-checkout__card-container"></div>
+  </div>
+
+  <div *ngIf="activeTab === 'pix'" class="mp-checkout__pix-actions">
+    <ng-container *ngIf="!pixQrCodeBase64">
+      <p class="mp-checkout__hint">Gere o QR Code PIX e pague pelo app do seu banco.</p>
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        [disabled]="generatingPix"
+        (click)="generatePix()">
+        {{ generatingPix ? 'Gerando PIX...' : 'Gerar QR Code PIX' }}
+      </button>
+    </ng-container>
+
+    <ng-container *ngIf="pixQrCodeBase64">
+      <img
+        class="mp-checkout__qr"
+        [src]="'data:image/png;base64,' + pixQrCodeBase64"
+        alt="QR Code PIX" />
+      <div class="mp-checkout__pix-code" *ngIf="pixQrCode">{{ pixQrCode }}</div>
+      <button type="button" mat-stroked-button (click)="copyPixCode()" *ngIf="pixQrCode">
+        Copiar código PIX
+      </button>
+      <p class="mp-checkout__hint" *ngIf="pixPolling">
+        Aguardando confirmação do pagamento...
+      </p>
+    </ng-container>
+  </div>
+
+  <p class="mp-checkout__hint">
+    Seus dados de cartão são processados pelo Mercado Pago. Não armazenamos informações do cartão.
+  </p>
+</div>

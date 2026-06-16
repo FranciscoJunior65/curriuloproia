@@ -1,7 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using CurriculosProIA.Domain.Entities;
-using CurriculosProIA.Domain.Dtos;
-using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Domain.Dtos;
 
 namespace CurriculosProIA.Service.Interfaces;
@@ -13,6 +10,30 @@ public interface IMercadoPagoService
         string userId,
         string email,
         string? frontendUrl = null,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MercadoPagoProcessPaymentResult> ProcessCardPaymentAsync(
+        string planId,
+        string userId,
+        string email,
+        string cardToken,
+        string paymentMethodId,
+        string? issuerId,
+        int installments,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MercadoPagoPixPaymentResult> CreatePixPaymentAsync(
+        string planId,
+        string userId,
+        string email,
         string? couponCode = null,
         string? cpf = null,
         bool includeEnglish = false,

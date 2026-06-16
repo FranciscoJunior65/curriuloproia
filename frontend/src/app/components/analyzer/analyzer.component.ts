@@ -14,6 +14,10 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Router, ActivatedRoute } from '@angular/router';
 import { getCpfDigits } from '../../utils/cpf.utils';
 import { CheckoutModalComponent } from '../checkout-modal/checkout-modal.component';
+import {
+  MercadoPagoCheckoutModalComponent,
+  MercadoPagoCheckoutModalData
+} from '../mercadopago-checkout-modal/mercadopago-checkout-modal.component';
 import { CpfRequiredModalComponent } from '../cpf-required-modal/cpf-required-modal.component';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
@@ -770,41 +774,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.processingPaymentPlanId = null;
     this.checkoutHint = null;
 
-    // Checkout Pro do Mercado Pago: redirect na mesma aba (evita popup + extensões no console).
-    if (this.paymentProvider === 'mercadopago') {
-      const isSandbox = /sandbox\.mercadopago/i.test(checkoutUrl);
-      if (isSandbox) {
-        const proceed = window.confirm(
-          'Pagamento em SANDBOX (teste)\n\n' +
-            '1. E-mail: use SOMENTE o @testuser.com do Comprador de teste (configurado no backend/.env).\n' +
-            '   NÃO use Gmail, Outlook ou e-mail real — isso gera "Uma das partes é de teste".\n\n' +
-            '2. Cartão DE TESTE (obrigatório): 5031 4332 1540 6351\n' +
-            '   CVV 123 | Validade 11/30 | Titular APRO | CPF 12345678909\n' +
-            '   Cartão real (ex: terminado em 8720) NÃO funciona no sandbox.\n\n' +
-            '3. Aba anônima, sem login na sua conta real do Mercado Pago.\n\n' +
-            'Continuar para o checkout?'
-        );
-        if (!proceed) {
-          return;
-        }
-      } else {
-        const proceed = window.confirm(
-          'Pagamento REAL (Mercado Pago — produção)\n\n' +
-            '• Cobrança de verdade (PIX paga valor real).\n' +
-            '• NÃO entre com a conta do VENDEDOR no Mercado Pago — use outro e-mail/convidado.\n' +
-            '• CPF cadastrado em Meus dados deve ser válido.\n' +
-            '• Erro de CSP no console (TrackBuilder/content.js) é da página do MP — pode ignorar se o QR Code aparecer.\n' +
-            '• No localhost os créditos podem não entrar sozinhos (sem webhook); após pagar, volte ao app ou use o servidor publicado.\n\n' +
-            'Continuar para o checkout?'
-        );
-        if (!proceed) {
-          return;
-        }
-      }
-      window.location.assign(checkoutUrl);
-      return;
-    }
-
     const ref = this.dialog.open(CheckoutModalComponent, {
       data: {
         checkoutUrl,
@@ -820,6 +789,28 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       if (result === 'completed') {
         this.checkPaymentStatus();
         this.checkCredits();
+      }
+    });
+  }
+
+  private openMercadoPagoTransparentCheckout(data: MercadoPagoCheckoutModalData): void {
+    this.processingPaymentPlanId = null;
+    this.checkoutHint = null;
+
+    const ref = this.dialog.open(MercadoPagoCheckoutModalComponent, {
+      data,
+      width: '100%',
+      maxWidth: '520px',
+      disableClose: false,
+      panelClass: 'checkout-modal-panel'
+    });
+
+    ref.afterClosed().subscribe((result) => {
+      if (result === 'paid') {
+        this.checkCredits();
+        this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', {
+          duration: 5000
+        });
       }
     });
   }
@@ -885,6 +876,29 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         if (response.success && response.freeCheckout && response.redirectUrl) {
           console.log('✅ Compra grátis concluída, redirecionando...');
           window.location.href = response.redirectUrl;
+          return;
+        }
+        if (
+          response.success &&
+          response.transparentCheckout &&
+          response.publicKey &&
+          this.paymentProvider === 'mercadopago'
+        ) {
+          this.openMercadoPagoTransparentCheckout({
+            publicKey: response.publicKey,
+            amountBRL: response.amountBRL,
+            planName: response.planName || plan.name,
+            planId: plan.id,
+            userId: this.userId,
+            email: userEmail,
+            payerEmail: response.payerEmail || userEmail,
+            cpf: userCpf || null,
+            couponCode: this.couponCode?.trim() || null,
+            includeEnglish,
+            analysisId: plan.id === 'english' ? this.result?.analysisId ?? null : null,
+            pixAvailable: !!response.pixAvailable,
+            liveMode: !!response.mercadoPagoLiveMode
+          });
           return;
         }
         if (response.success && response.checkoutUrl) {
@@ -1225,6 +1239,29 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           this.purchasingEnglish = false;
           if (response.success && response.freeCheckout && response.redirectUrl) {
             window.location.href = response.redirectUrl;
+            return;
+          }
+          if (
+            response.success &&
+            response.transparentCheckout &&
+            response.publicKey &&
+            this.paymentProvider === 'mercadopago'
+          ) {
+            this.openMercadoPagoTransparentCheckout({
+              publicKey: response.publicKey,
+              amountBRL: response.amountBRL,
+              planName: response.planName || 'Currículo em Inglês',
+              planId: 'english',
+              userId: this.userId!,
+              email: this.currentUser?.email || '',
+              payerEmail: response.payerEmail || this.currentUser?.email || '',
+              cpf: this.getUserCpfDigits() || null,
+              couponCode: null,
+              includeEnglish: false,
+              analysisId: this.result?.analysisId ?? null,
+              pixAvailable: !!response.pixAvailable,
+              liveMode: !!response.mercadoPagoLiveMode
+            });
             return;
           }
           if (response.success && response.checkoutUrl) {

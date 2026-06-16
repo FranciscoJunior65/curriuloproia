@@ -30,6 +30,8 @@ public interface IAnalyzeAppService
     Task<IActionResult> GetActivePaymentProvider(CancellationToken cancellationToken = default);
     Task<IActionResult> ValidateCoupon(string? code, string? cpf, CouponValidateSignature? body, CancellationToken cancellationToken = default);
     Task<IActionResult> CreatePaymentSession(CreatePaymentSessionSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> ProcessMercadoPagoCard(MercadoPagoCardPaymentSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> CreateMercadoPagoPix(CreatePaymentSessionSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> AdminFreeCredits(AdminFreeCreditsSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> VerifyPayment(string? sessionId, string? payment_id, string? paymentId, string? provider, CancellationToken cancellationToken = default);
     Task<IActionResult> GetCredits(string? userId, CancellationToken cancellationToken = default);
