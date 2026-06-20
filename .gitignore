@@ -7,6 +7,7 @@ yarn-error.log*
 # Arquivos de ambiente (não commitar — backend/.env vai no publish)
 .env
 backend/.env
+backend/app.env
 .env.local
 .env.development.local
 .env.test.local

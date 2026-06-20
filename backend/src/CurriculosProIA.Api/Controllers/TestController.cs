@@ -12,6 +12,7 @@ public class TestController : ControllerBase
 {
     private readonly ISupabaseConnectionTester _supabase;
     private readonly IAiService _ai;
+    private readonly ISimliService _simli;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ISettingsService _settings;
     private readonly IConfiguration _configuration;
@@ -20,6 +21,7 @@ public class TestController : ControllerBase
     public TestController(
         ISupabaseConnectionTester supabase,
         IAiService ai,
+        ISimliService simli,
         IMercadoPagoService mercadoPago,
         ISettingsService settings,
         IConfiguration configuration,
@@ -27,6 +29,7 @@ public class TestController : ControllerBase
     {
         _supabase = supabase;
         _ai = ai;
+        _simli = simli;
         _mercadoPago = mercadoPago;
         _settings = settings;
         _configuration = configuration;
@@ -52,7 +55,8 @@ public class TestController : ControllerBase
                 "1. Um único arquivo: backend/.env (localhost e servidor)",
                 "2. Publish inclui automaticamente como .env na pasta do site",
                 "3. Reinicie o app pool após publicar",
-                "4. GET /api/test/mercadopago — valida Mercado Pago"
+                "4. GET /api/test/mercadopago — valida Mercado Pago",
+                "5. GET /api/test/simli — valida avatar Simli (token na api.simli.ai)"
             }
         });
     }
@@ -116,6 +120,79 @@ public class TestController : ControllerBase
             connection = "OK",
             envFile = EnvFileLoader.LoadedPath
         });
+    }
+
+    /// <summary>Testa token real na api.simli.ai (servidor → Simli). Não depende do navegador/WebRTC.</summary>
+    [HttpGet("simli")]
+    public async Task<IActionResult> TestSimli(CancellationToken cancellationToken)
+    {
+        var apiKey = _configuration["SIMLI_API_KEY"]?.Trim() ?? "";
+        var config = _simli.GetConfig();
+        var debug = new
+        {
+            hasApiKey = !string.IsNullOrWhiteSpace(apiKey),
+            apiKeyPreview = string.IsNullOrWhiteSpace(apiKey) ? "não definido" : $"{apiKey[..Math.Min(8, apiKey.Length)]}...",
+            apiKeyLength = apiKey.Length,
+            enabled = config.Enabled,
+            transportMode = config.TransportMode,
+            defaultFaceId = config.DefaultFaceId,
+            envFile = EnvFileLoader.LoadedPath
+        };
+
+        if (!config.Enabled)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Simli não configurado",
+                message = "SIMLI_API_KEY ausente ou vazia no .env carregado pelo servidor.",
+                debug,
+                help = new[]
+                {
+                    "1. Edite backend/.env — SIMLI_API_KEY=sua-chave (https://simli.com)",
+                    "2. Republique a API (o .env vai na pasta do site)",
+                    "3. Reinicie o app pool no Plesk",
+                    "4. Se SIMLI_API_KEY existir no painel do Plesk, remova ou atualize — o .env da pasta do site prevalece"
+                }
+            });
+        }
+
+        try
+        {
+            var start = DateTime.UtcNow;
+            var session = await _simli.CreateSessionAsync(null, null, cancellationToken);
+            var elapsedMs = (int)(DateTime.UtcNow - start).TotalMilliseconds;
+
+            return Ok(new
+            {
+                success = true,
+                message = "Conexão servidor → Simli OK (session_token gerado).",
+                faceId = session.FaceId,
+                sessionTokenPreview = $"{session.SessionToken[..Math.Min(16, session.SessionToken.Length)]}...",
+                responseTime = $"{elapsedMs}ms",
+                debug,
+                connection = "OK",
+                note = "Se este teste passar mas o vídeo falhar no navegador, o problema é WebRTC/LiveKit (rede do cliente), não a chave.",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Erro ao conectar com Simli",
+                message = ex.Message,
+                debug,
+                connection = "ERRO",
+                help = new[]
+                {
+                    "1. Confirme SIMLI_API_KEY em backend/.env e republique",
+                    "2. Verifique se o servidor consegue acessar https://api.simli.ai (firewall/saída HTTPS)",
+                    "3. Reinicie o app pool após alterar o .env"
+                }
+            });
+        }
     }
 
     /// <summary>Testa conexão real com Gemini (equivalente ao GET /api/test/gemini da API Node).</summary>

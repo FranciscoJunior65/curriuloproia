@@ -7,6 +7,7 @@
     "start:prod-api": "ng serve",
     "start:localhost": "ng serve -c localhost",
     "build": "ng build",
+    "build:deploy": "ng build --configuration=production && node scripts/prepare-deploy.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

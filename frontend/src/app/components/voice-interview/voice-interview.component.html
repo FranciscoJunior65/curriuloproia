@@ -10,6 +10,15 @@
     Use Chrome ou Edge para captar sua voz durante os tempos de resposta.
   </p>
 
+  <!-- Carregamento inicial (perguntas + status) -->
+  <div *ngIf="isBootstrapping" class="voice-interview__loading voice-interview__loading--bootstrap">
+    <mat-spinner diameter="44"></mat-spinner>
+    <p class="voice-interview__loading-title">{{ bootstrapLoadingMessage }}</p>
+    <p class="voice-interview__loading-hint">
+      Gerando perguntas personalizadas com IA. Isso pode levar alguns segundos.
+    </p>
+  </div>
+
   <!-- Início -->
   <div *ngIf="step === 'idle' && !loading" class="voice-interview__intro">
     <p class="text-gray-600 mb-4">
@@ -97,6 +106,7 @@
   <!-- Sessão ativa (vídeo intro + gravação + feedback em voz) -->
   <div *ngIf="persona && step !== 'idle' && step !== 'already_done' && step !== 'written_questions' && step !== 'complete'" class="voice-interview__session">
     <audio #simliAudio autoplay class="voice-interview__hidden-audio"></audio>
+    <audio #fallbackAudio class="voice-interview__hidden-audio"></audio>
 
     <!-- Vídeo (intro) e gravação -->
     <div
@@ -137,8 +147,8 @@
             />
             <div
               class="voice-interview__simli-viewport"
-              *ngIf="simliStageVisible || isVideoPhase"
               [class.voice-interview__simli-viewport--inactive]="!simliActive"
+              [class.voice-interview__simli-viewport--hidden]="!simliStageVisible && !isVideoPhase"
             >
               <video
                 #simliVideo
@@ -163,10 +173,10 @@
         </div>
 
         <p
-          *ngIf="isVideoPhase && !simliActive && simliUnavailableHint"
+          *ngIf="isVideoPhase && simliBootstrapping && !simliActive"
           class="voice-interview__simli-hint"
         >
-          {{ simliUnavailableHint }}
+          Conectando vídeo da entrevistadora…
         </p>
 
         <div

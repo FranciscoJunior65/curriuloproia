@@ -66,7 +66,23 @@ public class JobSearchService : IJobSearchService
             ?? throw new InvalidOperationException("Site de vagas não encontrado");
 
         var searchTerms = ExtractSearchTerms(analysis);
-        return await _googleJobs.SearchAsync(searchTerms, location, 20, cancellationToken);
+        var result = await _googleJobs.SearchAsync(searchTerms, location, 20, cancellationToken);
+        if (result.Jobs.Count == 0)
+        {
+            var fallbackJobs = BuildFallbackJobListings(searchTerms, location, site.Nome);
+            return new JobSearchResult
+            {
+                Site = site.Nome,
+                Url = site.UrlBase ?? string.Empty,
+                Jobs = fallbackJobs,
+                TotalFound = fallbackJobs.Count,
+                SearchTerms = searchTerms,
+                Message =
+                    "Não listamos vagas automaticamente nesta busca. Use os links abaixo para pesquisar nos portais com termos do seu perfil."
+            };
+        }
+
+        return result;
     }
 
     private async Task<JobSearchResult> SearchJobsAdvancedAsync(
@@ -121,6 +137,17 @@ public class JobSearchService : IJobSearchService
             .OrderByDescending(j => j.CompatibilityScore ?? 0)
             .ToList();
 
+        if (uniqueJobs.Count == 0)
+        {
+            uniqueJobs = BuildFallbackJobListings(keywords, location, site.Nome);
+            foreach (var job in uniqueJobs)
+            {
+                var compatibility = CalculateCompatibilityScore(job, analysis, keywords);
+                job.CompatibilityScore = compatibility.Score;
+                job.MatchedKeywords = compatibility.MatchedKeywords;
+            }
+        }
+
         if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(resumeId) && uniqueJobs.Count > 0)
         {
             try
@@ -141,10 +168,116 @@ public class JobSearchService : IJobSearchService
             TotalFound = uniqueJobs.Count,
             SearchKeywords = keywords,
             SearchCombinations = combinationsToRun.Count,
-            Message = uniqueJobs.Count > 0
-                ? $"{uniqueJobs.Count} vagas listadas com detalhes no seu painel"
-                : "Nenhuma vaga encontrada nesta busca. Tente novamente ou refine o currículo."
+            Message = uniqueJobs.Count > 0 && allJobs.Count == 0
+                ? "Não listamos vagas automaticamente nos portais. Use os links abaixo para buscar com as palavras-chave do seu currículo."
+                : uniqueJobs.Count > 0
+                    ? $"{uniqueJobs.Count} vagas listadas com detalhes no seu painel"
+                    : "Nenhuma vaga encontrada nesta busca. Tente novamente ou refine o currículo."
         };
+    }
+
+    private static List<JobListing> BuildFallbackJobListings(
+        IReadOnlyList<string> keywords,
+        string location,
+        string? siteName)
+    {
+        var query = string.Join(' ', keywords.Where(k => !string.IsNullOrWhiteSpace(k)).Take(5)).Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            query = "vagas emprego";
+        }
+
+        var googleUrl = GoogleJobsSearchService.BuildGoogleJobsUrl(query, location);
+        var indeedUrl =
+            $"https://br.indeed.com/jobs?q={Uri.EscapeDataString(query)}&l={Uri.EscapeDataString(location)}";
+        var linkedInUrl =
+            $"https://www.linkedin.com/jobs/search/?keywords={Uri.EscapeDataString(query)}&location={Uri.EscapeDataString(location)}";
+
+        var listings = new List<JobListing>
+        {
+            new()
+            {
+                Title = $"Buscar: {query}",
+                Company = "Google Vagas",
+                Location = location,
+                Url = googleUrl,
+                Site = "Google Vagas",
+                Description =
+                    "Busca agregada do Google com palavras-chave extraídas do seu currículo. Abra para ver vagas em vários portais.",
+                ApplyChannels = new List<JobApplyChannelDto>
+                {
+                    new() { Portal = "Google Vagas", Link = googleUrl }
+                },
+                MatchedKeywords = keywords.Take(8).ToList()
+            },
+            new()
+            {
+                Title = $"Oportunidades: {query}",
+                Company = "Indeed Brasil",
+                Location = location,
+                Url = indeedUrl,
+                Site = "Indeed",
+                Description = "Pesquisa no Indeed com os termos do seu perfil.",
+                ApplyChannels = new List<JobApplyChannelDto>
+                {
+                    new() { Portal = "Indeed", Link = indeedUrl }
+                },
+                MatchedKeywords = keywords.Take(8).ToList()
+            },
+            new()
+            {
+                Title = $"Vagas relacionadas: {query}",
+                Company = "LinkedIn",
+                Location = location,
+                Url = linkedInUrl,
+                Site = "LinkedIn",
+                Description = "Pesquisa no LinkedIn alinhada à sua análise de currículo.",
+                ApplyChannels = new List<JobApplyChannelDto>
+                {
+                    new() { Portal = "LinkedIn", Link = linkedInUrl }
+                },
+                MatchedKeywords = keywords.Take(8).ToList()
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(siteName))
+        {
+            var siteLower = siteName.ToLowerInvariant();
+            string? siteUrl = null;
+            if (siteLower.Contains("catho"))
+            {
+                siteUrl =
+                    $"https://www.catho.com.br/vagas/?q={Uri.EscapeDataString(query)}&localizacao={Uri.EscapeDataString(location)}";
+            }
+            else if (siteLower.Contains("gupy"))
+            {
+                siteUrl = $"https://www.gupy.io/job-search?q={Uri.EscapeDataString(query)}";
+            }
+            else if (siteLower.Contains("infojobs"))
+            {
+                siteUrl = $"https://www.infojobs.com.br/vagas-de-emprego.aspx?palabra={Uri.EscapeDataString(query)}";
+            }
+
+            if (!string.IsNullOrEmpty(siteUrl))
+            {
+                listings.Insert(0, new JobListing
+                {
+                    Title = $"Buscar no {siteName}: {query}",
+                    Company = siteName,
+                    Location = location,
+                    Url = siteUrl,
+                    Site = siteName,
+                    Description = $"Pesquisa direta no portal {siteName} com termos do seu currículo.",
+                    ApplyChannels = new List<JobApplyChannelDto>
+                    {
+                        new() { Portal = siteName, Link = siteUrl }
+                    },
+                    MatchedKeywords = keywords.Take(8).ToList()
+                });
+            }
+        }
+
+        return listings;
     }
 
     private async Task<List<string>> GenerateSearchKeywordsWithAiAsync(

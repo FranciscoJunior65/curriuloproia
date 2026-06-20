@@ -11,7 +11,23 @@ export interface SimliRuntimeConfig {
   faceIdsByPersona: Record<string, string>;
 }
 
+export type SimliStartFailureReason =
+  | 'disabled'
+  | 'unauthenticated'
+  | 'api_error'
+  | 'webrtc_timeout'
+  | 'client_load_failed';
+
+export interface SimliStartResult {
+  active: boolean;
+  reason?: SimliStartFailureReason;
+  detail?: string;
+}
+
 type SimliClientModule = typeof import('simli-client');
+
+/** LogLevel.INFO — evita depender do enum quando o bundler não reexporta named exports. */
+const SIMLI_LOG_LEVEL_INFO = 1;
 
 @Injectable({ providedIn: 'root' })
 export class SimliAvatarService {
@@ -50,23 +66,133 @@ export class SimliAvatarService {
     return !!this.client;
   }
 
+  private extractHttpError(err: unknown): string {
+    if (err && typeof err === 'object' && 'error' in err) {
+      const payload = (err as { error?: { error?: string; message?: string } | string }).error;
+      if (typeof payload === 'string' && payload.trim()) {
+        return payload.trim();
+      }
+
+      if (payload && typeof payload === 'object') {
+        return payload.error?.trim() || payload.message?.trim() || '';
+      }
+    }
+
+    if (err instanceof Error && err.message.trim()) {
+      return err.message.trim();
+    }
+
+    return '';
+  }
+
   async startSession(
     videoEl: HTMLVideoElement,
     audioEl: HTMLAudioElement,
     personaInitials?: string
-  ): Promise<boolean> {
+  ): Promise<SimliStartResult> {
     const config = await this.loadConfig();
     if (!config.enabled) {
-      return false;
+      return { active: false, reason: 'disabled' };
+    }
+
+    const authToken = this.auth.getToken();
+    if (!authToken) {
+      return { active: false, reason: 'unauthenticated' };
     }
 
     await this.stopSession();
 
-    const token = this.auth.getToken();
-    if (!token) {
-      return false;
+    videoEl.muted = true;
+    videoEl.autoplay = true;
+    videoEl.playsInline = true;
+    audioEl.autoplay = true;
+    audioEl.muted = false;
+
+    let mod: SimliClientModule;
+    try {
+      mod = await this.loadClientModule();
+    } catch (err) {
+      console.warn('[Simli] Falha ao carregar simli-client:', err);
+      return {
+        active: false,
+        reason: 'client_load_failed',
+        detail: this.extractHttpError(err) || 'módulo de vídeo indisponível'
+      };
     }
 
+    // LiveKit é o modo recomendado pela Simli em redes com firewall; P2P é fallback.
+    const preferred = config.transportMode === 'p2p' ? 'p2p' : 'livekit';
+    const transports: Array<'livekit' | 'p2p'> =
+      preferred === 'livekit' ? ['livekit', 'p2p'] : ['p2p', 'livekit'];
+
+    let lastDetail = '';
+
+    for (const transport of transports) {
+      try {
+        const session = await this.createBrowserSession(authToken, personaInitials, config);
+        const iceServers =
+          transport === 'p2p'
+            ? await this.fetchIceServers(authToken).catch(() => null)
+            : null;
+
+        const logLevel = mod.LogLevel?.INFO ?? SIMLI_LOG_LEVEL_INFO;
+
+        this.client = new mod.SimliClient(
+          session.sessionToken,
+          videoEl,
+          audioEl,
+          iceServers,
+          logLevel,
+          transport
+        );
+
+        await Promise.race([
+          this.client.start(),
+          new Promise<void>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Tempo esgotado ao conectar avatar Simli (WebRTC).')),
+              transport === 'p2p' ? 35_000 : 25_000
+            )
+          )
+        ]);
+
+        try {
+          await videoEl.play();
+        } catch {
+          // autoplay pode falhar até haver stream; ignora
+        }
+
+        try {
+          await audioEl.play();
+        } catch {
+          // idem
+        }
+
+        return { active: true };
+      } catch (err) {
+        lastDetail = this.extractHttpError(err) || (err instanceof Error ? err.message : String(err));
+        console.warn(`[Simli] Transporte ${transport} falhou:`, lastDetail);
+        await this.stopSession();
+      }
+    }
+
+    const timedOut =
+      lastDetail.includes('Tempo esgotado') ||
+      lastDetail.toLowerCase().includes('webrtc') ||
+      lastDetail.toLowerCase().includes('timeout');
+
+    return {
+      active: false,
+      reason: timedOut ? 'webrtc_timeout' : 'api_error',
+      detail: lastDetail || undefined
+    };
+  }
+
+  private async createBrowserSession(
+    authToken: string,
+    personaInitials: string | undefined,
+    config: SimliRuntimeConfig
+  ): Promise<{ sessionToken: string; faceId: string }> {
     const sessionRes = await firstValueFrom(
       this.http.post<{ success: boolean; sessionToken: string; faceId: string; error?: string }>(
         `${environment.apiUrl}/simli/session`,
@@ -74,72 +200,31 @@ export class SimliAvatarService {
           personaInitials,
           faceId: config.defaultFaceId || undefined
         },
-        { headers: this.authHeaders(token) }
+        { headers: this.authHeaders(authToken) }
       )
-    );
+    ).catch((err: unknown) => {
+      const detail = this.extractHttpError(err);
+      throw new Error(detail || 'Não foi possível criar sessão Simli na API.');
+    });
 
     if (!sessionRes.success || !sessionRes.sessionToken) {
       throw new Error(sessionRes.error || 'Não foi possível iniciar avatar Simli.');
     }
 
-    const mod = await this.loadClientModule();
-    const transports: Array<'livekit' | 'p2p'> =
-      config.transportMode === 'p2p' ? ['p2p', 'livekit'] : ['livekit', 'p2p'];
-
-    let lastError: unknown;
-    for (const transport of transports) {
-      try {
-        const iceServers =
-          transport === 'p2p'
-            ? await this.fetchIceServers(token).catch(() => null)
-            : null;
-
-        this.client = new mod.SimliClient(
-          sessionRes.sessionToken,
-          videoEl,
-          audioEl,
-          iceServers,
-          mod.LogLevel.INFO,
-          transport
-        );
-
-        await Promise.race([
-          this.client.start(),
-          new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('Tempo esgotado ao conectar avatar Simli.')), 25_000)
-          )
-        ]);
-
-        lastError = null;
-        break;
-      } catch (err) {
-        lastError = err;
-        await this.stopSession();
-      }
-    }
-
-    if (lastError) {
-      throw lastError;
-    }
-
-    videoEl.muted = true;
-    try {
-      await videoEl.play();
-    } catch {
-      // autoplay pode falhar até haver stream; ignora
-    }
-
-    return true;
+    return {
+      sessionToken: sessionRes.sessionToken,
+      faceId: sessionRes.faceId
+    };
   }
 
+  /** Envia áudio ao Simli para lipsync. Retorna false se falhar (não chama onEnd em erro). */
   async speak(
     text: string,
     onEnd?: () => void,
     options?: { gender?: 'female' | 'male' }
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!this.client || !text?.trim()) {
-      onEnd?.();
-      return;
+      return false;
     }
 
     this.stopRequested = false;
@@ -148,11 +233,13 @@ export class SimliAvatarService {
     try {
       const pcm = await this.fetchSpeechPcm(text, options?.gender);
       await this.streamPcmToSimli(pcm);
+      onEnd?.();
+      return true;
+    } catch (err) {
+      console.warn('[Simli] speak falhou:', err);
+      return false;
     } finally {
       this.speaking = false;
-      if (!this.stopRequested) {
-        onEnd?.();
-      }
     }
   }
 
@@ -180,23 +267,69 @@ export class SimliAvatarService {
       })
     );
 
+    if (!mp3 || mp3.byteLength < 128) {
+      throw new Error('Áudio da apresentação vazio ou inválido.');
+    }
+
     const blob = new Blob([mp3], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
 
     return new Promise<void>((resolve, reject) => {
-      const cleanup = () => URL.revokeObjectURL(url);
-      audioEl.onended = () => {
+      let settled = false;
+      const cleanup = () => {
+        audioEl.onended = null;
+        audioEl.onerror = null;
+        audioEl.onloadedmetadata = null;
+        URL.revokeObjectURL(url);
+      };
+      const done = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         cleanup();
         resolve();
       };
-      audioEl.onerror = () => {
+      const fail = (message: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         cleanup();
-        reject(new Error('Falha ao reproduzir áudio'));
+        reject(new Error(message));
       };
+
+      const loadTimeout = setTimeout(() => {
+        fail('Tempo esgotado ao carregar áudio da apresentação.');
+      }, 20_000);
+
+      audioEl.onended = () => {
+        clearTimeout(loadTimeout);
+        done();
+      };
+      audioEl.onerror = () => {
+        clearTimeout(loadTimeout);
+        fail('Falha ao reproduzir áudio');
+      };
+      audioEl.onloadedmetadata = () => {
+        if (!Number.isFinite(audioEl.duration) || audioEl.duration < 0.3) {
+          clearTimeout(loadTimeout);
+          fail('Áudio da apresentação muito curto ou inválido.');
+        }
+      };
+
+      try {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+      } catch {
+        // ignore
+      }
+
       audioEl.src = url;
+      audioEl.load();
       audioEl.play().catch(err => {
-        cleanup();
-        reject(err);
+        clearTimeout(loadTimeout);
+        fail(err instanceof Error ? err.message : 'Autoplay bloqueado');
       });
     });
   }
@@ -252,11 +385,31 @@ export class SimliAvatarService {
     }
   }
 
+  async warmup(): Promise<void> {
+    try {
+      await this.loadClientModule();
+    } catch {
+      // ignora — tentativa de pré-carregar o chunk do simli-client
+    }
+  }
+
   private async loadClientModule(): Promise<SimliClientModule> {
     if (!this.clientModule) {
-      this.clientModule = await import('simli-client');
+      const loaded = await import('simli-client');
+      // Angular/esbuild empacota simli-client (CJS) como `export default { SimliClient, LogLevel, ... }`.
+      this.clientModule = this.normalizeSimliModule(loaded);
     }
     return this.clientModule;
+  }
+
+  private normalizeSimliModule(
+    loaded: SimliClientModule & { default?: SimliClientModule }
+  ): SimliClientModule {
+    const mod = loaded.default ?? loaded;
+    if (!mod?.SimliClient) {
+      throw new Error('simli-client carregado sem SimliClient (export inválido).');
+    }
+    return mod;
   }
 
   private authHeaders(token: string): HttpHeaders {

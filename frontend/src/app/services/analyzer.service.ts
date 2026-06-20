@@ -342,13 +342,16 @@ export class AnalyzerService {
 
   searchJobs(
     analysis: any,
-    siteId: string,
+    siteId?: string,
     location?: string,
     resumeText?: string,
     resumeId?: string,
     analysisId?: string
   ): Observable<any> {
-    const body: any = { analysis, siteId };
+    const body: any = { analysis };
+    if (siteId) {
+      body.siteId = siteId;
+    }
     if (location) {
       body.location = location;
     }

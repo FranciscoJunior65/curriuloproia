@@ -2022,6 +2022,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
 
     public async Task<bool> HasInterviewForResumeAsync(
         string resumeId,
+        string? userId = null,
         CancellationToken cancellationToken = default)
     {
         if (_client == null || string.IsNullOrEmpty(resumeId))
@@ -2030,12 +2031,17 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
 
         await EnsureInitializedAsync(cancellationToken);
-        var response = await _client
+        var query = _client
             .From<SimulacaoEntrevistaRow>()
             .Select("id")
-            .Filter("id_curriculo", Operator.Equals, resumeId)
-            .Limit(1)
-            .Get();
+            .Filter("id_curriculo", Operator.Equals, resumeId);
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            query = query.Filter("id_usuario", Operator.Equals, userId);
+        }
+
+        var response = await query.Limit(1).Get();
 
         return response.Models.Count > 0;
     }
@@ -2192,7 +2198,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             return empty;
         }
 
-        var hasInterview = await HasInterviewForResumeAsync(row.IdCurriculo ?? "", cancellationToken);
+        var hasInterview = await HasInterviewForResumeAsync(row.IdCurriculo ?? "", row.IdUsuario, cancellationToken);
         var status = AnalysisServicesStatusHelper.ParseStatus(row.ServicosUtilizados);
         return AnalysisServicesStatusHelper.Build(status, hasInterview);
     }
@@ -2280,7 +2286,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
 
         var hasInterview = !string.IsNullOrEmpty(row.IdCurriculo) &&
-            await HasInterviewForResumeAsync(row.IdCurriculo, cancellationToken);
+            await HasInterviewForResumeAsync(row.IdCurriculo, row.IdUsuario, cancellationToken);
         var servicosStatus = AnalysisServicesStatusHelper.Build(
             AnalysisServicesStatusHelper.ParseStatus(JsonElementCloneHelper.CloneOrNull(row.ServicosUtilizados)),
             hasInterview);

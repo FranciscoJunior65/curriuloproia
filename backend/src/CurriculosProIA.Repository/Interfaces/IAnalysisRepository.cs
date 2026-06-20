@@ -16,7 +16,7 @@ public interface IAnalysisRepository
     Task<bool> MarkServiceUsedAsync(string analysisId, string serviceKey, CancellationToken cancellationToken = default);
     Task<string?> GetAnalysisIdByResumeIdAsync(string userId, string resumeId, CancellationToken cancellationToken = default);
     Task<AnalysisServicesStatusDto> GetServicesStatusAsync(string analysisId, CancellationToken cancellationToken = default);
-    Task<bool> HasInterviewForResumeAsync(string resumeId, CancellationToken cancellationToken = default);
+    Task<bool> HasInterviewForResumeAsync(string resumeId, string? userId = null, CancellationToken cancellationToken = default);
     Task<PendingServicesSummaryDto> GetPendingServicesSummaryAsync(string userId, CancellationToken cancellationToken = default);
     Task<bool> GrantEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default);
     Task<bool> HasEnglishPaidAsync(string analysisId, CancellationToken cancellationToken = default);

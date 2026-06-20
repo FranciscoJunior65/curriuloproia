@@ -49,10 +49,7 @@ public class StructuredInterviewService : IStructuredInterviewService
         string? resumeId,
         CancellationToken cancellationToken = default)
     {
-        var status = await _analysis.GetServicesStatusAsync(analysisId, cancellationToken);
-        var used = status.Itens.FirstOrDefault(i => i.Key == AnalysisBundledServiceKeys.Entrevista)?.Usado ?? false;
-
-        if (!used || string.IsNullOrEmpty(resumeId))
+        if (string.IsNullOrEmpty(resumeId) || string.IsNullOrEmpty(userId))
         {
             return new StructuredInterviewStatusResult { AlreadyCompleted = false };
         }
@@ -60,7 +57,7 @@ public class StructuredInterviewService : IStructuredInterviewService
         var simulation = await _interviews.GetLatestInterviewForResumeAsync(userId, resumeId, cancellationToken);
         if (simulation == null)
         {
-            return new StructuredInterviewStatusResult { AlreadyCompleted = true };
+            return new StructuredInterviewStatusResult { AlreadyCompleted = false };
         }
 
         var savedFeedback = await TryLoadSavedFeedbackAsync(simulation.Id, cancellationToken);
@@ -159,7 +156,7 @@ public class StructuredInterviewService : IStructuredInterviewService
         });
 
         var fallbackIntro =
-            $"Olá, {candidateName}! Sou {persona.Name}, {persona.Role}. Em instantes você terá tempo para se apresentar.";
+            "Olá! Em instantes você terá tempo para se apresentar e falar sobre sua experiência.";
 
         string introScript;
         try
@@ -175,7 +172,7 @@ public class StructuredInterviewService : IStructuredInterviewService
 
         return new StructuredInterviewVoicePhaseResult
         {
-            IntroScript = EnsureCandidateNameInScript(introScript.Trim(), candidateName)
+            IntroScript = introScript.Trim()
         };
     }
 
@@ -535,30 +532,6 @@ public class StructuredInterviewService : IStructuredInterviewService
         }
 
         return words.All(word => Regex.IsMatch(word, @"^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ''\-.]*$"));
-    }
-
-    private static string EnsureCandidateNameInScript(string script, string candidateName)
-    {
-        if (string.IsNullOrWhiteSpace(script)
-            || string.IsNullOrWhiteSpace(candidateName)
-            || string.Equals(candidateName, "Candidato", StringComparison.OrdinalIgnoreCase))
-        {
-            return script;
-        }
-
-        if (script.Contains(candidateName, StringComparison.OrdinalIgnoreCase))
-        {
-            return script;
-        }
-
-        var firstName = candidateName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(firstName)
-            && script.Contains(firstName, StringComparison.OrdinalIgnoreCase))
-        {
-            return script;
-        }
-
-        return $"Olá, {candidateName}! {script}";
     }
 
     private static string NormalizeCandidateName(string name)

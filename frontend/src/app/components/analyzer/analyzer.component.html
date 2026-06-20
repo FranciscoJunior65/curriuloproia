@@ -51,6 +51,12 @@
           <mat-icon class="text-[#fbbf24]">chat</mat-icon>
           <span class="text-[#e5e7eb]">Simulador de Entrevista</span>
         </div>
+        <div
+          class="flex items-center gap-2 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm px-4 py-2 rounded-full border border-[rgba(148,163,184,0.3)] hover:bg-[rgba(15,23,42,0.8)] transition-all"
+        >
+          <mat-icon class="text-[#fbbf24]">work</mat-icon>
+          <span class="text-[#e5e7eb]">Pesquisa de Vagas</span>
+        </div>
       </div>
 
       <!-- Seção de Sites de Vagas Destacada -->
@@ -681,6 +687,17 @@
         </button>
       </div>
 
+      <!-- Erros de serviços (visível após análise; a seção de upload some sem créditos) -->
+      <div
+        *ngIf="error"
+        class="w-full p-4 bg-red-50 border-l-4 border-red-500 rounded shadow-sm"
+      >
+        <div class="flex items-center gap-2">
+          <mat-icon class="text-red-500">error</mat-icon>
+          <p class="text-red-700 font-medium">{{ error }}</p>
+        </div>
+      </div>
+
       <!-- Score Card -->
       <mat-card
         class="shadow-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
@@ -1057,17 +1074,23 @@
                 mat-stroked-button
                 color="primary"
                 (click)="openInterviewSimulation()"
+                [disabled]="startingVoiceInterview"
                 class="w-full"
               >
-                <mat-icon>download</mat-icon>
-                Ver relatório da entrevista
+                <mat-spinner *ngIf="startingVoiceInterview" diameter="20" class="inline-block mr-2"></mat-spinner>
+                <mat-icon *ngIf="!startingVoiceInterview">download</mat-icon>
+                <span>{{ startingVoiceInterview ? 'Abrindo entrevista...' : 'Ver relatório da entrevista' }}</span>
               </button>
             </mat-card-content>
           </mat-card>
         </div>
 
         <!-- Resultados da busca de vagas -->
-        <section *ngIf="foundJobs.length" id="jobs-results" class="jobs-results">
+        <section
+          *ngIf="searchingJobs || foundJobs.length || jobSearchAttempted"
+          id="jobs-results"
+          class="jobs-results"
+        >
           <header class="jobs-results__header">
             <div class="jobs-results__title-row">
               <span class="jobs-results__icon" aria-hidden="true">
@@ -1075,13 +1098,31 @@
               </span>
               <div>
                 <h3 class="jobs-results__title">Vagas para o seu perfil</h3>
-                <p *ngIf="jobSearchMessage" class="jobs-results__subtitle">{{ jobSearchMessage }}</p>
+                <p *ngIf="jobSearchMessage && !jobSearchError" class="jobs-results__subtitle">{{ jobSearchMessage }}</p>
               </div>
             </div>
-            <span class="jobs-results__count">{{ foundJobs.length }}</span>
+            <span *ngIf="foundJobs.length" class="jobs-results__count">{{ foundJobs.length }}</span>
           </header>
 
-          <div class="jobs-results__list">
+          <div *ngIf="searchingJobs" class="jobs-results__status jobs-results__status--loading">
+            <mat-spinner diameter="32"></mat-spinner>
+            <p>Buscando vagas nos portais de emprego...</p>
+          </div>
+
+          <div *ngIf="jobSearchError && !searchingJobs" class="jobs-results__status jobs-results__status--error">
+            <mat-icon>error_outline</mat-icon>
+            <p>{{ jobSearchError }}</p>
+          </div>
+
+          <div
+            *ngIf="jobSearchAttempted && !searchingJobs && !foundJobs.length && !jobSearchError"
+            class="jobs-results__status jobs-results__status--empty"
+          >
+            <mat-icon>search_off</mat-icon>
+            <p>{{ jobSearchMessage || 'Nenhuma vaga encontrada para o seu perfil nesta busca.' }}</p>
+          </div>
+
+          <div *ngIf="foundJobs.length" class="jobs-results__list">
             <article *ngFor="let job of foundJobs; let i = index" class="job-card">
               <div class="job-card__top">
                 <div class="job-card__identity">
@@ -1198,7 +1239,17 @@
 
         <!-- Entrevista por voz (persona + conversa) -->
         <mat-card *ngIf="showVoiceInterview" id="voice-interview-section" class="shadow-xl">
-          <mat-card-content class="p-6">
+          <mat-card-content class="p-6 relative">
+            <div
+              *ngIf="startingVoiceInterview"
+              class="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 px-6 py-8 rounded-xl bg-white/90 backdrop-blur-sm text-center"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <mat-spinner diameter="48"></mat-spinner>
+              <p class="m-0 text-base font-semibold text-slate-700">Preparando simulação de entrevista...</p>
+              <p class="m-0 text-sm text-slate-500">Gerando perguntas personalizadas com IA</p>
+            </div>
             <app-voice-interview
               [resumeText]="result.originalText || ''"
               [analysis]="result.analysis"
@@ -1206,6 +1257,7 @@
               [resumeId]="result.resumeId || undefined"
               [analysisId]="result.analysisId || undefined"
               [autoStart]="voiceInterviewAutoStart"
+              (ready)="onVoiceInterviewReady()"
               (closed)="onVoiceInterviewClosed()"
               (completed)="onVoiceInterviewCompleted($event)"
             ></app-voice-interview>
@@ -1600,6 +1652,36 @@
           </mat-card-content>
         </mat-card>
 
+        <!-- Card 6: Pesquisa de Vagas -->
+        <mat-card
+          class="relative overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-green-500 bg-gradient-to-br from-white to-green-50"
+        >
+          <div
+            class="absolute top-0 right-0 w-32 h-32 bg-green-100 rounded-full -mr-16 -mt-16 opacity-50"
+          ></div>
+          <mat-card-content class="p-8 relative z-10">
+            <div class="flex flex-col items-center text-center">
+              <div
+                class="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mb-6 shadow-lg transform hover:scale-110 transition-transform"
+              >
+                <mat-icon class="text-white text-4xl" style="font-size: 2.5rem; width: 2.5rem; height: 2.5rem; line-height: 2.5rem;">search</mat-icon>
+              </div>
+              <h3 class="text-2xl font-bold text-gray-800 mb-3">
+                Pesquisa de Vagas
+              </h3>
+              <p class="text-gray-600 leading-relaxed mb-4">
+                Encontre oportunidades alinhadas ao seu currículo em vários portais de emprego. A busca usa seu perfil e palavras-chave da análise — quantas vezes quiser, no mesmo currículo analisado.
+              </p>
+              <div
+                class="mt-4 flex items-center gap-2 text-green-600 font-semibold text-sm"
+              >
+                <mat-icon class="text-lg">all_inclusive</mat-icon>
+                <span>Busca ilimitada por análise</span>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
         <!-- Card 7: Simulador de Entrevista -->
         <mat-card
           class="relative overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-teal-500 bg-gradient-to-br from-white to-teal-50"
@@ -1797,6 +1879,7 @@
           <li>Otimização para sites de vagas</li>
           <li>Geração de PDF ou WORD</li>
           <li>Recomendações personalizadas</li>
+          <li>Pesquisa de vagas</li>
           <li>Simulador de entrevista</li>
         </ul>
       </div>

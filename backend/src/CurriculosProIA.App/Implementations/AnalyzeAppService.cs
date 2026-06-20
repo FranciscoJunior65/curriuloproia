@@ -2435,6 +2435,27 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             return "Limite temporário da IA atingido. Tente novamente em alguns minutos.";
         }
 
+        if (msg.Contains("NOT_FOUND", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("is not found for API version", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("is not supported for generateContent", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Modelo de IA indisponível no servidor. Atualize GEMINI_MODEL no backend/.env para gemini-2.5-flash e reinicie a API.";
+        }
+
+        if (msg.Contains("PERMISSION_DENIED", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("reported as leaked", StringComparison.OrdinalIgnoreCase)
+            || (msg.Contains("403", StringComparison.Ordinal) && msg.Contains("Forbidden", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "A chave GEMINI_API_KEY foi bloqueada pelo Google (vazamento detectado). Gere uma nova em https://aistudio.google.com/apikey, atualize backend/.env e reinicie a API.";
+        }
+
+        if (msg.Contains("API key expired", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("API_KEY_INVALID", StringComparison.OrdinalIgnoreCase)
+            || (msg.Contains("400", StringComparison.Ordinal) && msg.Contains("INVALID_ARGUMENT", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "A chave GEMINI_API_KEY expirou ou é inválida. Gere uma nova em https://aistudio.google.com/apikey, atualize backend/.env (não app.env) e reinicie a API.";
+        }
+
         return msg;
     }
 

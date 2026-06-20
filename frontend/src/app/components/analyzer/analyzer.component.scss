@@ -890,6 +890,22 @@ mat-icon.text-lg {
   line-height: 1.2;
 }
 
+.jobs-results__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  border-radius: 12px;
+  p { margin: 0; max-width: 36rem; font-size: 0.9375rem; line-height: 1.5; }
+  mat-icon { font-size: 2rem; width: 2rem; height: 2rem; }
+  &--loading { background: #f8fafc; color: #475569; }
+  &--error { background: #fef2f2; color: #b91c1c; mat-icon { color: #dc2626; } }
+  &--empty { background: #fffbeb; color: #92400e; mat-icon { color: #d97706; } }
+}
+
 .jobs-results__list {
   display: flex;
   flex-direction: column;

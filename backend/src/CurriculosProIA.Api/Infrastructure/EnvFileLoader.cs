@@ -65,6 +65,9 @@ public static class EnvFileLoader
         hasSupabase = HasSupabaseEnvironmentVariables(),
         hasMercadoPagoTestToken = HasNonEmptyEnv("MERCADOPAGO_ACCESS_TOKEN_TEST"),
         hasMercadoPagoProductionToken = HasNonEmptyEnv("MERCADOPAGO_ACCESS_TOKEN_PRODUCTION"),
+        hasSimliApiKey = HasNonEmptyEnv("SIMLI_API_KEY"),
+        simliKeyPreview = MaskEnvValue(Environment.GetEnvironmentVariable("SIMLI_API_KEY")),
+        simliTransport = Environment.GetEnvironmentVariable("SIMLI_TRANSPORT") ?? "(não definido)",
         mercadoPagoMode = Environment.GetEnvironmentVariable("MERCADOPAGO_MODE") ?? "(não definido)",
         paymentProvider = Environment.GetEnvironmentVariable("PAYMENT_PROVIDER") ?? "(não definido)",
         searchedPaths = LastSearchedPaths.Take(12)
@@ -143,18 +146,12 @@ public static class EnvFileLoader
         // DotNetEnv: não sobrescreve variáveis já definidas no sistema (Plesk com valores reais).
         Env.Load(path, new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: true));
 
-        // Segunda passagem: garante chaves vazias no sistema preenchidas pelo arquivo.
+        // Pasta do site (IIS/Plesk): o .env publicado prevalece sobre variáveis do painel.
         if (preferFileOverEmptyEnv)
         {
             foreach (var (key, value) in ParseEnvEntries(path))
             {
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    continue;
-                }
-
-                var current = Environment.GetEnvironmentVariable(key);
-                if (string.IsNullOrWhiteSpace(current))
+                if (!string.IsNullOrWhiteSpace(value))
                 {
                     Environment.SetEnvironmentVariable(key, value);
                 }
@@ -228,6 +225,24 @@ public static class EnvFileLoader
         {
             Console.WriteLine($"⚠️ [env] {mpKey} ausente (modo Mercado Pago: {mpMode}).");
         }
+
+        if (!HasNonEmptyEnv("SIMLI_API_KEY"))
+        {
+            Console.WriteLine("⚠️ [env] SIMLI_API_KEY ausente — avatar em vídeo da entrevista ficará indisponível.");
+        }
+    }
+
+    private static string MaskEnvValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "(não definido)";
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= 8
+            ? $"{trimmed[..Math.Min(4, trimmed.Length)]}..."
+            : $"{trimmed[..8]}...";
     }
 
     private static bool HasNonEmptyEnv(string key)

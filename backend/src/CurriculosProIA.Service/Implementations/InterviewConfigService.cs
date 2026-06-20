@@ -180,6 +180,44 @@ public class InterviewConfigService : IInterviewConfigService
 
 
 
+    private static string NormalizeIntroductionPrompt(string? prompt)
+
+    {
+
+        var trimmed = prompt?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(trimmed))
+
+        {
+
+            return InterviewConfigDto.DefaultIntroductionPrompt;
+
+        }
+
+
+
+        if (trimmed.Contains("{candidateName}", StringComparison.OrdinalIgnoreCase)
+
+            || trimmed.Contains("Cumprimente o candidato", StringComparison.OrdinalIgnoreCase)
+
+            || trimmed.Contains("nome + cargo", StringComparison.OrdinalIgnoreCase)
+
+            || trimmed.Contains("Empresa/contexto: {company}", StringComparison.Ordinal))
+
+        {
+
+            return InterviewConfigDto.DefaultIntroductionPrompt;
+
+        }
+
+
+
+        return trimmed;
+
+    }
+
+
+
     private static InterviewConfigDto Normalize(InterviewConfigDto config)
 
     {
@@ -188,11 +226,7 @@ public class InterviewConfigService : IInterviewConfigService
 
         {
 
-            IntroductionPrompt = string.IsNullOrWhiteSpace(config.IntroductionPrompt)
-
-                ? InterviewConfigDto.DefaultIntroductionPrompt
-
-                : config.IntroductionPrompt.Trim(),
+            IntroductionPrompt = NormalizeIntroductionPrompt(config.IntroductionPrompt),
 
             QuestionsPrompt = NormalizeQuestionsPrompt(config.QuestionsPrompt),
 

@@ -125,6 +125,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     matchedKeywords?: string[];
   }> = [];
   jobSearchMessage: string | null = null;
+  jobSearchError: string | null = null;
+  jobSearchAttempted = false;
   searchingJobs = false;
   interviewStarted = false; // Controla se a entrevista foi iniciada
   interviewQuestions: string[] = []; // Perguntas da entrevista
@@ -159,6 +161,12 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }, 200);
   }
 
+  private scrollToJobsResults(): void {
+    setTimeout(() => {
+      document.getElementById('jobs-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 250);
+  }
+
   resetAnalysis(): void {
     this.selectedFile = null;
     this.result = null;
@@ -171,6 +179,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.startingVoiceInterview = false;
     this.foundJobs = [];
     this.jobSearchMessage = null;
+    this.jobSearchError = null;
+    this.jobSearchAttempted = false;
     this.searchingJobs = false;
     this.generatingEnglishPdf = false;
     this.generatingEnglishWord = false;
@@ -545,7 +555,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           } else if (action === 'jobs') {
             setTimeout(() => {
               this.searchJobs();
-              this.scrollToResults();
             }, 500);
           } else if (action === 'english' || action === 'buy-english') {
             setTimeout(() => {
@@ -1444,25 +1453,32 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }
 
     if (!this.result.analysisId) {
-      this.error =
+      this.jobSearchAttempted = true;
+      this.jobSearchError =
         'A busca de vagas exige uma análise paga deste currículo. Conclua a importação e análise ou abra pelo histórico.';
+      this.scrollToJobsResults();
       return;
     }
 
-    if (!this.selectedSiteId) {
-      this.error = 'Por favor, selecione um site de vagas para buscar oportunidades';
+    if (!this.selectedSiteId && !this.result.analysisId) {
+      this.jobSearchAttempted = true;
+      this.jobSearchError = 'Por favor, selecione um site de vagas para buscar oportunidades';
+      this.scrollToJobsResults();
       return;
     }
 
     this.searchingJobs = true;
     this.error = null;
+    this.jobSearchError = null;
+    this.jobSearchAttempted = true;
     this.foundJobs = [];
     this.jobSearchMessage = null;
+    this.scrollToJobsResults();
 
     this.analyzerService
       .searchJobs(
         this.result.analysis,
-        this.selectedSiteId,
+        this.selectedSiteId ?? undefined,
         'Brasil',
         this.result.originalText || undefined,
         this.result.resumeId || undefined,
@@ -1473,25 +1489,31 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           this.searchingJobs = false;
 
           if (!response.success) {
-            this.error = response.message || 'Erro ao buscar vagas';
+            this.jobSearchError = response.message || 'Erro ao buscar vagas';
+            this.scrollToJobsResults();
             return;
           }
 
-          const totalFound = response.totalFound ?? response.jobs?.length ?? 0;
-          this.foundJobs = response.jobs || [];
-          this.jobSearchMessage = response.message || null;
+          const jobs = response.jobs ?? response.Jobs ?? [];
+          const totalFound = response.totalFound ?? response.TotalFound ?? jobs.length ?? 0;
+          this.foundJobs = Array.isArray(jobs) ? jobs : [];
+          this.jobSearchMessage = response.message || response.Message || null;
 
-          if (totalFound > 0) {
-            this.scrollToResults();
+          if (totalFound > 0 && this.foundJobs.length > 0) {
+            this.scrollToJobsResults();
             return;
           }
 
-          this.error = response.message || 'Nenhuma vaga encontrada para o seu perfil.';
+          this.jobSearchError = null;
+          this.jobSearchMessage =
+            this.jobSearchMessage || 'Nenhuma vaga encontrada para o seu perfil. Tente novamente em instantes.';
+          this.scrollToJobsResults();
         },
         error: (err) => {
           this.searchingJobs = false;
-          this.error = err.error?.message || err.error?.error || 'Erro ao buscar vagas';
+          this.jobSearchError = err.error?.message || err.error?.error || 'Erro ao buscar vagas';
           console.error('Erro ao buscar vagas:', err);
+          this.scrollToJobsResults();
         }
       });
   }
@@ -1502,11 +1524,48 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.selectedSiteId) {
+    if (!this.selectedSiteId && !this.result.analysisId) {
       this.error = 'Selecione um site de vagas (ex.: LinkedIn) antes de simular a entrevista.';
       return;
     }
 
+    const needsResumeReload =
+      !this.result.originalText?.trim() && !!this.result.analysisId;
+
+    if (needsResumeReload) {
+      this.startingVoiceInterview = true;
+      this.error = null;
+      this.analyzerService.getAnalysisById(this.result.analysisId!).subscribe({
+        next: (response: any) => {
+          if (response?.originalText) {
+            this.result = { ...this.result!, originalText: response.originalText };
+          }
+          if (!this.selectedSiteId) {
+            this.selectedSiteId =
+              response?.siteId ??
+              response?.analysis?.id_site_vagas ??
+              this.selectedSiteId;
+          }
+          if (!this.result?.originalText?.trim()) {
+            this.startingVoiceInterview = false;
+            this.error =
+              'Texto do currículo indisponível. Abra a análise pelo histórico ou faça uma nova importação.';
+            return;
+          }
+          this.launchVoiceInterviewPanel();
+        },
+        error: () => {
+          this.startingVoiceInterview = false;
+          this.error = 'Não foi possível carregar o currículo para a entrevista.';
+        }
+      });
+      return;
+    }
+
+    this.launchVoiceInterviewPanel();
+  }
+
+  private launchVoiceInterviewPanel(): void {
     this.error = null;
     this.startingVoiceInterview = true;
     this.voiceInterviewAutoStart = true;
@@ -1526,8 +1585,11 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         behavior: 'smooth',
         block: 'start'
       });
-      this.startingVoiceInterview = false;
     }, 200);
+  }
+
+  onVoiceInterviewReady(): void {
+    this.startingVoiceInterview = false;
   }
 
   onVoiceInterviewClosed(): void {

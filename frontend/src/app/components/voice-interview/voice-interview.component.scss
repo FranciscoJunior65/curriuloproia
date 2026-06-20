@@ -469,6 +469,32 @@
     padding: 1.5rem;
     color: #64748b;
     font-size: 0.875rem;
+
+    &--bootstrap {
+      min-height: 12rem;
+      justify-content: center;
+      padding: 2.5rem 1.5rem;
+      border-radius: 14px;
+      background: linear-gradient(165deg, #f8fafc 0%, #eef2ff 55%, #f5f3ff 100%);
+      border: 1px solid #e2e8f0;
+    }
+  }
+
+  &__loading-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+    text-align: center;
+  }
+
+  &__loading-hint {
+    margin: 0;
+    max-width: 22rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #64748b;
+    text-align: center;
   }
 
   &__backdrop-photo {
@@ -491,6 +517,15 @@
     &--inactive {
       z-index: 0;
       background: transparent;
+      pointer-events: none;
+    }
+
+    &--hidden {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
       pointer-events: none;
     }
   }

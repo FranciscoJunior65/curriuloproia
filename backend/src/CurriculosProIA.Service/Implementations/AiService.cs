@@ -66,17 +66,34 @@ public class AiService : IAiService
     private static readonly string[] DefaultGeminiFallbackModels =
     [
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash"
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash"
     ];
+
+    private static readonly IReadOnlyDictionary<string, string> DeprecatedGeminiModelMap =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["gemini-pro"] = "gemini-2.5-flash",
+            ["gemini-1.5-flash"] = "gemini-2.5-flash",
+            ["gemini-1.5-flash-latest"] = "gemini-2.5-flash",
+            ["gemini-1.5-flash-8b"] = "gemini-2.5-flash-lite",
+            ["gemini-1.5-pro"] = "gemini-2.5-flash",
+            ["gemini-1.5-pro-latest"] = "gemini-2.5-flash"
+        };
 
     private string GeminiModel
     {
         get
         {
             var model = _configuration["GEMINI_MODEL"] ?? "gemini-2.5-flash";
-            return model == "gemini-pro" ? "gemini-2.5-flash" : model;
+            return NormalizeGeminiModel(model);
         }
+    }
+
+    private static string NormalizeGeminiModel(string model)
+    {
+        var trimmed = model.Trim();
+        return DeprecatedGeminiModelMap.TryGetValue(trimmed, out var mapped) ? mapped : trimmed;
     }
 
     private IReadOnlyList<string> GetGeminiModelChain()
@@ -87,9 +104,8 @@ public class AiService : IAiService
             : configuredFallbacks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return new[] { GeminiModel }
-            .Concat(fallbacks)
+            .Concat(fallbacks.Select(NormalizeGeminiModel))
             .Where(model => !string.IsNullOrWhiteSpace(model))
-            .Select(model => model.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -107,9 +123,13 @@ public class AiService : IAiService
             || msg.Contains("429", StringComparison.Ordinal)
             || msg.Contains("502", StringComparison.Ordinal)
             || msg.Contains("504", StringComparison.Ordinal)
+            || msg.Contains("404", StringComparison.Ordinal)
             || msg.Contains("high demand", StringComparison.OrdinalIgnoreCase)
             || msg.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase)
-            || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase);
+            || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("NOT_FOUND", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("is not found for API version", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("is not supported for generateContent", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<ResumeAnalysisResult> AnalyzeResumeWithGeminiAsync(
@@ -424,12 +444,16 @@ public class AiService : IAiService
             model);
 
         var client = _httpClientFactory.CreateClient("Gemini");
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
 
         const int maxAttempts = 5;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            using var response = await client.PostAsJsonAsync(url, requestBody, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
+            request.Content = JsonContent.Create(requestBody);
+
+            using var response = await client.SendAsync(request, cancellationToken);
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (response.IsSuccessStatusCode)
