@@ -966,16 +966,37 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         EnsureConfigured();
         await EnsureInitializedAsync(cancellationToken);
 
-        var row = new PerfilUsuarioRow { Id = userId, AtualizadoEm = DateTimeOffset.UtcNow };
+        var query = _client!
+            .From<PerfilUsuarioRow>()
+            .Filter("id", Operator.Equals, userId);
 
         foreach (var (key, value) in updates)
         {
-            ApplyProfileUpdate(row, ProfileUpdateKeyMap.GetValueOrDefault(key, key), value);
+            var column = ProfileUpdateKeyMap.GetValueOrDefault(key, key);
+            query = column switch
+            {
+                "nome" => query.Set(x => x.Nome, value?.ToString()),
+                "email" => query.Set(x => x.Email, value?.ToString()),
+                "cpf" => query.Set(x => x.Cpf, value?.ToString()),
+                "data_nascimento" => query.Set(x => x.DataNascimento, FormatProfileDateOfBirth(value)),
+                "cidade" => query.Set(x => x.Cidade, value?.ToString()),
+                "pais" => query.Set(x => x.Pais, value?.ToString()),
+                "plano" => query.Set(x => x.Plano, value?.ToString()),
+                "ultima_analise" => query.Set(x => x.UltimaAnalise, ParseDateTimeOffset(value)),
+                "atualizado_em" => query.Set(x => x.AtualizadoEm, ParseDateTimeOffset(value)),
+                "email_verificado" => query.Set(x => x.EmailVerificado,
+                    value is bool b ? b : Convert.ToBoolean(value, CultureInfo.InvariantCulture)),
+                "codigo_verificacao" => query.Set(x => x.CodigoVerificacao, value?.ToString()),
+                "codigo_verificacao_expira_em" => query.Set(x => x.CodigoVerificacaoExpiraEm, ParseDateTimeOffset(value)),
+                "tipo_usuario" => query.Set(x => x.TipoUsuario, value?.ToString()),
+                "hash_senha" => query.Set(x => x.HashSenha, value?.ToString()),
+                _ => query
+            };
         }
 
-        var response = await _client!
-            .From<PerfilUsuarioRow>()
-            .Update(row);
+        var response = await query
+            .Set(x => x.AtualizadoEm, DateTimeOffset.UtcNow)
+            .Update();
 
         var updated = response.Models.FirstOrDefault()
             ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -993,17 +1014,14 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         await EnsureInitializedAsync(cancellationToken);
 
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expiresInMinutes);
-        var row = new PerfilUsuarioRow
-        {
-            Id = userId,
-            CodigoVerificacao = code,
-            CodigoVerificacaoExpiraEm = expiresAt,
-            AtualizadoEm = DateTimeOffset.UtcNow
-        };
 
         var response = await _client!
             .From<PerfilUsuarioRow>()
-            .Update(row);
+            .Filter("id", Operator.Equals, userId)
+            .Set(x => x.CodigoVerificacao, code)
+            .Set(x => x.CodigoVerificacaoExpiraEm, expiresAt)
+            .Set(x => x.AtualizadoEm, DateTimeOffset.UtcNow)
+            .Update();
 
         var updated = response.Models.FirstOrDefault()
             ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -1039,18 +1057,15 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             throw new InvalidOperationException("Código de verificação expirado");
         }
 
-        var update = new PerfilUsuarioRow
-        {
-            Id = profile.Id,
-            EmailVerificado = true,
-            CodigoVerificacao = null,
-            CodigoVerificacaoExpiraEm = null,
-            AtualizadoEm = now
-        };
+        profile.EmailVerificado = true;
+        profile.CodigoVerificacao = null;
+        profile.CodigoVerificacaoExpiraEm = null;
+        profile.AtualizadoEm = now;
 
         var updatedResponse = await _client
             .From<PerfilUsuarioRow>()
-            .Update(update);
+            .Filter("id", Operator.Equals, profile.Id)
+            .Update(profile);
 
         var updated = updatedResponse.Models.FirstOrDefault()
             ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -1086,17 +1101,14 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             throw new InvalidOperationException("Código de login expirado");
         }
 
-        var update = new PerfilUsuarioRow
-        {
-            Id = profile.Id,
-            CodigoVerificacao = null,
-            CodigoVerificacaoExpiraEm = null,
-            AtualizadoEm = now
-        };
+        profile.CodigoVerificacao = null;
+        profile.CodigoVerificacaoExpiraEm = null;
+        profile.AtualizadoEm = now;
 
         var updatedResponse = await _client
             .From<PerfilUsuarioRow>()
-            .Update(update);
+            .Filter("id", Operator.Equals, profile.Id)
+            .Update(profile);
 
         var updated = updatedResponse.Models.FirstOrDefault()
             ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -1528,17 +1540,14 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         await EnsureInitializedAsync(cancellationToken);
 
         var expiresAt = DateTimeOffset.UtcNow.AddHours(expiresInHours);
-        var row = new PerfilUsuarioRow
-        {
-            Id = userId,
-            CodigoVerificacao = token,
-            CodigoVerificacaoExpiraEm = expiresAt,
-            AtualizadoEm = DateTimeOffset.UtcNow
-        };
 
         var response = await _client!
             .From<PerfilUsuarioRow>()
-            .Update(row);
+            .Filter("id", Operator.Equals, userId)
+            .Set(x => x.CodigoVerificacao, token)
+            .Set(x => x.CodigoVerificacaoExpiraEm, expiresAt)
+            .Set(x => x.AtualizadoEm, DateTimeOffset.UtcNow)
+            .Update();
 
         var updated = response.Models.FirstOrDefault()
             ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -1580,18 +1589,15 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
 
         if (!string.IsNullOrEmpty(email))
         {
-            var update = new PerfilUsuarioRow
-            {
-                Id = profile.Id,
-                EmailVerificado = true,
-                CodigoVerificacao = null,
-                CodigoVerificacaoExpiraEm = null,
-                AtualizadoEm = now
-            };
+            profile.EmailVerificado = true;
+            profile.CodigoVerificacao = null;
+            profile.CodigoVerificacaoExpiraEm = null;
+            profile.AtualizadoEm = now;
 
             var updatedResponse = await _client
                 .From<PerfilUsuarioRow>()
-                .Update(update);
+                .Filter("id", Operator.Equals, profile.Id)
+                .Update(profile);
 
             var updated = updatedResponse.Models.FirstOrDefault()
                 ?? throw new InvalidOperationException("Perfil não retornado após update");
@@ -1660,13 +1666,7 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
                 row.Cpf = value?.ToString();
                 break;
             case "data_nascimento":
-                row.DataNascimento = value switch
-                {
-                    null => null,
-                    DateTime dt => dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    DateTimeOffset dto => dto.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    _ => value.ToString()
-                };
+                row.DataNascimento = FormatProfileDateOfBirth(value);
                 break;
             case "cidade":
                 row.Cidade = value?.ToString();
@@ -1700,6 +1700,15 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
                 break;
         }
     }
+
+    private static string? FormatProfileDateOfBirth(object? value) =>
+        value switch
+        {
+            null => null,
+            DateTime dt => dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            DateTimeOffset dto => dto.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            _ => value.ToString()
+        };
 
     private static DateTimeOffset? ParseDateTimeOffset(object? value) => value switch
     {

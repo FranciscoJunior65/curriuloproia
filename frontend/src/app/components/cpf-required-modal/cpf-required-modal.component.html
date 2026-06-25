@@ -1,34 +1,57 @@
 <div class="cpf-modal">
-  <button type="button" class="cpf-modal__close" (click)="close()" aria-label="Fechar">
+  <button
+    *ngIf="!mandatory"
+    type="button"
+    class="cpf-modal__close"
+    (click)="close()"
+    aria-label="Fechar">
     <mat-icon>close</mat-icon>
   </button>
 
   <div class="cpf-modal__header">
     <mat-icon class="cpf-modal__icon">badge</mat-icon>
     <h2>CPF necessário</h2>
-    <p>Cadastre o CPF da sua conta para continuar com cupons e pagamento. Ele ficará vinculado ao seu perfil.</p>
+    <p>{{ subtitle }}</p>
   </div>
 
-  <mat-form-field appearance="outline" class="w-full">
-    <mat-label>CPF</mat-label>
+  <div class="cpf-modal__field">
+    <label class="cpf-modal__label" for="cpf-required-input">CPF</label>
     <input
-      matInput
+      id="cpf-required-input"
+      class="cpf-modal__input"
+      [class.cpf-modal__input--error]="!!error"
       type="text"
       inputmode="numeric"
       maxlength="14"
       [(ngModel)]="cpf"
       (input)="onCpfInput()"
       (keydown)="onCpfKeydown($event)"
+      (paste)="onCpfPaste($event)"
       placeholder="000.000.000-00"
       autocomplete="off"
+      [disabled]="loading"
     />
-  </mat-form-field>
+    <span class="cpf-modal__hint">Somente números — ex.: 123.456.789-09</span>
+  </div>
 
   <p *ngIf="error" class="cpf-modal__error">{{ error }}</p>
 
   <div class="cpf-modal__actions">
-    <button type="button" mat-stroked-button (click)="close()" [disabled]="loading">Cancelar</button>
-    <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+    <button
+      *ngIf="!mandatory"
+      type="button"
+      mat-stroked-button
+      (click)="close()"
+      [disabled]="loading">
+      Cancelar
+    </button>
+    <button
+      type="button"
+      mat-flat-button
+      color="primary"
+      class="cpf-modal__submit"
+      (click)="save()"
+      [disabled]="loading">
       <mat-spinner *ngIf="loading" diameter="18" class="cpf-modal__spinner"></mat-spinner>
       <span>{{ loading ? 'Salvando...' : 'Salvar e continuar' }}</span>
     </button>

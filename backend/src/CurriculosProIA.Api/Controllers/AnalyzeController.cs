@@ -124,6 +124,22 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> CreateMercadoPagoPix([FromBody] CreatePaymentSessionSignature body, CancellationToken ct) =>
         _analyze.CreateMercadoPagoPix(body, ct);
 
+    [HttpPost("payment/cakto/card-token")]
+    public Task<IActionResult> CreateCaktoCardToken([FromBody] CaktoCardTokenSignature body, CancellationToken ct) =>
+        _analyze.CreateCaktoCardToken(body, ct);
+
+    [HttpGet("payment/cakto/3ds-token")]
+    public Task<IActionResult> GetCakto3dsToken([FromQuery] string? provider, CancellationToken ct) =>
+        _analyze.GetCakto3dsToken(provider, ct);
+
+    [HttpPost("payment/cakto/card")]
+    public Task<IActionResult> ProcessCaktoCard([FromBody] CaktoCardPaymentSignature body, CancellationToken ct) =>
+        _analyze.ProcessCaktoCard(body, ct);
+
+    [HttpPost("payment/cakto/pix")]
+    public Task<IActionResult> CreateCaktoPix([FromBody] CaktoPixPaymentSignature body, CancellationToken ct) =>
+        _analyze.CreateCaktoPix(body, ct);
+
     [HttpPost("payment/admin-free-credits")]
     public Task<IActionResult> AdminFreeCredits([FromBody] AdminFreeCreditsSignature body, CancellationToken ct) =>
         _analyze.AdminFreeCredits(body, ct);

@@ -243,97 +243,6 @@ export class SimliAvatarService {
     }
   }
 
-  /** Voz do backend (Edge TTS) sem depender do buffer do Simli — evita fallback “GPS” do navegador. */
-  async playBackendSpeech(
-    audioEl: HTMLAudioElement,
-    text: string,
-    options?: { gender?: 'female' | 'male' }
-  ): Promise<void> {
-    const trimmed = text?.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    const token = this.auth.getToken();
-    if (!token) {
-      throw new Error('Não autenticado');
-    }
-
-    const voice = options?.gender === 'male' ? 'onyx' : 'nova';
-    const mp3 = await firstValueFrom(
-      this.http.post(`${environment.apiUrl}/simli/speech`, { text: trimmed, voice }, {
-        headers: this.authHeaders(token),
-        responseType: 'arraybuffer'
-      })
-    );
-
-    if (!mp3 || mp3.byteLength < 128) {
-      throw new Error('Áudio da apresentação vazio ou inválido.');
-    }
-
-    const blob = new Blob([mp3], { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
-
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const cleanup = () => {
-        audioEl.onended = null;
-        audioEl.onerror = null;
-        audioEl.onloadedmetadata = null;
-        URL.revokeObjectURL(url);
-      };
-      const done = () => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        cleanup();
-        resolve();
-      };
-      const fail = (message: string) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        cleanup();
-        reject(new Error(message));
-      };
-
-      const loadTimeout = setTimeout(() => {
-        fail('Tempo esgotado ao carregar áudio da apresentação.');
-      }, 20_000);
-
-      audioEl.onended = () => {
-        clearTimeout(loadTimeout);
-        done();
-      };
-      audioEl.onerror = () => {
-        clearTimeout(loadTimeout);
-        fail('Falha ao reproduzir áudio');
-      };
-      audioEl.onloadedmetadata = () => {
-        if (!Number.isFinite(audioEl.duration) || audioEl.duration < 0.3) {
-          clearTimeout(loadTimeout);
-          fail('Áudio da apresentação muito curto ou inválido.');
-        }
-      };
-
-      try {
-        audioEl.pause();
-        audioEl.currentTime = 0;
-      } catch {
-        // ignore
-      }
-
-      audioEl.src = url;
-      audioEl.load();
-      audioEl.play().catch(err => {
-        clearTimeout(loadTimeout);
-        fail(err instanceof Error ? err.message : 'Autoplay bloqueado');
-      });
-    });
-  }
-
   private async fetchSpeechPcm(
     text: string,
     gender?: 'female' | 'male'
@@ -362,6 +271,11 @@ export class SimliAvatarService {
     } catch {
       // ignore
     }
+  }
+
+  /** Interrompe envio de áudio ao Simli (não afeta MP3 do feedback). */
+  stopActivePlayback(): void {
+    this.stopSpeaking();
   }
 
   async stopSession(): Promise<void> {

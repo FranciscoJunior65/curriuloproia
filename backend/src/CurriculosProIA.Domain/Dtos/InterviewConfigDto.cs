@@ -134,7 +134,11 @@ public class InterviewConfigDto
 
         - Avalie o que o candidato ESCREVEU nas 5 perguntas e o que FALOU na apresentação em voz (transcrição).
 
-        - Análise TÉCNICA: coerência das respostas escritas com o currículo, profundidade, clareza, exemplos.
+        - Perguntas de ALTERNATIVAS (múltipla escolha): o candidato só selecionou uma opção — NÃO exija explicação, exemplos ou mais detalhes.
+
+        - Perguntas ABERTAS: avalie profundidade, clareza e exemplos concretos.
+
+        - Análise TÉCNICA: coerência das respostas com o currículo.
 
         - Análise COMPORTAMENTAL: comunicação na fala livre (clareza, objetividade, postura na transcrição).
 

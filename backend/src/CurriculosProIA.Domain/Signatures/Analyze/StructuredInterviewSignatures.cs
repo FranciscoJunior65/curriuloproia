@@ -112,6 +112,8 @@ public class StructuredInterviewFinishSignature
 
     public List<string>? WrittenAnswers { get; set; }
 
+    public List<string>? WrittenQuestionTypes { get; set; }
+
 }
 
 

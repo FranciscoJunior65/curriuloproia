@@ -13,6 +13,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
     private readonly ICreditRepository _credits;
     private readonly IAnalysisRepository _analyses;
     private readonly IPricingService _pricing;
+    private readonly IEmailService _email;
     private readonly ILogger<PaymentFulfillmentService> _logger;
 
     public PaymentFulfillmentService(
@@ -22,6 +23,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
         ICreditRepository credits,
         IAnalysisRepository analyses,
         IPricingService pricing,
+        IEmailService email,
         ILogger<PaymentFulfillmentService> logger)
     {
         _purchases = purchases;
@@ -30,6 +32,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
         _credits = credits;
         _analyses = analyses;
         _pricing = pricing;
+        _email = email;
         _logger = logger;
     }
 
@@ -181,6 +184,35 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
 
         var creditsAvailable = await _credits.GetAvailableCreditsAsync(request.UserId, cancellationToken);
         var userProfile = await _users.GetUserProfileAsync(request.UserId, cancellationToken);
+
+        var recipientEmail = !string.IsNullOrWhiteSpace(request.CustomerEmail)
+            ? request.CustomerEmail.Trim()
+            : userProfile?.Email?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            try
+            {
+                await _email.SendPurchaseConfirmationEmailAsync(
+                    recipientEmail,
+                    new PurchaseConfirmationDetails
+                    {
+                        PlanName = request.PlanName,
+                        CreditsAmount = isEnglishOnly ? null : request.Analyses,
+                        Price = request.Price,
+                        CustomerName = userProfile?.Name,
+                        CouponName = request.CouponName,
+                        DiscountPercent = request.DiscountPercent,
+                        OriginalPrice = request.OriginalPrice,
+                        ExtraInfo = string.IsNullOrWhiteSpace(request.ExtraInfo) ? null : request.ExtraInfo
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao enviar confirmação de compra para {Email}", recipientEmail);
+            }
+        }
 
         return new FulfillOrderResult
         {

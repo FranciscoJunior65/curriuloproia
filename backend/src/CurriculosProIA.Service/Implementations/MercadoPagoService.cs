@@ -25,7 +25,6 @@ public class MercadoPagoService : IMercadoPagoService
     private readonly IConfiguration _configuration;
     private readonly ISettingsService _settings;
     private readonly ILogger<MercadoPagoService> _logger;
-    private string? _cachedMode;
 
     public MercadoPagoService(
         IPaymentCheckoutService checkout,
@@ -433,10 +432,10 @@ public class MercadoPagoService : IMercadoPagoService
             if (!modeAligned)
             {
                 message = configuredMode == MercadoPagoConfigHelper.ModeProduction
-                    ? "CONFIGURAÇÃO INVÁLIDA: MERCADOPAGO_MODE=production no backend/.env, mas o token é de TESTE. " +
+                    ? "CONFIGURAÇÃO INVÁLIDA: modo produção ativo (Painel Admin ou MERCADOPAGO_MODE=production), mas o token é de TESTE. " +
                       "Cole o token de produção em MERCADOPAGO_ACCESS_TOKEN_PRODUCTION e republique, " +
-                      "ou defina MERCADOPAGO_MODE=test."
-                    : "CONFIGURAÇÃO INVÁLIDA: MERCADOPAGO_MODE=test no backend/.env, mas o token é de PRODUÇÃO. " +
+                      "ou defina modo teste no admin / MERCADOPAGO_MODE=test."
+                    : "CONFIGURAÇÃO INVÁLIDA: modo teste ativo (Painel Admin ou MERCADOPAGO_MODE=test), mas o token é de PRODUÇÃO. " +
                       "Use MERCADOPAGO_ACCESS_TOKEN_TEST e republique.";
             }
             else
@@ -493,16 +492,8 @@ public class MercadoPagoService : IMercadoPagoService
         }
     }
 
-    private async Task<string> ResolveModeAsync(CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrEmpty(_cachedMode))
-        {
-            return _cachedMode;
-        }
-
-        _cachedMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
-        return _cachedMode;
-    }
+    private async Task<string> ResolveModeAsync(CancellationToken cancellationToken) =>
+        await _settings.GetMercadoPagoModeAsync(cancellationToken);
 
     private async Task<bool> ResolveIsProductionModeAsync(CancellationToken cancellationToken)
     {
@@ -547,16 +538,16 @@ public class MercadoPagoService : IMercadoPagoService
         if (configuredProduction && !tokenLiveMode)
         {
             throw new InvalidOperationException(
-                "Mercado Pago: MERCADOPAGO_MODE=production no backend/.env, mas MERCADOPAGO_ACCESS_TOKEN_PRODUCTION " +
-                "é um token de TESTE. Cole o Access Token de produção em backend/.env e republique, " +
-                "ou defina MERCADOPAGO_MODE=test para sandbox (cartão 5031 4332 1540 6351).");
+                "Mercado Pago: modo produção ativo (Painel Admin → Pagamentos ou MERCADOPAGO_MODE=production no .env), " +
+                "mas MERCADOPAGO_ACCESS_TOKEN_PRODUCTION é um token de TESTE. Cole o Access Token de produção no backend/.env e republique, " +
+                "ou defina modo teste no admin / MERCADOPAGO_MODE=test para sandbox (cartão 5031 4332 1540 6351).");
         }
 
         if (!configuredProduction && tokenLiveMode)
         {
             throw new InvalidOperationException(
-                "Mercado Pago: MERCADOPAGO_MODE=test no backend/.env, mas MERCADOPAGO_ACCESS_TOKEN_TEST " +
-                "é um token de PRODUÇÃO. Use o token de teste em backend/.env e republique.");
+                "Mercado Pago: modo teste ativo (Painel Admin → Pagamentos ou MERCADOPAGO_MODE=test no .env), " +
+                "mas MERCADOPAGO_ACCESS_TOKEN_TEST é um token de PRODUÇÃO. Use o token de teste no backend/.env e republique.");
         }
     }
 

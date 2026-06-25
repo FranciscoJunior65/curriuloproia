@@ -93,6 +93,66 @@
     }
   }
 
+  &__intro-mp4 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0 1rem;
+  }
+
+  &__intro-mp4-shell {
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #0f172a;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+  }
+
+  &__intro-mp4-video {
+    display: block;
+    width: 100%;
+    max-height: min(72vh, 640px);
+    object-fit: contain;
+    background: #0f172a;
+  }
+
+  &__intro-mp4-play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+  }
+
+  &__intro-mp4-status {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+    text-align: center;
+  }
+
+  &__intro-mp4-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
+  &__intro-mp4-hint-spinner {
+    display: inline-block;
+  }
+
+  &__intro-mp4-actions {
+    width: 100%;
+    max-width: 720px;
+  }
+
   &__stage {
     display: flex;
     flex-direction: column;
@@ -156,15 +216,15 @@
       .voice-interview__persona-info {
         color: #e2e8f0;
 
-        h4 {
+        .voice-interview__persona-name {
           color: #f8fafc;
         }
 
-        .text-indigo-600 {
+        .voice-interview__persona-role {
           color: #a5b4fc !important;
         }
 
-        .text-gray-600 {
+        .voice-interview__persona-status {
           color: #cbd5e1 !important;
         }
       }
@@ -275,7 +335,7 @@
 
   &__caption {
     width: 100%;
-    max-width: 620px;
+    max-width: 720px;
     background: rgba(15, 23, 42, 0.88);
     color: #f8fafc;
     padding: 0.65rem 0.85rem;
@@ -285,9 +345,9 @@
     margin-top: 0.75rem;
 
     p {
-      margin: 0.35rem 0 0;
-      font-size: 0.8rem;
-      line-height: 1.45;
+      margin: 0.25rem 0 0;
+      font-size: 0.72rem;
+      line-height: 1.4;
     }
   }
 
@@ -339,12 +399,12 @@
 
     &--simli {
       width: 100%;
-      max-width: 620px;
-      aspect-ratio: 4 / 5;
+      max-width: 720px;
+      aspect-ratio: 3 / 4;
       height: auto;
       border-radius: 1rem;
       background: #0f172a;
-      --simli-crop-y: 32%;
+      --simli-crop-y: 18%;
     }
 
     &--interview {
@@ -366,9 +426,9 @@
 
   &__avatar--simli {
     width: 100%;
-    max-width: 620px;
+    max-width: 720px;
     height: auto;
-    aspect-ratio: 4 / 5;
+    aspect-ratio: 3 / 4;
   }
 
   &__avatar--recording .voice-interview__avatar-ring {
@@ -503,8 +563,16 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center var(--simli-crop-y, 34%);
+    object-position: center var(--simli-crop-y, 18%);
     z-index: 1;
+  }
+
+  /** Foto estática da entrevistadora — enquadramento mais aberto (não só rosto). */
+  &__persona-photo {
+    object-fit: cover;
+    object-position: center 8%;
+    transform: scale(0.92);
+    transform-origin: center 12%;
   }
 
   &__simli-viewport {
@@ -569,7 +637,9 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center 28%;
+    object-position: center 8%;
+    transform: scale(0.92);
+    transform-origin: center 12%;
   }
 
   &__initials {
@@ -601,6 +671,29 @@
 
   &__persona-info {
     text-align: center;
+    max-width: 720px;
+    width: 100%;
+  }
+
+  &__persona-name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  &__persona-role {
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #4f46e5;
+  }
+
+  &__persona-status {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.35;
   }
 
   &__transcript {
@@ -740,13 +833,15 @@
   }
 
   &__feedback-voice-avatar {
-    width: min(320px, 92vw);
-    aspect-ratio: 4 / 5;
+    width: min(380px, 94vw);
+    aspect-ratio: 3 / 4;
     height: auto;
-    max-height: min(420px, 58vh);
+    max-height: min(480px, 62vh);
     border-radius: 1rem;
     object-fit: cover;
-    object-position: center top;
+    object-position: center 8%;
+    transform: scale(0.92);
+    transform-origin: center 12%;
     box-shadow: 0 16px 40px rgba(79, 70, 229, 0.22);
   }
 
@@ -759,13 +854,39 @@
     border-radius: 50%;
     background: #eef2ff;
     color: #4f46e5;
-    animation: pulse-speak 1.2s ease-in-out infinite;
 
     mat-icon {
       font-size: 28px;
       width: 28px;
       height: 28px;
     }
+
+    &--playing {
+      animation: pulse-speak 1.2s ease-in-out infinite;
+    }
+  }
+
+  &__playback-actions,
+  &__feedback-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  &__playback-btn {
+    min-width: 220px;
+  }
+
+  &__recording-hint {
+    flex: 1 1 100%;
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    text-align: center;
+    line-height: 1.45;
   }
 
   &__feedback-voice-label {

@@ -1,4 +1,4 @@
-import {
+﻿import {
   AfterViewInit,
   ChangeDetectorRef,
   Component,
@@ -25,7 +25,9 @@ import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 
 import { AnalyzerService } from "../../services/analyzer.service";
 
-import { SimliAvatarService } from "../../services/simli-avatar.service";
+// Simli desativado — intro via MP4. Serviço mantido comentado para reativação futura.
+// import { SimliAvatarService } from "../../services/simli-avatar.service";
+import { BackendSpeechService } from "../../services/backend-speech.service";
 
 import {
   VoiceSpeechService,
@@ -36,13 +38,11 @@ type InterviewStep =
   | "idle"
   | "loading"
   | "already_done"
-  | "written_questions"
-  | "loading_intro"
   | "intro_video"
+  | "written_questions"
   | "phase1"
   | "loading_feedback"
   | "feedback_audio"
-  | "feedback_video"
   | "complete";
 
 interface Persona {
@@ -67,7 +67,12 @@ interface WrittenQuestion {
   options: string[];
 }
 
-const INTERVIEW_AVATAR = "assets/imagens/avatar.png";
+const INTERVIEW_AVATAR = "assets/imagens/persona.png";
+
+const INTRO_VIDEO_URL = 'assets/videos/video-venda.mp4';
+
+/** Simli/WebRTC desativado — substituído por vídeo MP4 + foto estática. */
+const SIMLI_ENABLED = false;
 
 const PERSONA_GENDER: Record<string, VoiceGender> = {
   AR: "female",
@@ -155,9 +160,33 @@ export class VoiceInterviewComponent
 
   simliBootstrapping = false;
 
+  readonly introVideoUrl = INTRO_VIDEO_URL;
+
+  introVideoEnded = false;
+
+  introVideoNeedsPlay = false;
+
+  questionsLoading = false;
+
+  questionsReady = false;
+
   videoExpanded = false;
 
   interviewerCaption = "";
+
+  /** Após a intro — aguardando botão para abrir o microfone. */
+  recordingAwaitingStart = false;
+
+  get isRecordingAwaitingStart(): boolean {
+    return this.step === "phase1" && this.recordingAwaitingStart;
+  }
+
+  /** Feedback gerado — aguardando botão ouvir. */
+  feedbackAwaitingPlay = false;
+
+  feedbackPlaying = false;
+
+  private feedbackFinishLock = false;
 
   private timerInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -167,23 +196,27 @@ export class VoiceInterviewComponent
 
   private phaseTransitionLock = false;
 
-  @ViewChild("simliVideo") simliVideoRef?: ElementRef<HTMLVideoElement>;
-
-  @ViewChild("simliAudio") simliAudioRef?: ElementRef<HTMLAudioElement>;
+  @ViewChild("introVideo") introVideoRef?: ElementRef<HTMLVideoElement>;
 
   @ViewChild("fallbackAudio") fallbackAudioRef?: ElementRef<HTMLAudioElement>;
 
-  /** Conexão Simli iniciada em loading_intro — não compete com o áudio de fallback. */
+  /** @deprecated Simli desativado */
   private simliPreconnectTask: Promise<boolean> | null = null;
 
+  /** @deprecated Simli desativado */
+  private simliSessionEnded = true;
+
   private introFinishLock = false;
+
+  /** Incrementado ao parar áudio — invalida reproduções em andamento. */
+  private playbackSession = 0;
 
   constructor(
     private analyzer: AnalyzerService,
 
     private voice: VoiceSpeechService,
 
-    private simli: SimliAvatarService,
+    private backendSpeech: BackendSpeechService,
 
     private ngZone: NgZone,
 
@@ -203,17 +236,13 @@ export class VoiceInterviewComponent
   }
 
   ngOnDestroy(): void {
+    this.stopAllPlayback();
     this.clearTimer();
-
-    this.voice.stopSpeaking();
-
-    this.voice.stopListening();
-
-    void this.simli.stopSession();
+    this.stopIntroVideo();
   }
 
   get simliStageVisible(): boolean {
-    return this.simliActive || this.simliBootstrapping;
+    return false;
   }
 
   get timerLabel(): string {
@@ -229,23 +258,32 @@ export class VoiceInterviewComponent
       case "written_questions":
         return "Responda às 5 perguntas sobre seu currículo";
 
-      case "loading_intro":
-        return "Preparando apresentação em vídeo...";
-
       case "intro_video":
-        return "Entrevistador se apresentando...";
+        if (!this.introVideoEnded) {
+          return "Assista à apresentação da entrevistadora";
+        }
+        if (!this.questionsReady) {
+          return "Preparando suas perguntas personalizadas…";
+        }
+        return "Pronto — continue para as perguntas";
 
       case "phase1":
+        if (this.recordingAwaitingStart) {
+          return "Toque em iniciar gravação quando estiver pronto";
+        }
         return `Fale sobre você (${this.timerLabel} restantes)`;
 
       case "loading_feedback":
         return "Analisando respostas e gerando feedback...";
 
       case "feedback_audio":
-        return "Ouvindo feedback da entrevista...";
-
-      case "feedback_video":
-        return "Feedback da entrevista...";
+        if (this.feedbackPlaying) {
+          return "Ouvindo feedback da entrevista...";
+        }
+        if (this.feedbackAwaitingPlay) {
+          return "Feedback pronto — toque para ouvir";
+        }
+        return "Gerando áudio do feedback...";
 
       case "complete":
         return "Entrevista concluída";
@@ -277,8 +315,13 @@ export class VoiceInterviewComponent
     return this.step === "phase1";
   }
 
+  /** Timer e microfone ativos — candidato já clicou em iniciar gravação. */
+  get isRecordingActive(): boolean {
+    return this.step === "phase1" && !this.recordingAwaitingStart;
+  }
+
   get isVideoPhase(): boolean {
-    return this.step === "intro_video" || this.simliBootstrapping;
+    return this.step === "intro_video";
   }
 
   get isFeedbackAudioPhase(): boolean {
@@ -296,11 +339,21 @@ export class VoiceInterviewComponent
   }
 
   finishRecordingEarly(): void {
-    if (!this.isRecordingPhase || this.phaseTransitionLock) {
+    if (!this.isRecordingActive || this.phaseTransitionLock) {
       return;
     }
 
     this.endCurrentRecordingPhase();
+  }
+
+  startCandidateRecording(): void {
+    if (!this.recordingAwaitingStart || this.step !== "phase1") {
+      return;
+    }
+
+    this.recordingAwaitingStart = false;
+    this.cdr.markForCheck();
+    this.startPhaseTimer(this.phase1Minutes, () => this.onPhase1End());
   }
 
   begin(): void {
@@ -376,76 +429,209 @@ export class VoiceInterviewComponent
             return;
           }
 
-          this.startInterview();
+          this.startIntroVideoPhase();
         },
 
-        error: () => this.startInterview(),
+        error: () => this.startIntroVideoPhase(),
       });
     } else {
-      this.startInterview();
+      this.startIntroVideoPhase();
     }
   }
 
-  continueToVoicePhase(): void {
+  /** Vídeo MP4 + prefetch das perguntas em paralelo. */
+  private startIntroVideoPhase(): void {
+    this.loading = false;
+    this.error = null;
+    this.introVideoEnded = false;
+    this.introVideoNeedsPlay = false;
+    this.questionsReady = false;
+    this.questionsLoading = true;
+    this.step = "intro_video";
+    this.videoExpanded = true;
+    this.notifyParentReady();
+    this.cdr.markForCheck();
+    this.prefetchQuestions();
+    setTimeout(() => void this.playIntroVideo(), 200);
+  }
+
+  playIntroVideo(attempt = 0): void {
+    const el = this.introVideoRef?.nativeElement;
+    if (!el) {
+      if (attempt < 25) {
+        setTimeout(() => this.playIntroVideo(attempt + 1), 120);
+      }
+      return;
+    }
+    this.introVideoNeedsPlay = false;
+    el.muted = false;
+    void el.play().catch(() => {
+      this.introVideoNeedsPlay = true;
+      this.cdr.markForCheck();
+    });
+  }
+
+  onIntroVideoEnded(): void {
+    this.introVideoEnded = true;
+    this.stopIntroVideo(false);
+    this.cdr.markForCheck();
+  }
+
+  continueToQuestions(): void {
+    if (!this.introVideoEnded || !this.questionsReady || !this.persona) {
+      return;
+    }
+    this.stopIntroVideo();
+    this.step = "written_questions";
+    this.cdr.markForCheck();
+  }
+
+  continueToRecording(): void {
     if (!this.writtenQuestionsComplete) {
       this.error = "Responda pelo menos 3 das 5 perguntas para continuar.";
-
       this.cdr.markForCheck();
-
       return;
     }
 
     this.error = null;
-
-    this.step = "loading_intro";
-
+    this.loading = true;
     this.cdr.markForCheck();
 
-    void this.simli.warmup();
-    void this.unlockIntroAudioAfterRender();
-    this.simliPreconnectTask = this.preconnectSimli();
-
     this.analyzer
-
       .beginStructuredVoicePhase(this.resumeText, this.analysis, {
         simulationId: this.simulationId ?? undefined,
-
         analysisId: this.analysisId,
-
         siteId: this.siteId,
-
         candidateName: this.candidateName,
-
         writtenQuestions: this.writtenQuestions.map((q) => q.text),
-
         writtenAnswers: this.writtenAnswers,
       })
-
       .subscribe({
         next: (res: any) => {
+          this.loading = false;
           if (!res?.success) {
-            this.error = res?.message || "Erro ao iniciar fase em vídeo";
-
-            this.step = "written_questions";
-
+            this.error = res?.message || "Erro ao preparar gravação";
             this.cdr.markForCheck();
-
             return;
           }
-
           this.introScript = res.introScript ?? "";
-
-          void this.playVideoScript(this.introScript, () => this.startPhase1());
+          this.prepareRecordingPhase();
         },
-
         error: (err) => {
-          this.error = err?.error?.message || "Erro ao preparar vídeo";
-
-          this.step = "written_questions";
-
+          this.loading = false;
+          this.error = err?.error?.message || "Erro ao preparar gravação";
           this.cdr.markForCheck();
         },
       });
+  }
+
+  private prefetchQuestions(): void {
+    this.analyzer
+      .startStructuredInterview(
+        this.resumeText,
+        this.analysis,
+        this.siteId,
+        this.resumeId,
+        this.analysisId,
+      )
+      .subscribe({
+        next: (res: any) => {
+          this.questionsLoading = false;
+
+          if (res?.alreadyCompleted) {
+            this.simulationId = res.simulationId ?? null;
+            this.step = "already_done";
+            this.stopIntroVideo();
+            this.notifyParentReady();
+            this.cdr.markForCheck();
+            return;
+          }
+
+          if (!res?.success) {
+            this.error =
+              res?.message || res?.error || "Erro ao gerar perguntas";
+            this.cdr.markForCheck();
+            return;
+          }
+
+          this.persona = this.mapPersona(res.persona);
+          this.simulationId = res.simulationId ?? null;
+          this.candidateName = res.candidateName ?? "Candidato";
+          this.writtenQuestions = this.normalizeWrittenQuestions(
+            res.writtenQuestions,
+          );
+
+          while (this.writtenQuestions.length < 5) {
+            this.writtenQuestions.push({
+              text: "Conte mais sobre sua experiência.",
+              type: "open",
+              options: [],
+            });
+          }
+
+          this.writtenQuestions = this.writtenQuestions.slice(0, 5);
+          this.writtenAnswers = ["", "", "", "", ""];
+          this.phase1Minutes = res.phase1Minutes ?? 15;
+          this.questionsReady = true;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.questionsLoading = false;
+          if (err?.error?.alreadyCompleted) {
+            this.simulationId = err.error.simulationId ?? null;
+            this.step = "already_done";
+            this.stopIntroVideo();
+          } else {
+            this.error =
+              err?.error?.message ||
+              err?.error?.error ||
+              "Erro ao gerar perguntas";
+          }
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  private stopIntroVideo(resetTime = true): void {
+    const el = this.introVideoRef?.nativeElement;
+    if (!el) {
+      return;
+    }
+    el.pause();
+    if (resetTime) {
+      el.currentTime = 0;
+    }
+  }
+
+  startFeedbackPlayback(): void {
+    const script = this.feedbackScript?.trim();
+    if (!script || this.step !== "feedback_audio" || this.feedbackPlaying) {
+      return;
+    }
+
+    this.feedbackAwaitingPlay = false;
+    this.feedbackPlaying = true;
+    this.feedbackFinishLock = false;
+    this.cdr.markForCheck();
+
+    void this.playFeedbackAudio(script, () => {
+      this.feedbackPlaying = false;
+      this.onComplete();
+    });
+  }
+
+  stopFeedbackPlayback(): void {
+    this.stopAllPlayback();
+    this.feedbackAwaitingPlay = false;
+    this.feedbackPlaying = false;
+    this.onComplete();
+  }
+
+  skipFeedbackAudio(): void {
+    this.stopAllPlayback();
+    this.feedbackAwaitingPlay = false;
+    this.feedbackPlaying = false;
+    this.onComplete();
   }
 
   replayFeedbackAudio(): void {
@@ -457,8 +643,19 @@ export class VoiceInterviewComponent
     if (!script) {
       return;
     }
+    this.stopAllPlayback();
     const gender = this.persona?.voiceGender ?? "female";
-    this.voice.speak(script, undefined, { gender });
+    void (async () => {
+      const fallbackAudio = await this.waitForFallbackAudio();
+      if (fallbackAudio) {
+        fallbackAudio.muted = false;
+      }
+      await this.playBackendSpeechScript(
+        script,
+        gender,
+        fallbackAudio ?? undefined,
+      );
+    })();
   }
 
   downloadReport(format: "txt" | "pdf" | "docx" = "pdf"): void {
@@ -485,19 +682,32 @@ export class VoiceInterviewComponent
   }
 
   close(): void {
+    this.stopAllPlayback();
+    this.stopIntroVideo();
     this.clearTimer();
-
     this.videoExpanded = false;
-
-    this.interviewerCaption = "";
-
-    this.voice.stopSpeaking();
-
-    this.voice.stopListening();
-
-    void this.simli.stopSession();
-
+    this.recordingAwaitingStart = false;
+    this.feedbackAwaitingPlay = false;
+    this.feedbackPlaying = false;
     this.closed.emit();
+  }
+
+  /** Para vídeo intro, feedback (Edge TTS) e microfone. */
+  private stopAllPlayback(): void {
+    this.playbackSession++;
+    this.voice.stopSpeaking();
+    this.voice.stopListening();
+    this.backendSpeech.stop();
+    this.resetAudioElement(this.fallbackAudioRef?.nativeElement);
+    this.feedbackPlaying = false;
+  }
+
+  private isPlaybackCancelled(session: number): boolean {
+    return session !== this.playbackSession;
+  }
+
+  private isPlaybackStopError(err: unknown): boolean {
+    return err instanceof Error && err.message === "playback_stopped";
   }
 
   private tryAutoStart(): void {
@@ -522,120 +732,16 @@ export class VoiceInterviewComponent
     setTimeout(() => this.begin(), 0);
   }
 
-  private startInterview(): void {
-    this.analyzer
-
-      .startStructuredInterview(
-        this.resumeText,
-        this.analysis,
-        this.siteId,
-        this.resumeId,
-        this.analysisId,
-      )
-
-      .subscribe({
-        next: (res: any) => {
-          this.loading = false;
-
-          if (res?.alreadyCompleted) {
-            this.simulationId = res.simulationId ?? null;
-
-            this.step = "already_done";
-
-            this.notifyParentReady();
-            this.cdr.markForCheck();
-
-            return;
-          }
-
-          if (!res?.success) {
-            this.error =
-              res?.message || res?.error || "Erro ao iniciar entrevista";
-
-            this.step = "idle";
-
-            this.notifyParentReady();
-            this.cdr.markForCheck();
-
-            return;
-          }
-
-          this.persona = this.mapPersona(res.persona);
-
-          this.simulationId = res.simulationId ?? null;
-
-          this.candidateName = res.candidateName ?? "Candidato";
-
-          this.writtenQuestions = this.normalizeWrittenQuestions(
-            res.writtenQuestions,
-          );
-
-          while (this.writtenQuestions.length < 5) {
-            this.writtenQuestions.push({
-              text: "Conte mais sobre sua experiência.",
-              type: "open",
-              options: [],
-            });
-          }
-
-          this.writtenQuestions = this.writtenQuestions.slice(0, 5);
-
-          this.writtenAnswers = ["", "", "", "", ""];
-
-          this.phase1Minutes = res.phase1Minutes ?? 15;
-
-          this.step = "written_questions";
-
-          this.notifyParentReady();
-          this.cdr.markForCheck();
-        },
-
-        error: (err) => {
-          this.loading = false;
-
-          this.step = "idle";
-
-          if (err?.error?.alreadyCompleted) {
-            this.simulationId = err.error.simulationId ?? null;
-
-            this.step = "already_done";
-          } else {
-            this.error =
-              err?.error?.message ||
-              err?.error?.error ||
-              "Erro ao iniciar entrevista";
-          }
-
-          this.notifyParentReady();
-          this.cdr.markForCheck();
-        },
-      });
-  }
-
-  private startPhase1(): void {
-    if (this.step !== "intro_video") {
-      console.warn(
-        "[Entrevista] startPhase1 ignorado — etapa atual:",
-        this.step,
-      );
-      return;
-    }
-
-    this.stopSimliForRecording();
-
-    this.interviewerCaption = "";
-
+  private prepareRecordingPhase(): void {
+    this.stopAllPlayback();
+    this.stopIntroVideo();
     this.phaseTransitionLock = false;
-
     this.step = "phase1";
-
+    this.recordingAwaitingStart = true;
     this.candidateDraft = "";
-
     this.candidateSegments = [];
-
     this.candidateInterim = "";
-
-    this.startPhaseTimer(this.phase1Minutes, () => this.onPhase1End());
+    this.cdr.markForCheck();
   }
 
   private onPhase1End(): void {
@@ -665,6 +771,8 @@ export class VoiceInterviewComponent
         writtenQuestions: this.writtenQuestions.map((q) => q.text),
 
         writtenAnswers: this.writtenAnswers,
+
+        writtenQuestionTypes: this.writtenQuestions.map((q) => q.type),
       })
 
       .subscribe({
@@ -686,7 +794,14 @@ export class VoiceInterviewComponent
           this.simulationId = res.simulationId ?? this.simulationId;
 
           if (this.feedbackScript?.trim()) {
-            void this.playFeedbackAudio(this.feedbackScript, () => this.onComplete());
+            this.step = "feedback_audio";
+            this.feedbackAwaitingPlay = false;
+            this.feedbackPlaying = true;
+            this.cdr.markForCheck();
+            void this.playFeedbackAudio(this.feedbackScript.trim(), () => {
+              this.feedbackPlaying = false;
+              this.onComplete();
+            });
           } else {
             this.onComplete();
           }
@@ -703,15 +818,13 @@ export class VoiceInterviewComponent
   }
 
   private onComplete(): void {
+    this.stopAllPlayback();
+    this.feedbackFinishLock = true;
     this.step = "complete";
 
     if (this.simulationId) {
       this.completed.emit({ simulationId: this.simulationId });
     }
-
-    void this.simli.stopSession();
-
-    this.simliActive = false;
 
     this.cdr.markForCheck();
   }
@@ -820,359 +933,142 @@ export class VoiceInterviewComponent
     );
   }
 
-  private async playVideoScript(
+  /* Simli/WebRTC desativado (SIMLI_ENABLED=false) — ver simli-avatar.service.ts no git. */
+
+  private resetAudioElement(audioEl?: HTMLAudioElement | null): void {
+    if (!audioEl) {
+      return;
+    }
+    try {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+      audioEl.removeAttribute("src");
+      audioEl.load();
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Edge TTS via API — só feedback em voz (um áudio). */
+  private async playBackendSpeechScript(
     script: string,
-    onEnd: () => void,
+    gender: VoiceGender,
+    audioEl?: HTMLAudioElement,
+    session = this.playbackSession,
   ): Promise<void> {
+    this.voice.stopSpeaking();
+
     const trimmed = script?.trim();
     if (!trimmed) {
-      console.warn("[Entrevista] Texto da apresentação vazio — pulando para gravação.");
-      this.ngZone.run(() => onEnd());
       return;
     }
 
-    this.introFinishLock = false;
-    this.currentVideoScript = trimmed;
-    this.interviewerCaption = trimmed;
-    this.videoExpanded = true;
-    this.voice.stopListening();
-    this.step = this.inferVideoStep();
-    this.cdr.markForCheck();
+    const el = audioEl ?? this.fallbackAudioRef?.nativeElement;
 
-    if (!this.simliActive && this.simliPreconnectTask) {
-      this.simliBootstrapping = true;
-      this.cdr.markForCheck();
-      void this.runSimliBootstrapTimeout(10_000);
+    if (this.isPlaybackCancelled(session)) {
+      return;
     }
 
-    const elements = await this.waitForMediaElements();
-    const gender = this.persona?.voiceGender ?? "female";
-    const finish = () => {
-      if (this.introFinishLock) {
-        return;
-      }
-      this.introFinishLock = true;
-      this.ngZone.run(() => {
-        this.interviewerCaption = "";
-        onEnd();
-      });
-    };
+    if (!el) {
+      console.warn("[Entrevista] Elemento de áudio indisponível.");
+      return;
+    }
 
-    // Lipsync só se o vídeo ficar pronto enquanto o áudio ainda toca.
-    const lipsync = this.startIntroLipsync(trimmed, elements, gender);
+    this.resetAudioElement(el);
+
+    const loadTimeoutMs = Math.min(
+      120_000,
+      Math.max(30_000, trimmed.length * 90),
+    );
 
     try {
-      if (elements) {
-        elements.fallbackAudio.muted = false;
-        await this.playIntroAudio(trimmed, elements.fallbackAudio, gender);
-      } else {
-        await this.voiceSpeakAsync(trimmed, () => {}, gender);
-      }
+      await this.backendSpeech.play(el, trimmed, { gender }, loadTimeoutMs);
     } catch (err) {
-      console.warn("[Entrevista] Áudio da apresentação falhou:", err);
-      this.simli.stopSpeaking();
-      await this.voiceSpeakAsync(trimmed, () => {}, gender);
-    }
-
-    await Promise.race([lipsync, this.delay(4_000)]);
-
-    if (this.simliActive) {
-      await this.delay(1_200);
-    }
-
-    finish();
-  }
-
-  private runSimliBootstrapTimeout(ms: number): void {
-    setTimeout(() => {
-      if (this.step !== "intro_video" || this.simliActive) {
+      if (this.isPlaybackCancelled(session) || this.isPlaybackStopError(err)) {
         return;
       }
-      this.simliBootstrapping = false;
-      this.cdr.markForCheck();
-    }, ms);
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private waitForSimliVideoFrame(
-    video: HTMLVideoElement,
-    maxMs = 12_000,
-  ): Promise<boolean> {
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      return Promise.resolve(true);
+      console.warn("[Entrevista] Áudio indisponível:", err);
+      throw err;
     }
+  }
 
+  private waitForFallbackAudio(maxAttempts = 60): Promise<HTMLAudioElement | null> {
     return new Promise((resolve) => {
-      const done = (ok: boolean) => {
-        cleanup();
-        resolve(ok);
-      };
+      let attempts = 0;
+
       const check = () => {
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
-          done(true);
+        this.cdr.detectChanges();
+
+        const fallbackAudio = this.fallbackAudioRef?.nativeElement;
+        if (fallbackAudio) {
+          resolve(fallbackAudio);
+          return;
         }
-      };
-      const cleanup = () => {
-        clearTimeout(timeout);
-        video.removeEventListener("loadeddata", check);
-        video.removeEventListener("playing", check);
-        video.removeEventListener("resize", check);
+
+        if (++attempts >= maxAttempts) {
+          resolve(null);
+          return;
+        }
+
+        setTimeout(check, 50);
       };
 
-      const timeout = setTimeout(() => done(false), maxMs);
-      video.addEventListener("loadeddata", check);
-      video.addEventListener("playing", check);
-      video.addEventListener("resize", check);
-      void video.play().catch(() => {});
       check();
     });
-  }
-
-  /** Desbloqueia autoplay no clique do usuário (antes da API/Simli demorarem). */
-  private async unlockIntroAudioAfterRender(): Promise<void> {
-    const elements = await this.waitForMediaElements(60);
-    if (!elements) {
-      return;
-    }
-
-    const audio = elements.fallbackAudio;
-    try {
-      audio.muted = true;
-      await audio.play();
-      audio.pause();
-      audio.currentTime = 0;
-      audio.removeAttribute("src");
-      audio.load();
-    } catch {
-      // ignora — tentativa de desbloquear autoplay
-    } finally {
-      audio.muted = false;
-    }
-  }
-
-  private startIntroLipsync(
-    script: string,
-    elements: {
-      video: HTMLVideoElement;
-      simliAudio: HTMLAudioElement;
-      fallbackAudio: HTMLAudioElement;
-    } | null,
-    gender: VoiceGender,
-  ): Promise<void> {
-    if (!elements) {
-      return Promise.resolve();
-    }
-
-    const trySpeak = async (): Promise<void> => {
-      if (!this.simli.isActive() || this.step !== "intro_video") {
-        return;
-      }
-
-      const audio = elements.fallbackAudio;
-      const audioStillPlaying =
-        !audio.ended && audio.currentTime > 0.05 && !audio.paused;
-
-      if (!audioStillPlaying) {
-        console.warn(
-          "[Simli] Vídeo conectou após o áudio — mantendo foto estática nesta fala.",
-        );
-        return;
-      }
-
-      this.simliActive = true;
-      this.simliBootstrapping = false;
-      elements.simliAudio.muted = true;
-      this.cdr.markForCheck();
-
-      const spoke = await this.simli.speak(script, undefined, { gender });
-      if (!spoke) {
-        console.warn("[Simli] Lipsync não iniciou durante a apresentação.");
-      }
-    };
-
-    const whenVideoReady = async (): Promise<void> => {
-      const ready = this.simliPreconnectTask
-        ? await this.simliPreconnectTask.catch(() => false)
-        : this.simli.isActive();
-
-      if (!ready) {
-        return;
-      }
-
-      const hasFrame = await this.waitForSimliVideoFrame(elements.video, 4_000);
-      if (hasFrame) {
-        this.simliActive = true;
-        this.simliBootstrapping = false;
-        this.cdr.markForCheck();
-      }
-
-      await trySpeak();
-    };
-
-    if (this.simli.isActive()) {
-      return whenVideoReady();
-    }
-
-    if (!this.simliPreconnectTask) {
-      return Promise.resolve();
-    }
-
-    return whenVideoReady();
-  }
-
-  private async playIntroAudio(
-    script: string,
-    audioEl: HTMLAudioElement,
-    gender: VoiceGender,
-  ): Promise<void> {
-    try {
-      await this.simli.playBackendSpeech(audioEl, script, { gender });
-    } catch (err) {
-      console.warn("[Entrevista] MP3 indisponível, voz do navegador:", err);
-      await this.voiceSpeakAsync(script, () => {}, gender);
-    }
-  }
-
-  /** Inicia conexão Simli cedo (durante loading_intro) para ganhar tempo no WebRTC. */
-  private async preconnectSimli(): Promise<boolean> {
-    const elements = await this.waitForMediaElements(80);
-    if (!elements) {
-      return false;
-    }
-    return this.tryConnectSimliVideo(elements);
-  }
-
-  /** Tenta vídeo animado — usa áudio dedicado ao WebRTC (não o de fallback MP3). */
-  private async tryConnectSimliVideo(elements: {
-    video: HTMLVideoElement;
-    simliAudio: HTMLAudioElement;
-  }): Promise<boolean> {
-    if (this.simli.isActive()) {
-      const hasFrame = await this.waitForSimliVideoFrame(elements.video, 4_000);
-      this.simliActive = hasFrame;
-      this.simliBootstrapping = false;
-      this.cdr.markForCheck();
-      return hasFrame;
-    }
-
-    try {
-      const simliConfig = await this.simli.loadConfig();
-      if (!simliConfig.enabled) {
-        return false;
-      }
-
-      this.simliBootstrapping = true;
-      this.cdr.markForCheck();
-
-      const result = await this.simli.startSession(
-        elements.video,
-        elements.simliAudio,
-        this.persona?.initials,
-      );
-
-      if (!result.active) {
-        console.warn(
-          "[Simli] Vídeo indisponível:",
-          result.reason ?? "desconhecido",
-          result.detail ?? "",
-        );
-        return false;
-      }
-
-      const hasFrame = await this.waitForSimliVideoFrame(elements.video, 12_000);
-      this.simliActive = hasFrame;
-
-      if (!hasFrame) {
-        console.warn(
-          "[Simli] LiveKit conectou, mas o vídeo não exibiu frames a tempo.",
-        );
-      }
-
-      return hasFrame;
-    } catch (err) {
-      this.simliActive = false;
-      console.warn("[Simli] Falha ao conectar vídeo:", err);
-      return false;
-    } finally {
-      this.simliBootstrapping = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  private stopSimliForRecording(): void {
-    void this.simli.stopSession();
-
-    this.simliActive = false;
-
-    this.simliBootstrapping = false;
-  }
-
-  private async playSpeechFallback(
-    script: string,
-
-    audioEl: HTMLAudioElement,
-
-    onEnd: () => void,
-
-    gender: VoiceGender,
-  ): Promise<void> {
-    const trimmed = script?.trim();
-    if (!trimmed) {
-      onEnd();
-      return;
-    }
-
-    try {
-      await this.simli.playBackendSpeech(audioEl, trimmed, { gender });
-
-      onEnd();
-    } catch {
-      this.voice.speak(trimmed, onEnd, { gender });
-    }
   }
 
   private async playFeedbackAudio(
     script: string,
     onEnd: () => void,
   ): Promise<void> {
+    const session = this.playbackSession;
+
+    this.stopIntroVideo();
     this.step = "feedback_audio";
-    this.videoExpanded = false;
-    this.interviewerCaption = "";
     this.cdr.markForCheck();
 
-    void this.simli.stopSession();
-    this.simliActive = false;
-    this.simliBootstrapping = false;
-
     const finish = () => {
-      this.ngZone.run(() => {
-        this.interviewerCaption = "";
-        onEnd();
-      });
+      if (
+        this.feedbackFinishLock ||
+        this.isPlaybackCancelled(session)
+      ) {
+        return;
+      }
+      this.feedbackFinishLock = true;
+      this.voice.stopSpeaking();
+      this.ngZone.run(() => onEnd());
     };
 
     const gender = this.persona?.voiceGender ?? "female";
-    const elements = await this.waitForMediaElements(10);
-    const audioEl = elements?.fallbackAudio ?? this.fallbackAudioRef?.nativeElement;
 
-    if (audioEl) {
-      try {
-        await this.simli.playBackendSpeech(audioEl, script, { gender });
-        finish();
-        return;
-      } catch {
-        // fallback abaixo
+    this.feedbackFinishLock = false;
+
+    try {
+      const fallbackAudio = await this.waitForFallbackAudio();
+      if (fallbackAudio) {
+        fallbackAudio.muted = false;
       }
+      await this.playBackendSpeechScript(
+        script,
+        gender,
+        fallbackAudio ?? undefined,
+        session,
+      );
+      if (this.isPlaybackCancelled(session)) {
+        return;
+      }
+      finish();
+    } catch (err) {
+      if (this.isPlaybackCancelled(session) || this.isPlaybackStopError(err)) {
+        return;
+      }
+      console.warn("[Entrevista] Feedback em voz falhou:", err);
+      this.ngZone.run(() => {
+        this.feedbackPlaying = false;
+        this.feedbackAwaitingPlay = true;
+        this.cdr.markForCheck();
+      });
     }
-
-    this.voice.speak(script, finish, { gender });
-  }
-
-  private inferVideoStep(): InterviewStep {
-    return "intro_video";
   }
 
   private normalizeWrittenQuestions(raw: unknown): WrittenQuestion[] {
@@ -1199,53 +1095,6 @@ export class VoiceInterviewComponent
         };
       })
       .filter((q) => q.text.length > 0);
-  }
-
-  private waitForMediaElements(
-    maxAttempts = 30,
-  ): Promise<{
-    video: HTMLVideoElement;
-    simliAudio: HTMLAudioElement;
-    fallbackAudio: HTMLAudioElement;
-  } | null> {
-    return new Promise((resolve) => {
-      let attempts = 0;
-
-      const check = () => {
-        this.cdr.detectChanges();
-
-        const video = this.simliVideoRef?.nativeElement;
-        const simliAudio = this.simliAudioRef?.nativeElement;
-        const fallbackAudio = this.fallbackAudioRef?.nativeElement;
-
-        if (video && simliAudio && fallbackAudio) {
-          resolve({ video, simliAudio, fallbackAudio });
-          return;
-        }
-
-        if (++attempts >= maxAttempts) {
-          resolve(null);
-          return;
-        }
-
-        setTimeout(check, 50);
-      };
-
-      check();
-    });
-  }
-
-  private voiceSpeakAsync(
-    script: string,
-    onEnd: () => void,
-    gender: VoiceGender,
-  ): Promise<void> {
-    return new Promise((resolve) => {
-      this.voice.speak(script, () => {
-        onEnd();
-        resolve();
-      }, { gender });
-    });
   }
 
   private mapPersona(raw: any): Persona {

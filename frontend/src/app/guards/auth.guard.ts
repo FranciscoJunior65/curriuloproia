@@ -28,11 +28,7 @@ export const authGuard = () => {
     map(response => {
       if (response && response.success && response.user) {
         console.log('🔐 AuthGuard - Token válido, permitindo acesso');
-        // Atualiza o usuário no serviço se necessário
-        const currentUser = authService.getCurrentUser();
-        if (!currentUser || currentUser.id !== response.user.id) {
-          authService.refreshUserFromStorage();
-        }
+        authService.setUser(response.user);
         return true;
       } else {
         console.log('🔐 AuthGuard - Token inválido, redirecionando para login');

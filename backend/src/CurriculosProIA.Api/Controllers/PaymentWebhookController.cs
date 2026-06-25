@@ -23,4 +23,7 @@ public class PaymentWebhookController : ControllerBase
     /// <summary>IPN legado do Mercado Pago (GET com topic e id na query).</summary>
     [HttpGet("mercadopago/webhook")]
     public Task<IActionResult> MercadoPagoWebhookGet(CancellationToken ct) => _webhooks.MercadoPagoWebhook(ct);
+
+    [HttpPost("cakto/webhook")]
+    public Task<IActionResult> CaktoWebhook(CancellationToken ct) => _webhooks.CaktoWebhook(ct);
 }

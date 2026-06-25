@@ -1,6 +1,6 @@
 .cpf-modal {
   position: relative;
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 1.25rem;
 }
 
 .cpf-modal__close {
@@ -15,10 +15,10 @@
 
 .cpf-modal__header {
   text-align: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 
   h2 {
-    margin: 0.5rem 0;
+    margin: 0.5rem 0 0.35rem;
     font-size: 1.25rem;
     font-weight: 700;
     color: #111827;
@@ -39,20 +39,79 @@
   color: #4f46e5;
 }
 
+.cpf-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.cpf-modal__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cpf-modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.625rem;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: #111827;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  }
+
+  &:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+  }
+
+  &--error {
+    border-color: #ef4444;
+
+    &:focus {
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+    }
+  }
+}
+
+.cpf-modal__hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .cpf-modal__error {
   margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   border-radius: 0.5rem;
   background: #fee2e2;
   color: #991b1b;
   font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .cpf-modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.cpf-modal__submit {
+  min-width: 10rem;
 }
 
 .cpf-modal__spinner {

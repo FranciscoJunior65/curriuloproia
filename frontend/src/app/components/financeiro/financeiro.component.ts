@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -8,6 +8,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
@@ -63,7 +64,7 @@ interface Purchase {
   templateUrl: './financeiro.component.html',
   styleUrl: './financeiro.component.scss'
 })
-export class FinanceiroComponent implements OnInit {
+export class FinanceiroComponent implements OnInit, OnDestroy {
   purchases: Purchase[] = [];
   expandedPurchase: string | null = null;
   loading = true;
@@ -74,6 +75,10 @@ export class FinanceiroComponent implements OnInit {
   totalCreditsUsed: number = 0;
   totalCreditsActive: number = 0;
 
+  private readonly destroy$ = new Subject<void>();
+  private lastKnownCredits: number | null = null;
+  private purchasesLoaded = false;
+
   constructor(
     private http: HttpClient,
     public authService: AuthService,
@@ -81,17 +86,39 @@ export class FinanceiroComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.authService.currentUser$.subscribe(user => {
+    this.authService.currentUser$.pipe(takeUntil(this.destroy$)).subscribe(user => {
       this.currentUser = user;
       if (user && user.id) {
         this.userId = user.id;
-        this.userCredits = user.credits || 0;
-        this.loadPurchases();
+        const credits = user.credits || 0;
+
+        if (
+          this.purchasesLoaded &&
+          this.lastKnownCredits !== null &&
+          credits !== this.lastKnownCredits
+        ) {
+          this.userCredits = credits;
+          this.loadPurchases();
+        } else if (!this.purchasesLoaded) {
+          this.userCredits = credits;
+          this.loadPurchases();
+        } else {
+          this.userCredits = credits;
+        }
+
+        this.lastKnownCredits = credits;
       } else {
         this.error = 'Usuário não autenticado. Faça login para ver suas compras.';
         this.loading = false;
+        this.purchasesLoaded = false;
+        this.lastKnownCredits = null;
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   getUserDisplayName(): string {
@@ -130,6 +157,7 @@ export class FinanceiroComponent implements OnInit {
           );
           console.log('✅ Compras carregadas:', this.purchases.length);
           this.calculateCreditTotals();
+          this.purchasesLoaded = true;
         } else {
           this.error = response.message || 'Erro ao carregar histórico de compras.';
         }

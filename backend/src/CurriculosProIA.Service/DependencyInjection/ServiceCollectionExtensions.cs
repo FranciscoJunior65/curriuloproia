@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpClient("Gemini");
         services.AddHttpClient("MercadoPago");
+        services.AddHttpClient("Cakto");
         services.AddHttpClient("Simli");
 
         services.AddScoped<IPricingService, PricingService>();
@@ -22,6 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPaymentFulfillmentService, PaymentFulfillmentService>();
         services.AddScoped<IStripePaymentService, StripePaymentService>();
         services.AddScoped<IMercadoPagoService, MercadoPagoService>();
+        services.AddScoped<ICaktoService, CaktoService>();
         services.AddScoped<IPaymentProviderService, PaymentProviderService>();
         services.AddScoped<IJobSitesService, JobSitesService>();
         services.AddScoped<IResumeGeneratorService, ResumeGeneratorService>();

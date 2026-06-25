@@ -98,6 +98,8 @@ public interface IStructuredInterviewService
 
         string phase1Answer,
 
+        IReadOnlyList<string>? writtenQuestionTypes = null,
+
         CancellationToken cancellationToken = default);
 
 }

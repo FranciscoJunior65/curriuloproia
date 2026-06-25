@@ -118,7 +118,8 @@
           <mat-card class="settings-card settings-card--tab">
             <mat-card-content>
               <p class="settings-description">
-        Escolha qual gateway será usado nas compras de créditos: Stripe (cartão) ou Mercado Pago (PIX, cartão e boleto no Brasil).
+        Escolha qual gateway será usado nas compras de créditos: Stripe (cartão), Mercado Pago (PIX, cartão e boleto) ou Cakto (PIX + cartão).
+        A opção salva aqui fica no banco (Supabase) e <strong>substitui</strong> <code>PAYMENT_PROVIDER</code> do <code>backend/.env</code>.
       </p>
 
       <div *ngIf="loadingPaymentSettings" class="loading-inline">
@@ -148,6 +149,13 @@
             <ng-container *ngIf="mercadoPagoMode === 'test'">Pagamentos simulados — sem cobrança real.</ng-container>
             <ng-container *ngIf="mercadoPagoMode === 'production'">Cobrança real — PIX e cartão de verdade.</ng-container>
             <br><small *ngIf="mercadoPagoProductionHint">{{ mercadoPagoProductionHint }}</small>
+          </p>
+        </ng-container>
+
+        <ng-container *ngIf="paymentProvider === 'cakto'">
+          <p class="settings-description settings-description--inline">
+            Configure <code>CAKTO_CLIENT_ID</code>, <code>CAKTO_CLIENT_SECRET</code>, <code>CAKTO_PRODUCT_ID</code> e <code>CAKTO_OFFER_ID</code> no backend/.env.
+            Veja <strong>backend/COMO_ATIVAR_CAKTO.md</strong>.
           </p>
         </ng-container>
 

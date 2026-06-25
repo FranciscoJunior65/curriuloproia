@@ -67,10 +67,11 @@ export class AdminDashboardComponent implements OnInit {
     production: 'Produção (cobrança real)'
   };
   mercadoPagoProductionHint = '';
-  paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago'];
+  paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago', 'cakto'];
   paymentProviderLabels: Record<PaymentProvider, string> = {
     stripe: 'Stripe',
-    mercadopago: 'Mercado Pago'
+    mercadopago: 'Mercado Pago',
+    cakto: 'Cakto'
   };
   loadingPaymentSettings = false;
   savingPaymentProvider = false;
@@ -334,7 +335,7 @@ export class AdminDashboardComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.paymentProvider = response.provider;
-          this.paymentProviders = response.providers || ['stripe', 'mercadopago'];
+          this.paymentProviders = response.providers || ['stripe', 'mercadopago', 'cakto'];
           if (response.mercadoPagoMode) {
             this.mercadoPagoMode = response.mercadoPagoMode;
           }

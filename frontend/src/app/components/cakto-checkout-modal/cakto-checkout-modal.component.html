@@ -1,0 +1,117 @@
+<div class="mp-checkout">
+  <button type="button" class="mp-checkout__close" (click)="close()" aria-label="Fechar">
+    <mat-icon>close</mat-icon>
+  </button>
+
+  <div class="mp-checkout__header">
+    <mat-icon color="primary">lock</mat-icon>
+    <h2>Pagamento seguro</h2>
+    <p>{{ data.planName }}</p>
+    <div class="mp-checkout__amount">{{ data.amountBRL | currency:'BRL':'symbol':'1.2-2' }}</div>
+  </div>
+
+  <div *ngIf="errorMessage" class="mp-checkout__alert mp-checkout__alert--error">
+    {{ errorMessage }}
+  </div>
+
+  <div *ngIf="successMessage" class="mp-checkout__alert mp-checkout__alert--success">
+    {{ successMessage }}
+  </div>
+
+  <div class="mp-checkout__tabs">
+    <button
+      type="button"
+      class="mp-checkout__tab"
+      [class.mp-checkout__tab--active]="activeTab === 'card'"
+      (click)="setTab('card')">
+      Cartão de crédito
+    </button>
+    <button
+      type="button"
+      class="mp-checkout__tab"
+      [class.mp-checkout__tab--active]="activeTab === 'pix'"
+      (click)="setTab('pix')">
+      PIX
+    </button>
+  </div>
+
+  <div *ngIf="loadingSdk" class="mp-checkout__loading">Carregando pagamento seguro...</div>
+
+  <div *ngIf="!loadingSdk && activeTab === 'card'" class="mp-checkout__card-form">
+    <label>
+      Nome no cartão
+      <input type="text" [(ngModel)]="cardForm.holderName" autocomplete="cc-name" />
+    </label>
+    <label>
+      Número do cartão
+      <input type="text" [(ngModel)]="cardForm.cardNumber" inputmode="numeric" autocomplete="cc-number" />
+    </label>
+    <div class="mp-checkout__card-row">
+      <label>
+        Validade (MM)
+        <input
+          type="text"
+          [(ngModel)]="cardForm.expMonth"
+          maxlength="2"
+          inputmode="numeric"
+          placeholder="06"
+          (input)="onExpMonthInput()" />
+      </label>
+      <label>
+        Ano (AA)
+        <input
+          type="text"
+          [(ngModel)]="cardForm.expYear"
+          maxlength="2"
+          inputmode="numeric"
+          placeholder="28"
+          (input)="onExpYearInput()" />
+      </label>
+      <label>
+        CVV
+        <input type="password" [(ngModel)]="cardForm.cvv" maxlength="4" autocomplete="cc-csc" />
+      </label>
+    </div>
+    <button
+      type="button"
+      mat-flat-button
+      color="primary"
+      [disabled]="processingCard"
+      (click)="submitCard()">
+      {{ processingCard ? 'Processando...' : 'Pagar com cartão' }}
+    </button>
+  </div>
+
+  <div *ngIf="!loadingSdk && activeTab === 'pix'" class="mp-checkout__pix-actions">
+    <ng-container *ngIf="!pixQrCode && !pixQrCodeBase64">
+      <p class="mp-checkout__hint">Gere o QR Code PIX e pague pelo app do seu banco.</p>
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        [disabled]="generatingPix"
+        (click)="generatePix()">
+        {{ generatingPix ? 'Gerando PIX...' : 'Gerar QR Code PIX' }}
+      </button>
+    </ng-container>
+
+    <ng-container *ngIf="pixQrCode || pixQrCodeBase64">
+      <img
+        *ngIf="pixQrCodeBase64"
+        class="mp-checkout__qr"
+        [src]="pixQrCodeBase64.startsWith('data:') ? pixQrCodeBase64 : ('data:image/png;base64,' + pixQrCodeBase64)"
+        alt="QR Code PIX" />
+      <div class="mp-checkout__pix-code" *ngIf="pixQrCode">{{ pixQrCode }}</div>
+      <button type="button" mat-stroked-button (click)="copyPixCode()" *ngIf="pixQrCode">
+        Copiar código PIX
+      </button>
+      <p class="mp-checkout__hint" *ngIf="pixPolling">
+        Aguardando confirmação do pagamento...
+      </p>
+    </ng-container>
+  </div>
+
+  <p class="mp-checkout__hint">
+    Seus dados de cartão são processados pela Cakto. Não armazenamos informações do cartão.
+  </p>
+</div>

@@ -3,6 +3,7 @@ using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.Net.Mail;
 
 namespace CurriculosProIA.Api.Controllers;
 
@@ -14,6 +15,8 @@ public class TestController : ControllerBase
     private readonly IAiService _ai;
     private readonly ISimliService _simli;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ICaktoService _cakto;
+    private readonly IEmailService _email;
     private readonly ISettingsService _settings;
     private readonly IConfiguration _configuration;
     private readonly IHostEnvironment _hostEnvironment;
@@ -23,6 +26,8 @@ public class TestController : ControllerBase
         IAiService ai,
         ISimliService simli,
         IMercadoPagoService mercadoPago,
+        ICaktoService cakto,
+        IEmailService email,
         ISettingsService settings,
         IConfiguration configuration,
         IHostEnvironment hostEnvironment)
@@ -31,6 +36,8 @@ public class TestController : ControllerBase
         _ai = ai;
         _simli = simli;
         _mercadoPago = mercadoPago;
+        _cakto = cakto;
+        _email = email;
         _settings = settings;
         _configuration = configuration;
         _hostEnvironment = hostEnvironment;
@@ -56,7 +63,8 @@ public class TestController : ControllerBase
                 "2. Publish inclui automaticamente como .env na pasta do site",
                 "3. Reinicie o app pool após publicar",
                 "4. GET /api/test/mercadopago — valida Mercado Pago",
-                "5. GET /api/test/simli — valida avatar Simli (token na api.simli.ai)"
+                "5. GET /api/test/simli — valida avatar Simli (token na api.simli.ai)",
+                "6. GET /api/test/email — envia e-mail de teste SMTP"
             }
         });
     }
@@ -359,5 +367,170 @@ public class TestController : ControllerBase
             connection = "OK",
             timestamp = DateTime.UtcNow
         });
+    }
+
+    /// <summary>Testa integração com Cakto (OAuth, oferta e webhook).</summary>
+    [HttpGet("cakto")]
+    public async Task<IActionResult> TestCakto(CancellationToken cancellationToken)
+    {
+        var missingMessage = CaktoConfigHelper.BuildMissingConfigMessage(_configuration);
+        var debug = new
+        {
+            paymentProvider = await _settings.GetPaymentProviderAsync(cancellationToken),
+            publicApiUrl = _configuration["PUBLIC_API_URL"]?.Trim() ?? "(localhost)",
+            frontendUrl = _configuration["FRONTEND_URL"]?.Trim() ?? "http://localhost:4200",
+            cakto = new
+            {
+                hasClientId = !string.IsNullOrWhiteSpace(CaktoConfigHelper.GetClientId(_configuration)),
+                hasClientSecret = !string.IsNullOrWhiteSpace(CaktoConfigHelper.GetClientSecret(_configuration)),
+                hasProductId = !string.IsNullOrWhiteSpace(CaktoConfigHelper.GetProductId(_configuration)),
+                hasOfferId = !string.IsNullOrWhiteSpace(CaktoConfigHelper.GetOfferId(_configuration)),
+                sdkClientIdPreview = CaktoConfigHelper.MaskSecret(CaktoConfigHelper.GetSdkClientId(_configuration)),
+                clientIdPreview = CaktoConfigHelper.MaskSecret(CaktoConfigHelper.GetClientId(_configuration)),
+                webhookSecretConfigured = !string.IsNullOrWhiteSpace(CaktoConfigHelper.GetWebhookSecret(_configuration)),
+                missingMessage = string.IsNullOrWhiteSpace(missingMessage) ? null : missingMessage
+            },
+            envFile = EnvFileLoader.LoadedPath,
+            envDiagnostics = EnvFileLoader.GetDiagnostics(_hostEnvironment.ContentRootPath)
+        };
+
+        if (!CaktoConfigHelper.HasApiCredentials(_configuration))
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                error = "Cakto não configurado",
+                message = missingMessage,
+                debug,
+                help = new[]
+                {
+                    "1. Defina CAKTO_CLIENT_ID e CAKTO_CLIENT_SECRET no backend/.env",
+                    "2. Crie produto + oferta no painel Cakto e preencha CAKTO_PRODUCT_ID e CAKTO_OFFER_ID",
+                    "3. Rode GET /api/test/env para ver se o arquivo foi encontrado",
+                    "4. Reinicie o site / app pool após alterar"
+                }
+            });
+        }
+
+        var result = await _cakto.TestConnectionAsync(cancellationToken);
+        if (!result.Connected)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                provider = result.Provider,
+                error = "Falha na integração Cakto",
+                message = result.Message,
+                details = result.Details,
+                debug,
+                connection = "ERRO"
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            connected = true,
+            provider = result.Provider,
+            message = result.Message,
+            details = result.Details,
+            debug,
+            connection = "OK",
+            timestamp = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>Envia e-mail de teste SMTP (diagnóstico). Query opcional: ?to=destino@email.com</summary>
+    [HttpGet("email")]
+    public async Task<IActionResult> TestEmail([FromQuery] string? to, CancellationToken cancellationToken)
+    {
+        var recipient = string.IsNullOrWhiteSpace(to)
+            ? _configuration["EMAIL_BCC_TO"]?.Trim() ?? "juniorbx@gmail.com"
+            : to.Trim();
+
+        try
+        {
+            _ = new MailAddress(recipient);
+        }
+        catch (FormatException)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = "E-mail de destino inválido",
+                message = "Use ?to=seu@email.com ou omita para enviar ao EMAIL_BCC_TO do .env"
+            });
+        }
+
+        var sender = _configuration["EMAIL_SENDER"]?.Trim() ?? _configuration["EMAIL_USER"]?.Trim();
+        var smtpHost = _configuration["SMTP_HOST"]?.Trim() ?? _configuration["EMAIL_HOST"]?.Trim();
+        var smtpAlt = _configuration["SMTP_HOST_ALTERNATIVE"]?.Trim()
+            ?? _configuration["SMTP_HOST_ALTERNATIVO"]?.Trim();
+        var hasPassword = !string.IsNullOrWhiteSpace(
+            _configuration["EMAIL_SENDER_PASSWORD"]?.Trim() ?? _configuration["EMAIL_PASSWORD"]?.Trim());
+
+        var config = new
+        {
+            envFile = EnvFileLoader.LoadedPath,
+            smtpHost = string.IsNullOrEmpty(smtpHost) ? "(ausente)" : smtpHost,
+            smtpHostAlternative = string.IsNullOrEmpty(smtpAlt) ? "(ausente)" : smtpAlt,
+            smtpPort = _configuration["SMTP_PORT"]?.Trim() ?? _configuration["EMAIL_PORT"]?.Trim() ?? "587",
+            sender = string.IsNullOrEmpty(sender) ? "(ausente)" : sender,
+            senderName = _configuration["EMAIL_SENDER_NAME"]?.Trim() ?? "CurriculosPro IA",
+            hasPassword,
+            bccDefault = _configuration["EMAIL_BCC_TO"]?.Trim() ?? "juniorbx@gmail.com",
+            ccCopy = _configuration["EMAIL_COPY_TO"]?.Trim() ?? _configuration["EMAIL_COPY"]?.Trim()
+        };
+
+        if (string.IsNullOrEmpty(sender) || !hasPassword || string.IsNullOrEmpty(smtpHost))
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "SMTP não configurado",
+                message = "Defina SMTP_HOST, EMAIL_SENDER e EMAIL_SENDER_PASSWORD no backend/.env",
+                config,
+                help = new[]
+                {
+                    "1. Edite backend/.env com SMTP_HOST, EMAIL_SENDER, EMAIL_SENDER_PASSWORD",
+                    "2. Senhas com # devem ficar entre aspas: EMAIL_SENDER_PASSWORD=\"senha#123\"",
+                    "3. Reinicie a API / app pool",
+                    "4. GET /api/test/email?to=seu@email.com"
+                }
+            });
+        }
+
+        try
+        {
+            await _email.SendTestEmailAsync(recipient, cancellationToken);
+            return Ok(new
+            {
+                success = true,
+                message = $"E-mail de teste enviado para {recipient} (BCC automático em {config.bccDefault})",
+                sentTo = recipient,
+                config,
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                error = "Falha ao enviar e-mail de teste",
+                message = ex.Message,
+                sentTo = recipient,
+                config,
+                help = new[]
+                {
+                    "1. Confirme SMTP_HOST (ex.: mail.getpushtecnologia.com.br) e porta 587",
+                    "2. Teste login SMTP no webmail / painel de hospedagem",
+                    "3. Verifique se a senha no .env está entre aspas se contiver #",
+                    "4. Reinicie a API após alterar o .env"
+                }
+            });
+        }
     }
 }

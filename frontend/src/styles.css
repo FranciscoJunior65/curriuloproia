@@ -138,4 +138,27 @@ a[mat-flat-button] .mat-icon {
   }
 }
 
+/* Modal de checkout (Cakto / Mercado Pago) — tamanho confortável, sem scroll desnecessário */
+.checkout-modal-panel .mat-mdc-dialog-container {
+  padding: 0 !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.checkout-modal-panel .mat-mdc-dialog-surface {
+  overflow: visible !important;
+  border-radius: 16px !important;
+}
+
+.checkout-modal-panel .cdk-overlay-pane {
+  max-width: calc(100vw - 2rem) !important;
+}
+
+.cpf-required-modal-panel .mat-mdc-dialog-container {
+  padding: 0 !important;
+}
+
+.cpf-required-modal-panel .mat-mdc-dialog-surface {
+  border-radius: 16px !important;
+}
 

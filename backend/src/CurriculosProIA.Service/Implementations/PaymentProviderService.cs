@@ -15,17 +15,20 @@ public class PaymentProviderService : IPaymentProviderService
     private readonly ISettingsService _settings;
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ICaktoService _cakto;
     private readonly IPaymentFulfillmentService _fulfillment;
 
     public PaymentProviderService(
         ISettingsService settings,
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
+        ICaktoService cakto,
         IPaymentFulfillmentService fulfillment)
     {
         _settings = settings;
         _stripe = stripe;
         _mercadoPago = mercadoPago;
+        _cakto = cakto;
         _fulfillment = fulfillment;
     }
 
@@ -40,6 +43,8 @@ public class PaymentProviderService : IPaymentProviderService
         string? analysisId = null,
         CancellationToken cancellationToken = default)
     {
+        _settings.ClearPaymentProviderCache();
+        _settings.ClearMercadoPagoModeCache();
         var provider = await _settings.GetPaymentProviderAsync(cancellationToken);
 
         if (provider == "mercadopago")
@@ -47,6 +52,13 @@ public class PaymentProviderService : IPaymentProviderService
             var mp = await _mercadoPago.CreateCheckoutAsync(
                 planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
             return MapResult(provider, mp);
+        }
+
+        if (provider == "cakto")
+        {
+            var cakto = await _cakto.CreateCheckoutAsync(
+                planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+            return MapResult(provider, cakto);
         }
 
         var stripe = await _stripe.CreateCheckoutSessionAsync(
@@ -64,6 +76,11 @@ public class PaymentProviderService : IPaymentProviderService
         if (provider == "mercadopago")
         {
             return await _mercadoPago.VerifyPaymentAsync(sessionId, cancellationToken);
+        }
+
+        if (provider == "cakto")
+        {
+            return await _cakto.VerifyPaymentAsync(sessionId, cancellationToken);
         }
 
         var session = await _stripe.GetCheckoutSessionAsync(sessionId, cancellationToken);

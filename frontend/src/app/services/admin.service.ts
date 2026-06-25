@@ -20,7 +20,7 @@ export interface UsageData {
   revenue: number;
 }
 
-export type PaymentProvider = 'stripe' | 'mercadopago';
+export type PaymentProvider = 'stripe' | 'mercadopago' | 'cakto';
 export type MercadoPagoMode = 'test' | 'production';
 
 export interface PaymentProviderSetting {

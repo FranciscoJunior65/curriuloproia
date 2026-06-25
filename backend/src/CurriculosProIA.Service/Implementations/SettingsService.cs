@@ -10,15 +10,13 @@ public class SettingsService : ISettingsService
 {
     private const string PaymentProviderKey = "payment_provider";
     private const string MercadoPagoModeKey = "mercadopago_mode";
-    private static readonly string[] ValidProviders = ["stripe", "mercadopago"];
+    private static readonly string[] ValidProviders = ["stripe", "mercadopago", "cakto"];
     private static readonly string[] ValidMercadoPagoModes =
         [MercadoPagoConfigHelper.ModeTest, MercadoPagoConfigHelper.ModeProduction];
 
     private readonly IAppSettingsRepository _settingsRepo;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SettingsService> _logger;
-    private string? _memoryCache;
-    private string? _mpModeCache;
 
     public SettingsService(
         IAppSettingsRepository settingsRepo,
@@ -32,22 +30,18 @@ public class SettingsService : ISettingsService
 
     public IReadOnlyList<string> GetValidPaymentProviders() => ValidProviders;
 
-    public void ClearPaymentProviderCache() => _memoryCache = null;
+    public void ClearPaymentProviderCache()
+    {
+    }
 
     public async Task<string> GetPaymentProviderAsync(CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrEmpty(_memoryCache))
-        {
-            return _memoryCache;
-        }
-
         try
         {
             var value = await _settingsRepo.GetAppConfigValueAsync(PaymentProviderKey, cancellationToken);
             if (!string.IsNullOrEmpty(value))
             {
-                _memoryCache = NormalizeProvider(value);
-                return _memoryCache;
+                return NormalizeProvider(value);
             }
         }
         catch (Exception ex)
@@ -55,14 +49,12 @@ public class SettingsService : ISettingsService
             _logger.LogWarning(ex, "Tabela app_configuracoes indisponível, usando PAYMENT_PROVIDER do .env");
         }
 
-        _memoryCache = GetEnvDefault();
-        return _memoryCache;
+        return GetEnvDefault();
     }
 
     public async Task<string> SetPaymentProviderAsync(string provider, CancellationToken cancellationToken = default)
     {
         var normalized = NormalizeProvider(provider);
-        _memoryCache = normalized;
 
         try
         {
@@ -70,7 +62,6 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            _memoryCache = null;
             throw new InvalidOperationException($"Erro ao salvar provedor de pagamento: {ex.Message}", ex);
         }
 
@@ -79,22 +70,18 @@ public class SettingsService : ISettingsService
 
     public IReadOnlyList<string> GetValidMercadoPagoModes() => ValidMercadoPagoModes;
 
-    public void ClearMercadoPagoModeCache() => _mpModeCache = null;
+    public void ClearMercadoPagoModeCache()
+    {
+    }
 
     public async Task<string> GetMercadoPagoModeAsync(CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrEmpty(_mpModeCache))
-        {
-            return _mpModeCache;
-        }
-
         try
         {
             var value = await _settingsRepo.GetAppConfigValueAsync(MercadoPagoModeKey, cancellationToken);
             if (!string.IsNullOrEmpty(value))
             {
-                _mpModeCache = NormalizeMercadoPagoMode(value);
-                return _mpModeCache;
+                return NormalizeMercadoPagoMode(value);
             }
         }
         catch (Exception ex)
@@ -102,14 +89,12 @@ public class SettingsService : ISettingsService
             _logger.LogWarning(ex, "Tabela app_configuracoes indisponível, usando MERCADOPAGO_MODE do .env");
         }
 
-        _mpModeCache = MercadoPagoConfigHelper.GetMode(_configuration);
-        return _mpModeCache;
+        return MercadoPagoConfigHelper.GetMode(_configuration);
     }
 
     public async Task<string> SetMercadoPagoModeAsync(string mode, CancellationToken cancellationToken = default)
     {
         var normalized = NormalizeMercadoPagoMode(mode);
-        _mpModeCache = normalized;
 
         try
         {
@@ -117,7 +102,6 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            _mpModeCache = null;
             throw new InvalidOperationException($"Erro ao salvar ambiente Mercado Pago: {ex.Message}", ex);
         }
 

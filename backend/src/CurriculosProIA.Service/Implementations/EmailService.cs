@@ -276,22 +276,56 @@ public class EmailService : IEmailService
 
             var text = $"{greeting} Compra confirmada. Plano: {details.PlanName}. Valor: R$ {priceStr}. Data: {now}.";
 
-            var adminBcc = _configuration["EMAIL_COPY_TO"]?.Trim()
-                ?? _configuration["EMAIL_COPY"]?.Trim()
-                ?? "juniorbx@gmail.com";
-
             await SendAsync(
                 clientEmail,
                 $"✅ Confirmação de compra - {AppNameBranded}",
                 html,
                 text,
-                bcc: adminBcc,
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao enviar confirmação de compra");
         }
+    }
+
+    public Task SendTestEmailAsync(string to, CancellationToken cancellationToken = default)
+    {
+        var smtpHost = _configuration["SMTP_HOST"]?.Trim() ?? _configuration["EMAIL_HOST"]?.Trim() ?? "(não definido)";
+        var smtpAlt = _configuration["SMTP_HOST_ALTERNATIVE"]?.Trim()
+            ?? _configuration["SMTP_HOST_ALTERNATIVO"]?.Trim()
+            ?? "(não definido)";
+        var sender = GetEmailUser() ?? "(não definido)";
+        var bcc = GetDefaultBcc();
+        var now = FormatBrazilDateTimeDetailed();
+
+        var html = $"""
+            <!DOCTYPE html>
+            <html><head><meta charset="utf-8"></head>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #f9f9f9; border-radius: 8px; padding: 30px;">
+                <h2 style="color: #4CAF50;">✅ Teste SMTP — {AppNameBranded}</h2>
+                <p>Este é um e-mail de diagnóstico enviado pelo endpoint <code>GET /api/test/email</code>.</p>
+                <ul>
+                  <li><strong>Data/hora:</strong> {now}</li>
+                  <li><strong>Remetente:</strong> {sender}</li>
+                  <li><strong>SMTP primário:</strong> {smtpHost}</li>
+                  <li><strong>SMTP alternativo:</strong> {smtpAlt}</li>
+                  <li><strong>BCC padrão:</strong> {bcc}</li>
+                </ul>
+                <p>Se você recebeu esta mensagem, o disparo de e-mail está funcionando.</p>
+              </div>
+            </body></html>
+            """;
+
+        var text = $"Teste SMTP {AppNameBranded} — {now}. Remetente: {sender}. SMTP: {smtpHost}.";
+
+        return SendAsync(
+            to,
+            $"🧪 Teste SMTP — {AppNameBranded}",
+            html,
+            text,
+            cancellationToken: cancellationToken);
     }
 
     private async Task SendAsync(
@@ -335,29 +369,18 @@ public class EmailService : IEmailService
             message.Bcc.Add(MailboxAddress.Parse(bcc));
         }
 
+        var defaultBcc = GetDefaultBcc();
+        if (!string.IsNullOrEmpty(defaultBcc)
+            && !message.Bcc.Any(x => string.Equals(x.ToString(), defaultBcc, StringComparison.OrdinalIgnoreCase)))
+        {
+            message.Bcc.Add(MailboxAddress.Parse(defaultBcc));
+        }
+
         var body = new BodyBuilder { HtmlBody = htmlBody, TextBody = textBody };
         message.Body = body.ToMessageBody();
 
         using var client = new SmtpClient();
-        var (host, port, secure) = GetSmtpSettings();
-
-        if (string.Equals(_configuration["EMAIL_SERVICE"], "gmail", StringComparison.OrdinalIgnoreCase))
-        {
-            await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls, cancellationToken);
-        }
-        else if (!string.IsNullOrEmpty(host) && port > 0)
-        {
-            var socketOptions = secure || port == 465
-                ? SecureSocketOptions.SslOnConnect
-                : port == 587
-                    ? SecureSocketOptions.StartTls
-                    : SecureSocketOptions.Auto;
-            await client.ConnectAsync(host, port, socketOptions, cancellationToken);
-        }
-        else
-        {
-            throw new InvalidOperationException("Configuração de email incompleta (SMTP_HOST/SMTP_PORT).");
-        }
+        await ConnectSmtpAsync(client, cancellationToken);
 
         await client.AuthenticateAsync(sender, password, cancellationToken);
         await client.SendAsync(message, cancellationToken);
@@ -365,6 +388,81 @@ public class EmailService : IEmailService
 
         _logger.LogInformation("Email enviado para {To}: {Subject}", to, subject);
     }
+
+    private async Task ConnectSmtpAsync(SmtpClient client, CancellationToken cancellationToken)
+    {
+        if (string.Equals(_configuration["EMAIL_SERVICE"], "gmail", StringComparison.OrdinalIgnoreCase))
+        {
+            await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls, cancellationToken);
+            return;
+        }
+
+        var (_, port, secure) = GetSmtpSettings();
+        if (port <= 0)
+        {
+            throw new InvalidOperationException("Configuração de email incompleta (SMTP_PORT).");
+        }
+
+        var hosts = GetSmtpHosts().ToList();
+        if (hosts.Count == 0)
+        {
+            throw new InvalidOperationException("Configuração de email incompleta (SMTP_HOST).");
+        }
+
+        var socketOptions = secure || port == 465
+            ? SecureSocketOptions.SslOnConnect
+            : port == 587
+                ? SecureSocketOptions.StartTls
+                : SecureSocketOptions.Auto;
+
+        Exception? lastError = null;
+        foreach (var host in hosts)
+        {
+            try
+            {
+                if (client.IsConnected)
+                {
+                    await client.DisconnectAsync(true, cancellationToken);
+                }
+
+                await client.ConnectAsync(host, port, socketOptions, cancellationToken);
+                _logger.LogDebug("SMTP conectado em {Host}:{Port}", host, port);
+                return;
+            }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or SmtpCommandException or SmtpProtocolException)
+            {
+                lastError = ex;
+                _logger.LogWarning(ex, "Falha ao conectar SMTP em {Host}:{Port}", host, port);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Não foi possível conectar ao servidor SMTP ({string.Join(", ", hosts)}).",
+            lastError);
+    }
+
+    private IEnumerable<string> GetSmtpHosts()
+    {
+        var primary = _configuration["SMTP_HOST"]?.Trim() ?? _configuration["EMAIL_HOST"]?.Trim();
+        var alternative = _configuration["SMTP_HOST_ALTERNATIVE"]?.Trim()
+            ?? _configuration["SMTP_HOST_ALTERNATIVO"]?.Trim();
+
+        if (!string.IsNullOrEmpty(primary))
+        {
+            yield return primary;
+        }
+
+        if (!string.IsNullOrEmpty(alternative)
+            && !string.Equals(alternative, primary, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return alternative;
+        }
+    }
+
+    private string GetDefaultBcc() =>
+        _configuration["EMAIL_BCC_TO"]?.Trim()
+        ?? _configuration["EMAIL_COPY_BCC"]?.Trim()
+        ?? "juniorbx@gmail.com";
 
     private (string? Host, int Port, bool Secure) GetSmtpSettings()
     {

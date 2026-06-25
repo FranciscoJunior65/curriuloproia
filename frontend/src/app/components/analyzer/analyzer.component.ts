@@ -1,5 +1,5 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, takeUntil, distinctUntilChanged } from 'rxjs';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { Subject, takeUntil, distinctUntilChanged, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -18,10 +18,15 @@ import {
   MercadoPagoCheckoutModalComponent,
   MercadoPagoCheckoutModalData
 } from '../mercadopago-checkout-modal/mercadopago-checkout-modal.component';
-import { CpfRequiredModalComponent } from '../cpf-required-modal/cpf-required-modal.component';
+import {
+  CaktoCheckoutModalComponent,
+  CaktoCheckoutModalData
+} from '../cakto-checkout-modal/cakto-checkout-modal.component';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
+import { extractPaidCredits, isPaidCloseResult } from '../../models/payment-close-result';
 import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
 import { AuthService, User } from '../../services/auth.service';
+import { CpfEnforcementService } from '../../services/cpf-enforcement.service';
 import {
   PricingPlansService,
   PublicPlan,
@@ -80,7 +85,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
   couponError = '';
   validatingCoupon = false;
-  paymentProvider: 'stripe' | 'mercadopago' = 'stripe';
+  paymentProvider: 'stripe' | 'mercadopago' | 'cakto' = 'stripe';
 
   // Auth
   currentUser: User | null = null;
@@ -98,7 +103,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   generatingEnglishWord = false;
   purchasingEnglish = false;
   generatingCoverLetter = false;
-  readonly personaImageUrl = 'assets/imagens/avatar.png';
+  readonly personaImageUrl = 'assets/imagens/persona.png';
   readonly founderImageUrl = 'assets/imagens/david-oliveira.jpeg';
   readonly supportWhatsapp = '(71) 98309-6865';
   readonly supportWhatsappUrl = 'https://wa.me/5571983096865';
@@ -203,6 +208,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   constructor(
     private analyzerService: AnalyzerService,
     private authService: AuthService,
+    private cpfEnforcement: CpfEnforcementService,
     private router: Router,
     private route: ActivatedRoute,
     private pricingPlansService: PricingPlansService,
@@ -373,7 +379,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         distinctUntilChanged((prev, curr) =>
           prev?.id === curr?.id &&
           prev?.credits === curr?.credits &&
-          prev?.user_type === curr?.user_type
+          prev?.user_type === curr?.user_type &&
+          prev?.cpf === curr?.cpf
         )
       )
       .subscribe(user => {
@@ -433,7 +440,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     this.analyzerService.getPaymentProvider().subscribe({
       next: (res) => {
         if (res.success && res.provider) {
-          this.paymentProvider = res.provider === 'mercadopago' ? 'mercadopago' : 'stripe';
+          this.paymentProvider = this.normalizePaymentProvider(res.provider);
         }
       },
       error: () => {
@@ -442,8 +449,140 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
+  @HostListener('document:visibilitychange')
+  onPageVisibilityChange(): void {
+    if (document.visibilityState === 'visible') {
+      this.loadPaymentProvider();
+    }
+  }
+
+  private normalizePaymentProvider(value: string | undefined | null): 'stripe' | 'mercadopago' | 'cakto' {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'mercadopago') {
+      return 'mercadopago';
+    }
+    if (normalized === 'cakto') {
+      return 'cakto';
+    }
+    return 'stripe';
+  }
+
+  private isPaymentSuccess(response: { success?: unknown } | null | undefined): boolean {
+    return response?.success === true || response?.success === 'true';
+  }
+
+  /** Prioriza o provider da API; fallback por formato da resposta (MP envia mercadoPagoLiveMode). */
+  private resolveCheckoutProvider(response: any): 'stripe' | 'mercadopago' | 'cakto' {
+    const fromApi = this.normalizePaymentProvider(response?.provider);
+    if (fromApi === 'cakto' || fromApi === 'mercadopago') {
+      return fromApi;
+    }
+    if (response?.mercadoPagoLiveMode !== undefined && response?.mercadoPagoLiveMode !== null) {
+      return 'mercadopago';
+    }
+    if (this.paymentProvider === 'cakto' || this.paymentProvider === 'mercadopago') {
+      return this.paymentProvider;
+    }
+    return 'stripe';
+  }
+
+  private handlePaymentSessionResponse(
+    response: any,
+    options: {
+      planName: string;
+      planId: string;
+      userEmail: string;
+      userCpf: string | null;
+      includeEnglish: boolean;
+      analysisId: string | null;
+      onError?: () => void;
+    }
+  ): boolean {
+    const provider = this.resolveCheckoutProvider(response);
+    if (response?.provider) {
+      this.paymentProvider = provider;
+    }
+
+    if (this.isPaymentSuccess(response) && response.freeCheckout && response.redirectUrl) {
+      window.location.href = response.redirectUrl;
+      return true;
+    }
+
+    const transparentCheckout =
+      response?.transparentCheckout === true || response?.transparentCheckout === 'true';
+    const publicKey = String(response?.publicKey ?? '').trim();
+
+    if (this.isPaymentSuccess(response) && transparentCheckout && publicKey && provider === 'mercadopago') {
+      this.openMercadoPagoTransparentCheckout({
+        publicKey: response.publicKey,
+        amountBRL: response.amountBRL,
+        planName: response.planName || options.planName,
+        planId: options.planId,
+        userId: this.userId!,
+        email: options.userEmail,
+        payerEmail: response.payerEmail || options.userEmail,
+        cpf: options.userCpf,
+        couponCode: this.couponCode?.trim() || null,
+        includeEnglish: options.includeEnglish,
+        analysisId: options.analysisId,
+        pixAvailable: !!response.pixAvailable,
+        liveMode: !!response.mercadoPagoLiveMode
+      });
+      return true;
+    }
+
+    if (this.isPaymentSuccess(response) && transparentCheckout && publicKey && provider === 'cakto') {
+      this.openCaktoTransparentCheckout({
+        sdkClientId: publicKey,
+        amountBRL: response.amountBRL,
+        planName: response.planName || options.planName,
+        planId: options.planId,
+        userId: this.userId!,
+        email: options.userEmail,
+        customerName: this.currentUser?.name || undefined,
+        cpf: options.userCpf,
+        couponCode: this.couponCode?.trim() || null,
+        includeEnglish: options.includeEnglish,
+        analysisId: options.analysisId
+      });
+      return true;
+    }
+
+    if (this.isPaymentSuccess(response) && response.checkoutUrl) {
+      this.openCheckout(response.checkoutUrl);
+      return true;
+    }
+
+    if (this.isPaymentSuccess(response) && transparentCheckout) {
+      this.error =
+        provider === 'cakto'
+          ? 'Checkout Cakto indisponível nesta versão do site. Atualize a página (Ctrl+F5) ou aguarde o deploy do frontend.'
+          : response.error ||
+            response.message ||
+            `Checkout transparente (${provider}) sem URL nem chave pública na resposta.`;
+    } else {
+      this.error = response.error || response.message || 'Erro ao criar sessão de pagamento';
+    }
+    console.warn('Pagamento: resposta não tratada pelo frontend', {
+      provider,
+      success: response.success,
+      transparentCheckout: response.transparentCheckout,
+      hasPublicKey: !!response.publicKey,
+      hasCheckoutUrl: !!response.checkoutUrl
+    });
+    options.onError?.();
+    alert(`❌ Erro: ${this.error}`);
+    return false;
+  }
+
   get paymentProviderLabel(): string {
-    return this.paymentProvider === 'mercadopago' ? 'Mercado Pago' : 'Stripe';
+    if (this.paymentProvider === 'mercadopago') {
+      return 'Mercado Pago';
+    }
+    if (this.paymentProvider === 'cakto') {
+      return 'Cakto';
+    }
+    return 'Stripe';
   }
 
   loadPendingServices(): void {
@@ -758,20 +897,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   private promptCpfIfMissing(onReady: () => void, onCancel?: () => void): void {
-    if (this.getUserCpfDigits().length === 11) {
+    if (this.cpfEnforcement.hasValidCpf(this.currentUser)) {
       onReady();
       return;
     }
 
-    const ref = this.dialog.open(CpfRequiredModalComponent, {
-      width: '100%',
-      maxWidth: '440px',
-      disableClose: true,
-      panelClass: 'cpf-required-modal-panel'
-    });
-
-    ref.afterClosed().subscribe((saved) => {
-      if (saved && this.getUserCpfDigits().length === 11) {
+    this.cpfEnforcement.ensureCpf({ mandatory: true, context: 'payment' }).subscribe((saved) => {
+      if (saved) {
+        this.currentUser = this.authService.getCurrentUser();
         onReady();
       } else {
         onCancel?.();
@@ -803,6 +936,20 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   private openMercadoPagoTransparentCheckout(data: MercadoPagoCheckoutModalData): void {
+    if (!this.cpfEnforcement.hasValidCpf()) {
+      this.processingPaymentPlanId = null;
+      this.promptCpfIfMissing(
+        () => this.openMercadoPagoTransparentCheckout({
+          ...data,
+          cpf: this.getUserCpfDigits() || null
+        }),
+        () => {
+          this.processingPaymentPlanId = null;
+        }
+      );
+      return;
+    }
+
     this.processingPaymentPlanId = null;
     this.checkoutHint = null;
 
@@ -815,12 +962,70 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
 
     ref.afterClosed().subscribe((result) => {
-      if (result === 'paid') {
-        this.checkCredits();
-        this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', {
-          duration: 5000
-        });
+      this.handlePaymentConfirmed(result);
+    });
+  }
+
+  private openCaktoTransparentCheckout(data: CaktoCheckoutModalData): void {
+    if (!this.cpfEnforcement.hasValidCpf()) {
+      this.processingPaymentPlanId = null;
+      this.promptCpfIfMissing(
+        () => this.openCaktoTransparentCheckout({
+          ...data,
+          cpf: this.getUserCpfDigits() || null
+        }),
+        () => {
+          this.processingPaymentPlanId = null;
+        }
+      );
+      return;
+    }
+
+    this.processingPaymentPlanId = null;
+    this.checkoutHint = null;
+
+    const ref = this.dialog.open(CaktoCheckoutModalComponent, {
+      data,
+      width: '560px',
+      maxWidth: 'calc(100vw - 2rem)',
+      disableClose: false,
+      panelClass: 'checkout-modal-panel'
+    });
+
+    ref.afterClosed().subscribe((result) => {
+      if (result === 'cpf_required') {
+        this.promptCpfIfMissing(
+          () =>
+            this.openCaktoTransparentCheckout({
+              ...data,
+              cpf: this.getUserCpfDigits() || null
+            }),
+          () => {
+            this.processingPaymentPlanId = null;
+          }
+        );
+        return;
       }
+      this.handlePaymentConfirmed(result);
+    });
+  }
+
+  private handlePaymentConfirmed(result: unknown): void {
+    if (!isPaidCloseResult(result)) {
+      return;
+    }
+
+    const credits = extractPaidCredits(result);
+    if (credits != null) {
+      this.userCredits = credits;
+      this.syncUserCredits();
+      this.updateShowPlans();
+    } else {
+      this.checkCredits();
+    }
+
+    this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', {
+      duration: 5000
     });
   }
 
@@ -845,13 +1050,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   private executePurchasePlan(plan: PublicPlan): void {
-    console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
-      planId: plan.id,
-      planName: plan.name,
-      creditsAmount: plan.analyses,
-      price: plan.priceBRL
-    });
-
     if (!this.userId && this.currentUser?.id) {
       this.userId = this.currentUser.id;
     }
@@ -862,63 +1060,54 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (plan.id !== 'english' && this.includeEnglishResume[plan.id]) {
-      alert('⚠️ Nota: O currículo em inglês será adicionado automaticamente após o pagamento.');
-    }
-
     const userEmail = this.currentUser?.email || '';
     const userCpf = this.getUserCpfDigits();
     const includeEnglish =
       plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
 
-    this.analyzerService.createPaymentSession(
-      plan.id,
-      this.userId,
-      userEmail,
-      this.couponCode?.trim() || null,
-      userCpf || null,
-      includeEnglish,
-      plan.id === 'english' ? this.result?.analysisId ?? undefined : undefined
-    ).subscribe({
+    this.analyzerService
+      .getPaymentProvider()
+      .pipe(
+        switchMap((providerRes) => {
+          if (providerRes.success && providerRes.provider) {
+            this.paymentProvider = this.normalizePaymentProvider(providerRes.provider);
+          }
+          console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
+            planId: plan.id,
+            planName: plan.name,
+            creditsAmount: plan.analyses,
+            price: plan.priceBRL
+          });
+          return this.analyzerService.createPaymentSession(
+            plan.id,
+            this.userId!,
+            userEmail,
+            this.couponCode?.trim() || null,
+            userCpf || null,
+            includeEnglish,
+            plan.id === 'english' ? this.result?.analysisId ?? undefined : undefined
+          );
+        })
+      )
+      .subscribe({
       next: (response: any) => {
         console.log('📦 Resposta da sessão de pagamento:', response);
-        if (response.success && response.freeCheckout && response.redirectUrl) {
-          console.log('✅ Compra grátis concluída, redirecionando...');
-          window.location.href = response.redirectUrl;
-          return;
-        }
         if (
-          response.success &&
-          response.transparentCheckout &&
-          response.publicKey &&
-          this.paymentProvider === 'mercadopago'
-        ) {
-          this.openMercadoPagoTransparentCheckout({
-            publicKey: response.publicKey,
-            amountBRL: response.amountBRL,
-            planName: response.planName || plan.name,
+          this.handlePaymentSessionResponse(response, {
+            planName: plan.name,
             planId: plan.id,
-            userId: this.userId,
-            email: userEmail,
-            payerEmail: response.payerEmail || userEmail,
-            cpf: userCpf || null,
-            couponCode: this.couponCode?.trim() || null,
+            userEmail,
+            userCpf: userCpf || null,
             includeEnglish,
             analysisId: plan.id === 'english' ? this.result?.analysisId ?? null : null,
-            pixAvailable: !!response.pixAvailable,
-            liveMode: !!response.mercadoPagoLiveMode
-          });
+            onError: () => {
+              this.processingPaymentPlanId = null;
+            }
+          })
+        ) {
           return;
         }
-        if (response.success && response.checkoutUrl) {
-          console.log(`✅ Abrindo checkout ${this.paymentProviderLabel} em popup...`);
-          this.openCheckout(response.checkoutUrl);
-        } else {
-          this.error = response.error || 'Erro ao criar sessão de pagamento';
-          console.error('❌ Erro na resposta:', response);
-          alert(`❌ Erro: ${this.error}`);
-          this.processingPaymentPlanId = null;
-        }
+        this.processingPaymentPlanId = null;
       },
       error: (err) => {
         console.error('❌ Erro completo ao criar sessão de pagamento:', err);
@@ -1234,48 +1423,36 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }
 
     this.analyzerService
-      .createPaymentSession(
-        'english',
-        this.userId,
-        this.currentUser?.email || '',
-        null,
-        this.getUserCpfDigits() || null,
-        false,
-        this.result.analysisId
+      .getPaymentProvider()
+      .pipe(
+        switchMap((providerRes) => {
+          if (providerRes.success && providerRes.provider) {
+            this.paymentProvider = this.normalizePaymentProvider(providerRes.provider);
+          }
+          return this.analyzerService.createPaymentSession(
+            'english',
+            this.userId!,
+            this.currentUser?.email || '',
+            null,
+            this.getUserCpfDigits() || null,
+            false,
+            this.result!.analysisId
+          );
+        })
       )
       .subscribe({
         next: (response: any) => {
           this.purchasingEnglish = false;
-          if (response.success && response.freeCheckout && response.redirectUrl) {
-            window.location.href = response.redirectUrl;
-            return;
-          }
           if (
-            response.success &&
-            response.transparentCheckout &&
-            response.publicKey &&
-            this.paymentProvider === 'mercadopago'
-          ) {
-            this.openMercadoPagoTransparentCheckout({
-              publicKey: response.publicKey,
-              amountBRL: response.amountBRL,
-              planName: response.planName || 'Currículo em Inglês',
+            !this.handlePaymentSessionResponse(response, {
+              planName: 'Currículo em Inglês',
               planId: 'english',
-              userId: this.userId!,
-              email: this.currentUser?.email || '',
-              payerEmail: response.payerEmail || this.currentUser?.email || '',
-              cpf: this.getUserCpfDigits() || null,
-              couponCode: null,
+              userEmail: this.currentUser?.email || '',
+              userCpf: this.getUserCpfDigits() || null,
               includeEnglish: false,
-              analysisId: this.result?.analysisId ?? null,
-              pixAvailable: !!response.pixAvailable,
-              liveMode: !!response.mercadoPagoLiveMode
-            });
-            return;
-          }
-          if (response.success && response.checkoutUrl) {
-            this.openCheckout(response.checkoutUrl);
-          } else {
+              analysisId: this.result?.analysisId ?? null
+            })
+          ) {
             this.error = response.error || response.message || 'Erro ao iniciar pagamento';
           }
         },

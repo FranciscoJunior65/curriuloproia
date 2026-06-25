@@ -28,6 +28,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
     private readonly ISettingsService _settings;
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ICaktoService _cakto;
     private readonly IPricingService _pricing;
     private readonly IInterviewConfigService _interviewConfig;
     private readonly IConfiguration _configuration;
@@ -39,6 +40,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         IInterviewConfigService interviewConfig,
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
+        ICaktoService cakto,
         IConfiguration configuration,
         IHttpContextAccessor http)
     {
@@ -49,6 +51,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         _interviewConfig = interviewConfig;
         _stripe = stripe;
         _mercadoPago = mercadoPago;
+        _cakto = cakto;
         _configuration = configuration;
     }
 
@@ -91,7 +94,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             success = true,
             provider,
             providers = _settings.GetValidPaymentProviders(),
-            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago" },
+            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago", cakto = "Cakto" },
             mercadoPagoMode,
             mercadoPagoModes = _settings.GetValidMercadoPagoModes(),
             mercadoPagoModeLabels = new { test = "Teste (sandbox)", production = "Produção (cobrança real)" },
@@ -106,7 +109,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
 
         if (string.IsNullOrEmpty(body.Provider))
         {
-            return BadRequest(new { success = false, error = "Campo provider é obrigatório (stripe ou mercadopago)" });
+            return BadRequest(new { success = false, error = "Campo provider é obrigatório (stripe, mercadopago ou cakto)" });
         }
 
         try
@@ -123,7 +126,12 @@ public class AdminAppService : AppControllerBase, IAdminAppService
 
             var confirmed = await _settings.GetPaymentProviderAsync(cancellationToken);
             var confirmedMpMode = await _settings.GetMercadoPagoModeAsync(cancellationToken);
-            var message = $"Meio de pagamento alterado para {(confirmed == "stripe" ? "Stripe" : "Mercado Pago")}.";
+            var message = confirmed switch
+            {
+                "stripe" => "Meio de pagamento alterado para Stripe.",
+                "cakto" => "Meio de pagamento alterado para Cakto.",
+                _ => "Meio de pagamento alterado para Mercado Pago."
+            };
             if (savedMpMode != null)
             {
                 message += confirmedMpMode == "production"
@@ -231,9 +239,12 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
 
         var provider = body?.Provider ?? await _settings.GetPaymentProviderAsync(cancellationToken);
-        var result = provider == "mercadopago"
-            ? await _mercadoPago.TestConnectionAsync(cancellationToken)
-            : await _stripe.TestConnectionAsync(cancellationToken);
+        var result = provider switch
+        {
+            "mercadopago" => await _mercadoPago.TestConnectionAsync(cancellationToken),
+            "cakto" => await _cakto.TestConnectionAsync(cancellationToken),
+            _ => await _stripe.TestConnectionAsync(cancellationToken)
+        };
 
         return Ok(new
         {

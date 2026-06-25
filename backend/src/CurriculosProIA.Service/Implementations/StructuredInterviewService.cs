@@ -206,6 +206,7 @@ public class StructuredInterviewService : IStructuredInterviewService
         IReadOnlyList<string> writtenQuestions,
         IReadOnlyList<string> writtenAnswers,
         string phase1Answer,
+        IReadOnlyList<string>? writtenQuestionTypes = null,
         CancellationToken cancellationToken = default)
     {
         var interviewConfig = await _config.GetConfigAsync(cancellationToken);
@@ -213,14 +214,24 @@ public class StructuredInterviewService : IStructuredInterviewService
 
         var questions = PadList(writtenQuestions, WrittenQuestionCount, "Pergunta");
         var answers = PadList(writtenAnswers, WrittenQuestionCount, "");
+        var types = PadList(writtenQuestionTypes ?? [], WrittenQuestionCount, "open");
 
-        var writtenBlock = BuildWrittenAnswersBlock(questions, answers);
-        var responseSummary = BuildResponseSummary(questions, answers, phase1Answer);
+        var writtenBlock = BuildWrittenAnswersBlock(questions, answers, types);
+        var responseSummary = BuildResponseSummary(questions, answers, types, phase1Answer);
 
         var maxFeedbackSeconds = Math.Max(60, interviewConfig.MaxVideoSpeechSeconds);
         var maxFeedbackWords = WordsForSeconds(maxFeedbackSeconds);
 
-        var prompt = ApplyTemplate(interviewConfig.FeedbackPrompt, new Dictionary<string, string>
+        const string choiceQuestionRules = """
+            REGRA OBRIGATÓRIA — PERGUNTAS DE ALTERNATIVAS (múltipla escolha):
+            - O candidato apenas MARCOU uma opção; não havia campo para texto livre.
+            - NÃO peça para explicar melhor, detalhar ou dar exemplos nessas respostas.
+            - NÃO critique falta de profundidade em perguntas de alternativas.
+            - Avalie apenas se a opção escolhida é coerente com o perfil e o currículo.
+
+            """;
+
+        var prompt = choiceQuestionRules + ApplyTemplate(interviewConfig.FeedbackPrompt, new Dictionary<string, string>
         {
             ["personaName"] = persona.Name,
             ["personaRole"] = persona.Role,
@@ -697,15 +708,34 @@ public class StructuredInterviewService : IStructuredInterviewService
         }
     }
 
-    private static string BuildWrittenAnswersBlock(IReadOnlyList<string> questions, IReadOnlyList<string> answers)
+    private static string BuildWrittenAnswersBlock(
+        IReadOnlyList<string> questions,
+        IReadOnlyList<string> answers,
+        IReadOnlyList<string>? questionTypes = null)
     {
         var sb = new StringBuilder();
         for (var i = 0; i < questions.Count; i++)
         {
             var q = questions[i];
             var a = i < answers.Count ? answers[i] : "";
-            sb.AppendLine($"Pergunta {i + 1}: {q}");
-            sb.AppendLine(string.IsNullOrWhiteSpace(a) ? "Resposta: (não respondida)" : $"Resposta: {a.Trim()}");
+            var type = i < questionTypes?.Count ? questionTypes[i] : "open";
+            var isChoice = string.Equals(type, "choice", StringComparison.OrdinalIgnoreCase);
+
+            if (isChoice)
+            {
+                sb.AppendLine($"Pergunta {i + 1} (alternativas — marcou uma opção): {q}");
+                sb.AppendLine(string.IsNullOrWhiteSpace(a)
+                    ? "Opção marcada: (não respondida)"
+                    : $"Opção marcada: {a.Trim()}");
+            }
+            else
+            {
+                sb.AppendLine($"Pergunta {i + 1} (resposta aberta): {q}");
+                sb.AppendLine(string.IsNullOrWhiteSpace(a)
+                    ? "Resposta: (não respondida)"
+                    : $"Resposta: {a.Trim()}");
+            }
+
             sb.AppendLine();
         }
 
@@ -715,6 +745,7 @@ public class StructuredInterviewService : IStructuredInterviewService
     private static string BuildResponseSummary(
         IReadOnlyList<string> questions,
         IReadOnlyList<string> answers,
+        IReadOnlyList<string>? questionTypes,
         string phase1Answer)
     {
         var sb = new StringBuilder();
@@ -724,16 +755,22 @@ public class StructuredInterviewService : IStructuredInterviewService
         for (var i = 0; i < questions.Count; i++)
         {
             var a = i < answers.Count ? answers[i]?.Trim() ?? "" : "";
+            var type = i < questionTypes?.Count ? questionTypes[i] : "open";
+            var isChoice = string.Equals(type, "choice", StringComparison.OrdinalIgnoreCase);
             var words = CountWords(a);
             writtenWords += words;
             if (string.IsNullOrWhiteSpace(a))
             {
                 emptyWritten++;
-                sb.AppendLine($"- Pergunta escrita {i + 1}: SEM RESPOSTA");
+                sb.AppendLine(isChoice
+                    ? $"- Pergunta de alternativas {i + 1}: SEM OPÇÃO MARCADA"
+                    : $"- Pergunta aberta {i + 1}: SEM RESPOSTA");
             }
             else
             {
-                sb.AppendLine($"- Pergunta escrita {i + 1}: {words} palavras");
+                sb.AppendLine(isChoice
+                    ? $"- Pergunta de alternativas {i + 1}: opção marcada"
+                    : $"- Pergunta aberta {i + 1}: {words} palavras");
             }
         }
 

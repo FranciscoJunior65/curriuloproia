@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS app_configuracoes (
   atualizado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Provedor de pagamento ativo: stripe | mercadopago
+-- Provedor de pagamento ativo: stripe | mercadopago | cakto
 INSERT INTO app_configuracoes (chave, valor)
 VALUES ('payment_provider', 'stripe')
 ON CONFLICT (chave) DO NOTHING;

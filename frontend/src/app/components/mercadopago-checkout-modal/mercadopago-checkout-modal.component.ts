@@ -10,6 +10,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AnalyzerService } from '../../services/analyzer.service';
+import { PaymentCloseResult } from '../../models/payment-close-result';
 
 export interface MercadoPagoCheckoutModalData {
   publicKey: string;
@@ -209,7 +210,7 @@ export class MercadoPagoCheckoutModalComponent implements OnInit, OnDestroy {
         .subscribe({
           next: (res) => {
             if (res.paid) {
-              this.dialogRef.close('paid');
+              this.closePaid(res.user?.credits);
               resolve();
               return;
             }
@@ -239,7 +240,7 @@ export class MercadoPagoCheckoutModalComponent implements OnInit, OnDestroy {
         next: (res) => {
           if (res.paid) {
             this.stopPixPolling();
-            this.dialogRef.close('paid');
+            this.closePaid(res.user?.credits);
           }
         },
         error: () => {
@@ -258,6 +259,14 @@ export class MercadoPagoCheckoutModalComponent implements OnInit, OnDestroy {
       this.pixPollTimer = null;
     }
     this.pixPolling = false;
+  }
+
+  private closePaid(credits?: number): void {
+    const result: PaymentCloseResult = { paid: true };
+    if (credits != null) {
+      result.credits = credits;
+    }
+    this.dialogRef.close(result);
   }
 
   private loadMpSdk(): Promise<void> {

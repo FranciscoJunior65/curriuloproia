@@ -24,4 +24,5 @@ public interface IEmailService
     Task SendPasswordChangeNotificationEmailAsync(string email, string name = "", CancellationToken cancellationToken = default);
     Task SendLoginCodeEmailAsync(string email, string code, string name = "", CancellationToken cancellationToken = default);
     Task SendPurchaseConfirmationEmailAsync(string clientEmail, PurchaseConfirmationDetails details, CancellationToken cancellationToken = default);
+    Task SendTestEmailAsync(string to, CancellationToken cancellationToken = default);
 }

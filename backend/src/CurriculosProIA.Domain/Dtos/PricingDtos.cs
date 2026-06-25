@@ -107,6 +107,30 @@ public class MercadoPagoPixPaymentResult
     public string? Message { get; set; }
 }
 
+public class CaktoProcessPaymentResult
+{
+    public bool Success { get; set; }
+    public bool Paid { get; set; }
+    public string? PaymentId { get; set; }
+    public string? Status { get; set; }
+    public string? StatusDetail { get; set; }
+    public PaymentUserSummary? User { get; set; }
+    public bool AlreadyFulfilled { get; set; }
+    public string? Message { get; set; }
+}
+
+public class CaktoPixPaymentResult
+{
+    public bool Success { get; set; }
+    public string? PaymentId { get; set; }
+    public string? Status { get; set; }
+    public string? QrCode { get; set; }
+    public string? QrCodeBase64 { get; set; }
+    public DateTimeOffset? Expiration { get; set; }
+    public decimal AmountBRL { get; set; }
+    public string? Message { get; set; }
+}
+
 public class PaymentVerificationResult
 {
     public bool Paid { get; set; }

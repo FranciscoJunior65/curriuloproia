@@ -1,0 +1,39 @@
+@import '../mercadopago-checkout-modal/mercadopago-checkout-modal.component.scss';
+
+.mp-checkout__card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 0;
+  }
+
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  button[mat-flat-button] {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.mp-checkout__card-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+  min-width: 0;
+}

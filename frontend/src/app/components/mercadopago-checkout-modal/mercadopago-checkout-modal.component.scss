@@ -2,6 +2,8 @@
   position: relative;
   padding: 1.25rem 1.5rem 1.5rem;
   max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .mp-checkout__close {

@@ -20,6 +20,6 @@ VALUES (
 )
 ON CONFLICT (chave) DO NOTHING;
 
--- Valores aceitos para payment_provider: stripe | mercadopago
+-- Valores aceitos para payment_provider: stripe | mercadopago | cakto
 -- Valores aceitos para mercadopago_mode: test | production
 -- pricing_config: ver CONFIGURACOES_PRECOS_E_PLANOS.sql

@@ -87,7 +87,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
   videoPlaying = false;
   videoExpanded = false;
   wideLayout = false;
-  readonly loginVideoSrc = 'assets/videos/video.mp4';
+  readonly loginVideoSrc = 'assets/videos/video-venda.mp4';
   private static readonly WIDE_LAYOUT_MIN_PX = 768;
 
   analysisPlans: PublicPlan[] = [];

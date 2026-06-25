@@ -215,6 +215,98 @@ export class AnalyzerService {
     });
   }
 
+  createCaktoCardToken(payload: {
+    holderName: string;
+    cardNumber: string;
+    expMonth: string;
+    expYear: string;
+    cvv: string;
+  }): Observable<{ success: boolean; cardToken?: string; error?: string; message?: string }> {
+    return this.http.post<{ success: boolean; cardToken?: string; error?: string; message?: string }>(
+      `${this.apiUrl}/analyze/payment/cakto/card-token`,
+      {
+        holderName: payload.holderName,
+        cardNumber: payload.cardNumber,
+        expMonth: payload.expMonth,
+        expYear: payload.expYear,
+        cvv: payload.cvv
+      },
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  processCaktoCard(payload: {
+    planId: string;
+    userId: string;
+    email?: string;
+    customerName?: string;
+    couponCode?: string | null;
+    cpf?: string | null;
+    includeEnglish?: boolean;
+    analysisId?: string | null;
+    cardToken: string;
+    antifraudProfilingAttemptReference?: string;
+    cavv?: string;
+    eci?: string;
+    xid?: string;
+    referenceId?: string;
+    version?: string;
+    transStatus?: string;
+    tdsServerTransId?: string;
+  }): Observable<any> {
+    const body: Record<string, unknown> = {
+      planId: payload.planId,
+      userId: payload.userId,
+      email: payload.email || '',
+      cardToken: payload.cardToken
+    };
+    if (payload.customerName?.trim()) body['customerName'] = payload.customerName.trim();
+    if (payload.couponCode?.trim()) body['couponCode'] = payload.couponCode.trim();
+    if (payload.cpf != null && String(payload.cpf).trim()) body['cpf'] = String(payload.cpf).trim();
+    if (payload.includeEnglish) body['includeEnglish'] = true;
+    if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
+    if (payload.antifraudProfilingAttemptReference?.trim()) {
+      body['antifraudProfilingAttemptReference'] = payload.antifraudProfilingAttemptReference.trim();
+    }
+    if (payload.cavv) body['cavv'] = payload.cavv;
+    if (payload.eci) body['eci'] = payload.eci;
+    if (payload.xid) body['xid'] = payload.xid;
+    if (payload.referenceId) body['referenceId'] = payload.referenceId;
+    if (payload.version) body['version'] = payload.version;
+    if (payload.transStatus) body['transStatus'] = payload.transStatus;
+    if (payload.tdsServerTransId) body['tdsServerTransId'] = payload.tdsServerTransId;
+
+    return this.http.post(`${this.apiUrl}/analyze/payment/cakto/card`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  createCaktoPix(payload: {
+    planId: string;
+    userId: string;
+    email?: string;
+    customerName?: string;
+    couponCode?: string | null;
+    cpf?: string | null;
+    includeEnglish?: boolean;
+    analysisId?: string | null;
+  }): Observable<any> {
+    const body: Record<string, unknown> = {
+      planId: payload.planId,
+      userId: payload.userId,
+      email: payload.email || ''
+    };
+    if (payload.customerName?.trim()) body['customerName'] = payload.customerName.trim();
+    if (payload.couponCode?.trim()) body['couponCode'] = payload.couponCode.trim();
+    if (payload.cpf != null && String(payload.cpf).trim()) body['cpf'] = String(payload.cpf).trim();
+    if (payload.includeEnglish) body['includeEnglish'] = true;
+    if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
+
+    return this.http.post(`${this.apiUrl}/analyze/payment/cakto/pix`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   /**
    * Admin: adiciona créditos grátis para testes (sem pagamento).
    */
@@ -530,9 +622,10 @@ export class AnalyzerService {
       siteId?: string;
       candidateName?: string;
       introScript?: string;
-      phase1Answer?: string;
+        phase1Answer?: string;
       writtenQuestions?: string[];
       writtenAnswers?: string[];
+      writtenQuestionTypes?: string[];
     }
   ): Observable<any> {
     const body: any = { resumeText, analysis, ...opts };

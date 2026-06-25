@@ -10,23 +10,20 @@
     Use Chrome ou Edge para captar sua voz durante os tempos de resposta.
   </p>
 
-  <!-- Carregamento inicial (perguntas + status) -->
+  <!-- Carregamento inicial (status) -->
   <div *ngIf="isBootstrapping" class="voice-interview__loading voice-interview__loading--bootstrap">
     <mat-spinner diameter="44"></mat-spinner>
     <p class="voice-interview__loading-title">{{ bootstrapLoadingMessage }}</p>
-    <p class="voice-interview__loading-hint">
-      Gerando perguntas personalizadas com IA. Isso pode levar alguns segundos.
-    </p>
   </div>
 
   <!-- Início -->
   <div *ngIf="step === 'idle' && !loading" class="voice-interview__intro">
     <p class="text-gray-600 mb-4">
-      Entrevista em <strong>3 etapas</strong>:
-      <strong>5 perguntas</strong> (3 de alternativas + 2 abertas) sobre seu currículo,
-      vídeo da <strong>entrevistadora</strong> pedindo que você se apresente,
-      depois <strong>{{ phase1Minutes }} min</strong> para falar sobre você.
-      No final, feedback em voz e texto.
+      Entrevista em <strong>4 etapas</strong>:
+      vídeo de <strong>apresentação</strong>,
+      <strong>5 perguntas</strong> sobre seu currículo,
+      <strong>{{ phase1Minutes }} min</strong> para falar sobre você (você inicia quando estiver pronto)
+      e <strong>feedback</strong> em voz e texto.
     </p>
     <p class="text-sm text-gray-500 mb-4">Esta entrevista só pode ser feita uma vez por análise.</p>
     <button mat-raised-button color="primary" (click)="begin()" class="w-full">
@@ -66,6 +63,53 @@
     </button>
   </div>
 
+  <!-- Vídeo introdutório (antes das perguntas) -->
+  <div *ngIf="step === 'intro_video'" class="voice-interview__intro-mp4">
+    <div class="voice-interview__intro-mp4-shell">
+      <video
+        #introVideo
+        class="voice-interview__intro-mp4-video"
+        [src]="introVideoUrl"
+        playsinline
+        preload="auto"
+        (ended)="onIntroVideoEnded()"
+      ></video>
+      <button
+        *ngIf="introVideoNeedsPlay && !introVideoEnded"
+        mat-raised-button
+        color="primary"
+        type="button"
+        class="voice-interview__intro-mp4-play"
+        (click)="playIntroVideo()"
+      >
+        <mat-icon>play_arrow</mat-icon>
+        Reproduzir apresentação
+      </button>
+    </div>
+
+    <p class="voice-interview__intro-mp4-status">{{ statusLabel }}</p>
+
+    <p *ngIf="questionsLoading && !questionsReady" class="voice-interview__intro-mp4-hint">
+      <mat-spinner diameter="18" class="voice-interview__intro-mp4-hint-spinner"></mat-spinner>
+      Gerando perguntas personalizadas em paralelo…
+    </p>
+
+    <div *ngIf="introVideoEnded" class="voice-interview__intro-mp4-actions">
+      <button
+        mat-raised-button
+        color="primary"
+        type="button"
+        class="w-full"
+        [disabled]="!questionsReady"
+        (click)="continueToQuestions()"
+      >
+        <mat-spinner *ngIf="!questionsReady" diameter="20" class="inline-block mr-2"></mat-spinner>
+        <mat-icon *ngIf="questionsReady" class="mr-2">arrow_forward</mat-icon>
+        {{ questionsReady ? 'Continuar para as perguntas' : 'Preparando perguntas…' }}
+      </button>
+    </div>
+  </div>
+
   <!-- Perguntas escritas -->
   <div *ngIf="step === 'written_questions' && persona" class="voice-interview__written">
     <p class="text-sm text-gray-600 mb-4">
@@ -96,107 +140,65 @@
       mat-raised-button
       color="primary"
       class="w-full mt-2"
-      [disabled]="!writtenQuestionsComplete"
-      (click)="continueToVoicePhase()"
+      [disabled]="!writtenQuestionsComplete || loading"
+      (click)="continueToRecording()"
     >
-      Continuar para vídeo e apresentação
+      <mat-spinner *ngIf="loading" diameter="20" class="inline-block mr-2"></mat-spinner>
+      {{ loading ? 'Preparando gravação…' : 'Continuar para falar sobre você' }}
     </button>
   </div>
 
-  <!-- Sessão ativa (vídeo intro + gravação + feedback em voz) -->
-  <div *ngIf="persona && step !== 'idle' && step !== 'already_done' && step !== 'written_questions' && step !== 'complete'" class="voice-interview__session">
-    <audio #simliAudio autoplay class="voice-interview__hidden-audio"></audio>
+  <!-- Gravação + feedback em voz -->
+  <div
+    *ngIf="persona && (step === 'phase1' || step === 'loading_feedback' || step === 'feedback_audio')"
+    class="voice-interview__session"
+  >
     <audio #fallbackAudio class="voice-interview__hidden-audio"></audio>
 
-    <!-- Vídeo (intro) e gravação -->
-    <div
-      *ngIf="!isFeedbackAudioPhase"
-      class="voice-interview__video-shell"
-      [class.voice-interview__video-shell--expanded]="videoExpanded"
-      [class.voice-interview__video-shell--recording-expanded]="videoExpanded && isRecordingPhase"
-    >
+    <!-- Fase de gravação -->
+    <div *ngIf="step === 'phase1'" class="voice-interview__video-shell">
       <div class="voice-interview__stage">
-        <div
-          class="voice-interview__avatar"
-          [class.voice-interview__avatar--simli]="simliStageVisible || isVideoPhase"
-          [class.voice-interview__avatar--recording]="isRecordingPhase"
-          [style.--avatar-color]="persona.avatarColor"
-        >
-          <button
-            *ngIf="simliStageVisible || isVideoPhase || isRecordingPhase"
-            type="button"
-            class="voice-interview__expand-btn"
-            (click)="toggleVideoExpanded()"
-            [attr.aria-label]="videoExpanded ? 'Reduzir vídeo' : 'Expandir vídeo'"
-          >
-            <mat-icon>{{ videoExpanded ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
-          </button>
-
-          <div class="voice-interview__avatar-ring" *ngIf="!simliStageVisible && !isVideoPhase"></div>
+        <div class="voice-interview__avatar voice-interview__avatar--simli voice-interview__avatar--recording">
           <div
-            class="voice-interview__avatar-face"
-            [class.voice-interview__avatar-face--simli]="simliStageVisible || isVideoPhase"
-            [class.voice-interview__avatar-face--interview]="simliStageVisible || isVideoPhase"
-            [class.voice-interview__avatar-face--recording-large]="isRecordingPhase && videoExpanded"
+            class="voice-interview__avatar-face voice-interview__avatar-face--simli voice-interview__avatar-face--interview"
           >
             <img
-              *ngIf="(simliStageVisible || isVideoPhase) && persona.avatarUrl && !simliActive"
+              *ngIf="persona.avatarUrl"
               [src]="persona.avatarUrl"
               [alt]="persona.name"
-              class="voice-interview__backdrop-photo"
-            />
-            <div
-              class="voice-interview__simli-viewport"
-              [class.voice-interview__simli-viewport--inactive]="!simliActive"
-              [class.voice-interview__simli-viewport--hidden]="!simliStageVisible && !isVideoPhase"
-            >
-              <video
-                #simliVideo
-                class="voice-interview__simli-video"
-                [class.voice-interview__simli-video--visible]="simliActive"
-                autoplay
-                playsinline
-                muted
-              ></video>
-            </div>
-            <mat-spinner *ngIf="simliBootstrapping" diameter="36" class="voice-interview__simli-spinner"></mat-spinner>
-            <img
-              *ngIf="!simliStageVisible && !isVideoPhase && persona.avatarUrl"
-              [src]="persona.avatarUrl"
-              [alt]="persona.name"
-              class="voice-interview__avatar-photo"
+              class="voice-interview__backdrop-photo voice-interview__persona-photo"
             />
           </div>
-          <div class="voice-interview__avatar-badge voice-interview__avatar-badge--rec" *ngIf="isRecordingPhase">
+          <div class="voice-interview__avatar-badge voice-interview__avatar-badge--rec" *ngIf="isRecordingActive">
             <mat-icon>mic</mat-icon>
           </div>
         </div>
 
-        <p
-          *ngIf="isVideoPhase && simliBootstrapping && !simliActive"
-          class="voice-interview__simli-hint"
-        >
-          Conectando vídeo da entrevistadora…
-        </p>
-
-        <div
-          *ngIf="isVideoPhase && interviewerCaption"
-          class="voice-interview__caption"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="voice-interview__caption-label">{{ persona.name }}</span>
-          <p>{{ interviewerCaption }}</p>
-        </div>
-
         <div class="voice-interview__persona-info">
-          <h4 class="font-bold text-lg">{{ persona.name }}</h4>
-          <p class="text-sm text-indigo-600">{{ persona.role }}</p>
-          <p class="text-sm text-gray-600 mt-2">{{ statusLabel }}</p>
+          <h4 class="voice-interview__persona-name">{{ persona.name }}</h4>
+          <p class="voice-interview__persona-role">{{ persona.role }}</p>
+          <p class="voice-interview__persona-status">{{ statusLabel }}</p>
 
-          <div *ngIf="isRecordingPhase" class="voice-interview__timer">
+          <div *ngIf="isRecordingAwaitingStart" class="voice-interview__playback-actions">
+            <button
+              mat-raised-button
+              color="primary"
+              type="button"
+              class="voice-interview__playback-btn"
+              (click)="startCandidateRecording()"
+            >
+              <mat-icon>mic</mat-icon>
+              Iniciar gravação
+            </button>
+            <p class="voice-interview__recording-hint">
+              Sua fala será transcrita em texto pelo microfone (Chrome ou Edge).
+              Você terá {{ phase1Minutes }} minutos após iniciar.
+            </p>
+          </div>
+
+          <div *ngIf="isRecordingActive" class="voice-interview__timer">
             <span class="voice-interview__timer-value">{{ timerLabel }}</span>
-            <span class="voice-interview__timer-hint">Fale agora — sua voz está sendo captada</span>
+            <span class="voice-interview__timer-hint">Fale agora — sua voz está sendo transcrita</span>
             <button
               mat-stroked-button
               type="button"
@@ -211,61 +213,66 @@
         </div>
       </div>
 
-      <button
-        *ngIf="videoExpanded"
-        type="button"
-        class="voice-interview__expanded-close"
-        (click)="toggleVideoExpanded()"
-        aria-label="Fechar tela expandida"
-      >
-        <mat-icon>close</mat-icon>
-      </button>
-
-      <!-- Transcript ao vivo (dentro do expand para ver timer + fala juntos) -->
-      <div
-        *ngIf="isRecordingPhase && videoExpanded"
-        class="voice-interview__live-transcript voice-interview__live-transcript--in-expanded"
-      >
+      <div *ngIf="isRecordingActive" class="voice-interview__live-transcript">
         <p class="voice-interview__live-label">
           <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
           O que você está dizendo:
         </p>
-        <div *ngIf="candidateSegments.length || candidateInterim; else waitingSpeechExpanded" class="voice-interview__live-segments">
+        <div *ngIf="candidateSegments.length || candidateInterim; else waitingSpeech" class="voice-interview__live-segments">
           <p *ngFor="let seg of candidateSegments" class="voice-interview__live-segment">{{ seg }}</p>
           <p *ngIf="candidateInterim" class="voice-interview__live-interim">{{ candidateInterim }}</p>
         </div>
-        <ng-template #waitingSpeechExpanded>
+        <ng-template #waitingSpeech>
           <p class="voice-interview__live-text">(aguardando fala...)</p>
         </ng-template>
       </div>
     </div>
 
-    <!-- Feedback em voz (sem vídeo) -->
+    <!-- Feedback em voz -->
     <div *ngIf="isFeedbackAudioPhase" class="voice-interview__feedback-voice">
-      <img [src]="persona.avatarUrl" [alt]="persona.name" class="voice-interview__feedback-voice-avatar" />
-      <div class="voice-interview__feedback-voice-icon" aria-hidden="true">
-        <mat-icon>graphic_eq</mat-icon>
+      <img [src]="persona.avatarUrl" [alt]="persona.name" class="voice-interview__feedback-voice-avatar voice-interview__persona-photo" />
+      <div
+        class="voice-interview__feedback-voice-icon"
+        [class.voice-interview__feedback-voice-icon--playing]="feedbackPlaying"
+        aria-hidden="true"
+      >
+        <mat-icon>{{ feedbackPlaying ? 'graphic_eq' : 'record_voice_over' }}</mat-icon>
       </div>
       <p class="voice-interview__feedback-voice-label">{{ persona.name }}</p>
       <p class="voice-interview__feedback-voice-status">{{ statusLabel }}</p>
-    </div>
-
-    <!-- Transcript ao vivo (modo normal) -->
-    <div *ngIf="isRecordingPhase && !videoExpanded && !isFeedbackAudioPhase" class="voice-interview__live-transcript">
-      <p class="voice-interview__live-label">
-        <mat-icon class="text-red-500 text-sm">fiber_manual_record</mat-icon>
-        O que você está dizendo:
-      </p>
-      <div *ngIf="candidateSegments.length || candidateInterim; else waitingSpeech" class="voice-interview__live-segments">
-        <p *ngFor="let seg of candidateSegments" class="voice-interview__live-segment">{{ seg }}</p>
-        <p *ngIf="candidateInterim" class="voice-interview__live-interim">{{ candidateInterim }}</p>
+      <div class="voice-interview__feedback-actions">
+        <button
+          *ngIf="feedbackPlaying"
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="stopFeedbackPlayback()"
+        >
+          <mat-icon>stop</mat-icon>
+          Parar feedback
+        </button>
+        <button
+          *ngIf="feedbackAwaitingPlay && !feedbackPlaying"
+          mat-raised-button
+          color="primary"
+          type="button"
+          (click)="startFeedbackPlayback()"
+        >
+          <mat-icon>play_arrow</mat-icon>
+          Ouvir feedback
+        </button>
+        <button
+          *ngIf="feedbackAwaitingPlay && !feedbackPlaying"
+          mat-stroked-button
+          type="button"
+          (click)="skipFeedbackAudio()"
+        >
+          Ver resultado sem áudio
+        </button>
       </div>
-      <ng-template #waitingSpeech>
-        <p class="voice-interview__live-text">(aguardando fala...)</p>
-      </ng-template>
     </div>
 
-    <div *ngIf="loading || step === 'loading' || step === 'loading_intro' || step === 'loading_feedback'" class="voice-interview__loading">
+    <div *ngIf="step === 'loading_feedback'" class="voice-interview__loading">
       <mat-spinner diameter="32"></mat-spinner>
       <p>{{ statusLabel || 'Carregando...' }}</p>
     </div>

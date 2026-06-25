@@ -25,12 +25,15 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
     private readonly IHttpContextAccessor _http;
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ICaktoService _cakto;
 
     public PaymentWebhookAppService(IStripePaymentService stripe, IMercadoPagoService mercadoPago,
+        ICaktoService cakto,
         IHttpContextAccessor http)
     {
         _stripe = stripe;
         _mercadoPago = mercadoPago;
+        _cakto = cakto;
         _http = http;
     }
 
@@ -56,5 +59,11 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
     {
         await _mercadoPago.HandleWebhookAsync(_http.HttpContext!.Request, cancellationToken);
         return Content("OK", "text/plain");
+    }
+
+    public async Task<IActionResult> CaktoWebhook(CancellationToken cancellationToken)
+    {
+        await _cakto.HandleWebhookAsync(_http.HttpContext!.Request, cancellationToken);
+        return Ok(new { received = true });
     }
 }

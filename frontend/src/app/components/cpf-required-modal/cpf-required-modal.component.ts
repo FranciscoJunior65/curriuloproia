@@ -1,14 +1,17 @@
-import { Component } from '@angular/core';
+import { Component, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
-import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
+import { formatCpfDisplay, getCpfDigits, isValidCpf } from '../../utils/cpf.utils';
+
+export interface CpfRequiredModalData {
+  mandatory?: boolean;
+  context?: 'login' | 'payment';
+}
 
 @Component({
   selector: 'app-cpf-required-modal',
@@ -19,8 +22,6 @@ import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
     MatDialogModule,
     MatButtonModule,
     MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
     MatProgressSpinnerModule
   ],
   templateUrl: './cpf-required-modal.component.html',
@@ -30,15 +31,28 @@ export class CpfRequiredModalComponent {
   cpf = '';
   error = '';
   loading = false;
+  readonly mandatory: boolean;
+  readonly context: 'login' | 'payment';
 
   constructor(
     private authService: AuthService,
-    private dialogRef: MatDialogRef<CpfRequiredModalComponent>
+    private dialogRef: MatDialogRef<CpfRequiredModalComponent>,
+    @Inject(MAT_DIALOG_DATA) data: CpfRequiredModalData | null
   ) {
+    this.mandatory = data?.mandatory !== false;
+    this.context = data?.context ?? 'login';
+
     const user = this.authService.getCurrentUser();
     if (user?.cpf) {
       this.cpf = formatCpfDisplay(user.cpf);
     }
+  }
+
+  get subtitle(): string {
+    if (this.context === 'payment') {
+      return 'Para concluir o pagamento, cadastre seu CPF. Ele ficará salvo no seu perfil.';
+    }
+    return 'Cadastre o CPF da sua conta para continuar com cupons e pagamento. Ele ficará vinculado ao seu perfil.';
   }
 
   onCpfInput(): void {
@@ -56,10 +70,22 @@ export class CpfRequiredModalComponent {
     }
   }
 
+  onCpfPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const pasted = event.clipboardData?.getData('text') ?? '';
+    this.cpf = formatCpfDisplay(pasted);
+    this.error = '';
+  }
+
   save(): void {
     const cpfDigits = getCpfDigits(this.cpf);
     if (cpfDigits.length !== 11) {
-      this.error = 'Informe um CPF válido com 11 dígitos.';
+      this.error = 'Informe um CPF com 11 dígitos.';
+      return;
+    }
+
+    if (!isValidCpf(cpfDigits)) {
+      this.error = 'CPF inválido. Verifique os números digitados.';
       return;
     }
 
@@ -71,18 +97,25 @@ export class CpfRequiredModalComponent {
         this.loading = false;
         if (response.success) {
           this.dialogRef.close(true);
-        } else {
-          this.error = response.error || 'Não foi possível salvar o CPF.';
+          return;
         }
+        this.error = response.error || 'Não foi possível salvar o CPF.';
       },
       error: (err) => {
         this.loading = false;
-        this.error = err.error?.error || err.error?.message || 'Erro ao salvar CPF. Tente novamente.';
+        this.error =
+          err.error?.error ||
+          err.error?.message ||
+          err.message ||
+          'Erro ao salvar CPF. Tente novamente.';
       }
     });
   }
 
   close(): void {
+    if (this.mandatory) {
+      return;
+    }
     this.dialogRef.close(false);
   }
 }

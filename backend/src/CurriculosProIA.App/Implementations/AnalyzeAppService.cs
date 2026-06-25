@@ -38,6 +38,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     private readonly ISettingsService _settings;
     private readonly IPaymentProviderService _paymentProvider;
     private readonly IMercadoPagoService _mercadoPago;
+    private readonly ICaktoService _cakto;
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IResumeGeneratorService _resumeGenerator;
     private readonly ICoverLetterService _coverLetter;
@@ -57,6 +58,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         ISettingsService settings,
         IPaymentProviderService paymentProvider,
         IMercadoPagoService mercadoPago,
+        ICaktoService cakto,
         IPaymentFulfillmentService fulfillment,
         IResumeGeneratorService resumeGenerator,
         ICoverLetterService coverLetter,
@@ -76,6 +78,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         _settings = settings;
         _paymentProvider = paymentProvider;
         _mercadoPago = mercadoPago;
+        _cakto = cakto;
         _fulfillment = fulfillment;
         _resumeGenerator = resumeGenerator;
         _coverLetter = coverLetter;
@@ -1396,6 +1399,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
             var questions = body.WrittenQuestions ?? [];
             var answers = body.WrittenAnswers ?? [];
+            var questionTypes = body.WrittenQuestionTypes ?? [];
             var result = await _structuredInterview.FinishAsync(
                 body.SimulationId,
                 ctx.ResumeText!,
@@ -1406,6 +1410,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 questions,
                 answers,
                 body.Phase1Answer ?? "",
+                questionTypes,
                 cancellationToken);
 
             await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.Entrevista, cancellationToken);
@@ -1791,6 +1796,181 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 qrCode = result.QrCode,
                 qrCodeBase64 = result.QrCodeBase64,
                 ticketUrl = result.TicketUrl,
+                expiration = result.Expiration,
+                amountBRL = result.AmountBRL
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao gerar PIX", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> CreateCaktoCardToken(
+        CaktoCardTokenSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Token não fornecido" });
+            }
+
+            if (string.IsNullOrWhiteSpace(body.HolderName)
+                || string.IsNullOrWhiteSpace(body.CardNumber)
+                || string.IsNullOrWhiteSpace(body.ExpMonth)
+                || string.IsNullOrWhiteSpace(body.ExpYear)
+                || string.IsNullOrWhiteSpace(body.Cvv))
+            {
+                return BadRequest(new { success = false, error = "Dados do cartão incompletos" });
+            }
+
+            var cardToken = await _cakto.CreateCardTokenAsync(
+                body.HolderName.Trim(),
+                body.CardNumber.Trim(),
+                body.ExpMonth.Trim(),
+                body.ExpYear.Trim(),
+                body.Cvv.Trim(),
+                cancellationToken);
+
+            return Ok(new { success = true, cardToken });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao tokenizar cartão", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> GetCakto3dsToken(
+        string? provider,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var json = await _cakto.GetThreeDsTokenAsync(provider ?? "cielo", cancellationToken);
+            return new ContentResult
+            {
+                Content = json,
+                ContentType = "application/json",
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao obter token 3DS Cakto");
+            return StatusCode(500, new { success = false, error = "Erro ao obter token 3DS", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> ProcessCaktoCard(
+        CaktoCardPaymentSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var purchase = await ResolvePurchaseRequestAsync(body, cancellationToken);
+            if (purchase.ErrorResult != null)
+            {
+                return purchase.ErrorResult;
+            }
+
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+            var customerName = await ResolveCustomerNameAsync(purchase.UserId!, body.CustomerName, cancellationToken);
+            var result = await _cakto.ProcessCardPaymentAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                body.Email ?? string.Empty,
+                customerName,
+                body.CardToken ?? string.Empty,
+                new CaktoThreeDSecureData
+                {
+                    Cavv = body.Cavv,
+                    Eci = body.Eci,
+                    Xid = body.Xid,
+                    ReferenceId = body.ReferenceId,
+                    Version = body.Version,
+                    TransStatus = body.TransStatus,
+                    TdsServerTransId = body.TdsServerTransId
+                },
+                body.AntifraudProfilingAttemptReference,
+                string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
+                purchase.Cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
+                cancellationToken);
+
+            if (result.Paid)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    paid = true,
+                    paymentId = result.PaymentId,
+                    status = result.Status,
+                    user = result.User,
+                    alreadyFulfilled = result.AlreadyFulfilled
+                });
+            }
+
+            return Ok(new
+            {
+                success = result.Success,
+                paid = false,
+                paymentId = result.PaymentId,
+                status = result.Status,
+                statusDetail = result.StatusDetail,
+                message = result.Message ?? "Pagamento não aprovado."
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao processar cartão", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> CreateCaktoPix(
+        CaktoPixPaymentSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var purchase = await ResolvePurchaseRequestAsync(body, cancellationToken);
+            if (purchase.ErrorResult != null)
+            {
+                return purchase.ErrorResult;
+            }
+
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+            var customerName = await ResolveCustomerNameAsync(purchase.UserId!, body.CustomerName, cancellationToken);
+            var result = await _cakto.CreatePixPaymentAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                body.Email ?? string.Empty,
+                customerName,
+                string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
+                purchase.Cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
+                cancellationToken);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = result.Message ?? "Erro ao gerar PIX"
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                paymentId = result.PaymentId,
+                status = result.Status,
+                qrCode = result.QrCode,
+                qrCodeBase64 = result.QrCodeBase64,
                 expiration = result.Expiration,
                 amountBRL = result.AmountBRL
             });
@@ -2604,6 +2784,34 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         var normalized = Regex.Replace(cpf, @"\D", string.Empty);
         return normalized.Length == 11 ? normalized : null;
+    }
+
+    private async Task<string> ResolveCustomerNameAsync(
+        string userId,
+        string? requestedName,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedName))
+        {
+            return requestedName.Trim();
+        }
+
+        var user = await _data.GetUserProfileAsync(userId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(user?.Name))
+        {
+            return user.Name.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(user?.Email))
+        {
+            var localPart = user.Email.Split('@')[0];
+            if (!string.IsNullOrWhiteSpace(localPart))
+            {
+                return localPart;
+            }
+        }
+
+        return "Cliente CurriculosPro";
     }
 
 }

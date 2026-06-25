@@ -1047,16 +1047,16 @@
           <!-- Simulação de Entrevista -->
           <mat-card class="shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
             <mat-card-content class="p-6 text-center">
-              <div class="w-16 h-16 mx-auto mb-4 rounded-full overflow-hidden ring-2 ring-purple-200 shadow-md">
+              <div class="w-20 h-24 mx-auto mb-3 rounded-xl overflow-hidden ring-2 ring-purple-200 shadow-md">
                 <img
                   [src]="personaImageUrl"
                   alt="Persona virtual da entrevista"
-                  class="w-full h-full object-cover object-top"
+                  class="w-full h-full object-cover object-[center_12%] scale-[0.92]"
                 />
               </div>
-              <h3 class="text-lg font-bold text-gray-800 mb-2">Simular Entrevista</h3>
-              <p class="text-gray-600 text-sm mb-4">
-                Entrevista com avatar em vídeo: apresentação, tempo para falar suas experiências e 2 perguntas ({{ getSelectedSiteName() || 'site selecionado' }})
+              <h3 class="text-base font-bold text-gray-800 mb-1.5">Simular Entrevista</h3>
+              <p class="text-gray-600 text-xs mb-4 leading-snug">
+                Entrevista em vídeo, perguntas personalizadas, tempo para falar e feedback ({{ getSelectedSiteName() || 'site selecionado' }})
               </p>
               <button
                 *ngIf="!interviewAlreadyDone"
@@ -1691,17 +1691,17 @@
           ></div>
           <mat-card-content class="p-8 relative z-10">
             <div class="flex flex-col items-center text-center">
-              <div class="w-20 h-20 rounded-2xl overflow-hidden mb-6 shadow-lg ring-2 ring-teal-200 transform hover:scale-110 transition-transform mx-auto">
+              <div class="w-24 h-28 rounded-2xl overflow-hidden mb-5 shadow-lg ring-2 ring-teal-200 transform hover:scale-110 transition-transform mx-auto">
                 <img
                   [src]="personaImageUrl"
                   alt="Persona virtual"
-                  class="w-full h-full object-cover object-top"
+                  class="w-full h-full object-cover object-[center_12%] scale-[0.92]"
                 />
               </div>
-              <h3 class="text-2xl font-bold text-gray-800 mb-3">
+              <h3 class="text-xl font-bold text-gray-800 mb-2">
                 Simulador de Entrevista
               </h3>
-              <p class="text-gray-600 leading-relaxed mb-4">
+              <p class="text-gray-600 text-sm leading-relaxed mb-4">
                 Prepare-se para entrevistas de emprego com um simulador inteligente. Pratique respostas para perguntas comuns e específicas da sua área, receba feedback em tempo real e dicas personalizadas para melhorar sua performance.
               </p>
               <div
