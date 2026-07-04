@@ -1,5 +1,6 @@
 using CurriculosProIA.App.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 
 namespace CurriculosProIA.Api.Controllers;
 
@@ -15,7 +16,12 @@ public class CaktoFinancialController : ControllerBase
     public CaktoFinancialController(IAnalyzeAppService analyze) => _analyze = analyze;
 
     [HttpGet("3ds/token")]
-    [HttpGet("3ds/token/")]
     public Task<IActionResult> Get3dsToken([FromQuery] string? provider, CancellationToken ct) =>
         _analyze.GetCakto3dsToken(provider, ct);
+
+    /// <summary>Alias com barra final (SDK Cakto); oculto no Swagger para evitar conflito de rota.</summary>
+    [HttpGet("3ds/token/")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public Task<IActionResult> Get3dsTokenTrailingSlash([FromQuery] string? provider, CancellationToken ct) =>
+        Get3dsToken(provider, ct);
 }

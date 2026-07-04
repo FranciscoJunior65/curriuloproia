@@ -1,5 +1,12 @@
 @import '../mercadopago-checkout-modal/mercadopago-checkout-modal.component.scss';
 
+.mp-checkout__payer-email {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  word-break: break-all;
+}
+
 .mp-checkout__card-form {
   display: flex;
   flex-direction: column;

@@ -94,6 +94,11 @@ public class AuthController : ControllerBase
     public Task<IActionResult> GetReferralCoupon(CancellationToken ct) =>
         _auth.GetReferralCoupon(ct);
 
+    [HttpPost("delete-account")]
+    [Authorize]
+    public Task<IActionResult> DeleteAccount([FromBody] DeleteAccountSignature body, CancellationToken ct) =>
+        _auth.DeleteAccount(body, ct);
+
     [HttpGet("google")]
     public IActionResult GoogleLogin()
     {

@@ -9,6 +9,9 @@ public class PricingConfigDto
     public decimal EnglishPriceBRL { get; set; } = 17.90m;
     public decimal EnglishBundlePriceBRL { get; set; } = 5.90m;
 
+    /// <summary>Taxa repassada ao comprador (Cakto). Persistida em config_precos.transaction_fee_brl.</summary>
+    public decimal TransactionFeeBRL { get; set; }
+
     public decimal? SinglePriceOverride { get; set; }
     public decimal? Pack3PriceOverride { get; set; }
     public decimal? Pack5PriceOverride { get; set; }
@@ -28,4 +31,7 @@ public class PricingConfigDto
         var factor = 1m - (discountPercent / 100m);
         return Math.Round(Math.Max(0, basePrice * factor), 2);
     }
+
+    public decimal GetDisplayPrice(decimal basePriceBRL) =>
+        Math.Round(Math.Max(0, basePriceBRL + TransactionFeeBRL), 2);
 }

@@ -17,6 +17,7 @@ export class PricingComponent implements OnInit {
   analysisPlans: PublicPlan[] = [];
   englishPlan: PublicPlan | null = null;
   loading = true;
+  transactionFeeBRL = 0;
 
   private readonly planOrder = ['single', 'pack3', 'pack5'];
 
@@ -34,6 +35,9 @@ export class PricingComponent implements OnInit {
           response.englishPlan ||
           (response.plans || []).find((p) => p.id === 'english') ||
           null;
+        if (response.transactionFeeBRL != null) {
+          this.transactionFeeBRL = Number(response.transactionFeeBRL);
+        }
         this.loading = false;
       },
       error: () => {
@@ -44,6 +48,17 @@ export class PricingComponent implements OnInit {
 
   priceParts(priceBRL: number): PriceParts {
     return this.pricingPlansService.formatPriceParts(priceBRL);
+  }
+
+  planDisplayPrice(plan: PublicPlan): number {
+    return this.pricingPlansService.planDisplayPrice(plan, this.transactionFeeBRL);
+  }
+
+  englishDisplayPrice(): number {
+    if (this.englishPlan) {
+      return this.planDisplayPrice(this.englishPlan);
+    }
+    return 0;
   }
 
   isPopularPlan(plan: PublicPlan): boolean {

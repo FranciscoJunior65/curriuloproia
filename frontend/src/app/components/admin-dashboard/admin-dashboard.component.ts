@@ -13,7 +13,9 @@ import {
   AdminPartner,
   AdminCoupon,
   CouponMetrics,
-  PartnerReferral
+  PartnerReferral,
+  PendingPurchaseItem,
+  KiwifySaleDetails
 } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
@@ -27,6 +29,7 @@ import { SiteHeaderComponent } from '../site-header/site-header.component';
 import { PartnerFormDialogComponent } from './partner-form-dialog.component';
 import { formatCpfCnpjDisplay, getDocumentDigits, partnerDocumentLabel } from '../../utils/documento.utils';
 import { formatPercentDisplay, maskPercentInput } from '../../utils/percent.utils';
+import { formatBrlDisplay, maskBrlInput } from '../../utils/currency.utils';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -67,11 +70,12 @@ export class AdminDashboardComponent implements OnInit {
     production: 'Produção (cobrança real)'
   };
   mercadoPagoProductionHint = '';
-  paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago', 'cakto'];
+  paymentProviders: PaymentProvider[] = ['stripe', 'mercadopago', 'cakto', 'kiwify'];
   paymentProviderLabels: Record<PaymentProvider, string> = {
     stripe: 'Stripe',
     mercadopago: 'Mercado Pago',
-    cakto: 'Cakto'
+    cakto: 'Cakto',
+    kiwify: 'Kiwify'
   };
   loadingPaymentSettings = false;
   savingPaymentProvider = false;
@@ -87,8 +91,16 @@ export class AdminDashboardComponent implements OnInit {
     pack3DiscountPercent: 0,
     pack5DiscountPercent: 4.05,
     englishPriceBRL: 17.9,
-    englishBundlePriceBRL: 5.9
+    englishBundlePriceBRL: 5.9,
+    transactionFeeBRL: 0
   };
+  creditUnitPriceText = '7,90';
+  transactionFeeText = '0,00';
+  singleDiscountText = '0,00';
+  pack3DiscountText = '0,00';
+  pack5DiscountText = '4,05';
+  englishPriceText = '17,90';
+  englishBundlePriceText = '5,90';
   loadingPricingSettings = false;
   savingPricingSettings = false;
   pricingSettingsMessage = '';
@@ -130,6 +142,32 @@ export class AdminDashboardComponent implements OnInit {
 
   partnerSettingsMessage = '';
   partnerSettingsError = '';
+
+  pendingPurchases: PendingPurchaseItem[] = [];
+  loadingPendingPurchases = false;
+  pendingUserEmail = '';
+  pendingUserId = '';
+  pendingPlanId = 'single';
+  pendingKiwifyOrderId = '';
+  savingPendingPurchase = false;
+
+  kiwifyOrderId = '';
+  kiwifySale: KiwifySaleDetails | null = null;
+  loadingKiwifySale = false;
+  reconcilingKiwify = false;
+  selectedPendingPurchaseId = '';
+
+  manualGrantEmail = '';
+  manualGrantUserId = '';
+  manualGrantPlanId = 'single';
+  manualGrantCredits: number | null = null;
+  manualGrantReason = '';
+  manualGrantSendEmail = true;
+  grantingManualCredits = false;
+
+  creditsPanelMessage = '';
+  creditsPanelError = '';
+  testingPaymentHub = false;
 
   constructor(
     private adminService: AdminService,
@@ -175,6 +213,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadPricingSettings();
           this.loadInterviewConfigSettings();
           this.loadCouponsData();
+          this.loadPendingPurchases();
         } else {
           console.error('❌ Token inválido, redirecionando...');
           alert('Sua sessão expirou. Por favor, faça login novamente.');
@@ -197,6 +236,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loadPricingSettings();
           this.loadInterviewConfigSettings();
           this.loadCouponsData();
+          this.loadPendingPurchases();
         }
       }
     });
@@ -335,7 +375,7 @@ export class AdminDashboardComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.paymentProvider = response.provider;
-          this.paymentProviders = response.providers || ['stripe', 'mercadopago', 'cakto'];
+          this.paymentProviders = response.providers || ['stripe', 'mercadopago', 'cakto', 'kiwify'];
           if (response.mercadoPagoMode) {
             this.mercadoPagoMode = response.mercadoPagoMode;
           }
@@ -395,7 +435,11 @@ export class AdminDashboardComponent implements OnInit {
     this.adminService.getPricingSettings().subscribe({
       next: (response) => {
         if (response.success && response.config) {
-          this.pricingConfig = { ...response.config };
+          this.pricingConfig = {
+            ...response.config,
+            transactionFeeBRL: response.config.transactionFeeBRL ?? 0
+          };
+          this.syncPricingDisplayTexts();
         }
         this.loadingPricingSettings = false;
       },
@@ -415,6 +459,7 @@ export class AdminDashboardComponent implements OnInit {
         this.savingPricingSettings = false;
         if (response.success) {
           this.pricingConfig = { ...response.config };
+          this.syncPricingDisplayTexts();
           this.pricingSettingsMessage = response.message || 'Preços atualizados.';
           this.pricingPlansService.clearCache();
         }
@@ -466,6 +511,49 @@ export class AdminDashboardComponent implements OnInit {
     const base = (this.pricingConfig.creditUnitPriceBRL || 0) * analyses;
     const factor = 1 - (discountPercent || 0) / 100;
     return Math.round(Math.max(0, base * factor) * 100) / 100;
+  }
+
+  previewPlanDisplayPrice(analyses: number, discountPercent: number): number {
+    const fee = this.pricingConfig.transactionFeeBRL ?? 0;
+    return Math.round((this.previewPlanPrice(analyses, discountPercent) + fee) * 100) / 100;
+  }
+
+  get creditUnitTotalBRL(): number {
+    return Math.round(
+      ((this.pricingConfig.creditUnitPriceBRL || 0) + (this.pricingConfig.transactionFeeBRL ?? 0)) * 100
+    ) / 100;
+  }
+
+  syncPricingDisplayTexts(): void {
+    this.creditUnitPriceText = formatBrlDisplay(this.pricingConfig.creditUnitPriceBRL);
+    this.transactionFeeText = formatBrlDisplay(this.pricingConfig.transactionFeeBRL ?? 0);
+    this.singleDiscountText = formatPercentDisplay(this.pricingConfig.singleDiscountPercent);
+    this.pack3DiscountText = formatPercentDisplay(this.pricingConfig.pack3DiscountPercent);
+    this.pack5DiscountText = formatPercentDisplay(this.pricingConfig.pack5DiscountPercent);
+    this.englishPriceText = formatBrlDisplay(this.pricingConfig.englishPriceBRL);
+    this.englishBundlePriceText = formatBrlDisplay(this.pricingConfig.englishBundlePriceBRL);
+  }
+
+  onPricingBrlInput(
+    field: 'creditUnitPriceBRL' | 'transactionFeeBRL' | 'englishPriceBRL' | 'englishBundlePriceBRL',
+    textProp: 'creditUnitPriceText' | 'transactionFeeText' | 'englishPriceText' | 'englishBundlePriceText',
+    event: Event
+  ): void {
+    const input = event.target as HTMLInputElement;
+    const masked = maskBrlInput(input.value);
+    this[textProp] = masked.text;
+    this.pricingConfig[field] = masked.value;
+  }
+
+  onPricingPercentInput(
+    field: 'singleDiscountPercent' | 'pack3DiscountPercent' | 'pack5DiscountPercent',
+    textProp: 'singleDiscountText' | 'pack3DiscountText' | 'pack5DiscountText',
+    event: Event
+  ): void {
+    const input = event.target as HTMLInputElement;
+    const masked = maskPercentInput(input.value);
+    this[textProp] = masked.text;
+    this.pricingConfig[field] = masked.value;
   }
 
   loadCouponsData(): void {
@@ -674,6 +762,171 @@ export class AdminDashboardComponent implements OnInit {
         this.paymentConnectionMessage = error.error?.message || error.error?.error || 'Erro ao testar conexão';
       }
     });
+  }
+
+  loadPendingPurchases(): void {
+    this.loadingPendingPurchases = true;
+    this.creditsPanelError = '';
+    this.adminService.getPendingPurchases().subscribe({
+      next: (res) => {
+        this.loadingPendingPurchases = false;
+        if (res.success) {
+          this.pendingPurchases = res.purchases || [];
+        }
+      },
+      error: (err) => {
+        this.loadingPendingPurchases = false;
+        this.creditsPanelError = err.error?.error || 'Erro ao carregar compras pendentes';
+      }
+    });
+  }
+
+  createPendingPurchase(): void {
+    if (!this.pendingUserEmail.trim() && !this.pendingUserId.trim()) {
+      this.creditsPanelError = 'Informe e-mail ou ID do usuário';
+      return;
+    }
+
+    this.savingPendingPurchase = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    this.adminService.createPendingPurchase({
+      email: this.pendingUserEmail.trim() || undefined,
+      userId: this.pendingUserId.trim() || undefined,
+      planId: this.pendingPlanId,
+      kiwifyOrderId: this.pendingKiwifyOrderId.trim() || undefined
+    }).subscribe({
+      next: (res) => {
+        this.savingPendingPurchase = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message || 'Solicitação registrada.';
+          this.pendingKiwifyOrderId = '';
+          this.loadPendingPurchases();
+        }
+      },
+      error: (err) => {
+        this.savingPendingPurchase = false;
+        this.creditsPanelError = err.error?.error || 'Erro ao registrar solicitação';
+      }
+    });
+  }
+
+  consultKiwifySale(): void {
+    if (!this.kiwifyOrderId.trim()) {
+      this.creditsPanelError = 'Informe order_ref ou order_id da Kiwify';
+      return;
+    }
+
+    this.loadingKiwifySale = true;
+    this.kiwifySale = null;
+    this.creditsPanelError = '';
+    this.adminService.getKiwifySale(this.kiwifyOrderId.trim()).subscribe({
+      next: (res) => {
+        this.loadingKiwifySale = false;
+        if (res.success) {
+          this.kiwifySale = res.sale;
+        }
+      },
+      error: (err) => {
+        this.loadingKiwifySale = false;
+        this.creditsPanelError = err.error?.message || err.error?.error || 'Erro ao consultar Kiwify';
+      }
+    });
+  }
+
+  reconcileKiwifySale(): void {
+    if (!this.kiwifyOrderId.trim()) {
+      this.creditsPanelError = 'Informe order_ref ou order_id da Kiwify';
+      return;
+    }
+
+    this.reconcilingKiwify = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    this.adminService.reconcileKiwifyOrder({
+      orderId: this.kiwifyOrderId.trim(),
+      pendingPurchaseId: this.selectedPendingPurchaseId.trim() || undefined
+    }).subscribe({
+      next: (res) => {
+        this.reconcilingKiwify = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message || (res.processed ? 'Créditos liberados.' : 'Nenhuma ação necessária.');
+          if (res.sale) {
+            this.kiwifySale = res.sale;
+          }
+          this.loadPendingPurchases();
+          this.loadDashboard();
+        }
+      },
+      error: (err) => {
+        this.reconcilingKiwify = false;
+        this.creditsPanelError = err.error?.message || err.error?.error || 'Erro ao conciliar venda';
+      }
+    });
+  }
+
+  grantManualCredits(): void {
+    if (!this.manualGrantEmail.trim() && !this.manualGrantUserId.trim()) {
+      this.creditsPanelError = 'Informe e-mail ou ID do usuário';
+      return;
+    }
+
+    this.grantingManualCredits = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    this.adminService.grantManualCredits({
+      email: this.manualGrantEmail.trim() || undefined,
+      userId: this.manualGrantUserId.trim() || undefined,
+      planId: this.manualGrantCredits ? undefined : this.manualGrantPlanId,
+      credits: this.manualGrantCredits ?? undefined,
+      reason: this.manualGrantReason.trim() || undefined,
+      sendEmail: this.manualGrantSendEmail
+    }).subscribe({
+      next: (res) => {
+        this.grantingManualCredits = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message || 'Créditos incluídos.';
+          this.manualGrantReason = '';
+          this.loadDashboard();
+        }
+      },
+      error: (err) => {
+        this.grantingManualCredits = false;
+        this.creditsPanelError = err.error?.error || err.error?.message || 'Erro ao incluir créditos';
+      }
+    });
+  }
+
+  testPaymentHub(): void {
+    this.testingPaymentHub = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    const userId = this.manualGrantUserId.trim() || this.authService.getCurrentUser()?.id;
+    this.adminService.testPaymentHub({ userId, credits: 1, message: 'Teste admin hub' }).subscribe({
+      next: (res) => {
+        this.testingPaymentHub = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message || 'Evento enviado ao hub.';
+        }
+      },
+      error: (err) => {
+        this.testingPaymentHub = false;
+        this.creditsPanelError = err.error?.error || 'Erro ao testar hub';
+      }
+    });
+  }
+
+  selectPendingForReconcile(purchase: PendingPurchaseItem): void {
+    this.selectedPendingPurchaseId = purchase.id;
+    if (purchase.paymentId && !purchase.paymentId.startsWith('kiwify_pending_')) {
+      this.kiwifyOrderId = purchase.paymentId;
+    }
+    if (purchase.userEmail) {
+      this.pendingUserEmail = purchase.userEmail;
+    }
+    if (purchase.userId) {
+      this.pendingUserId = purchase.userId;
+    }
   }
 }
 

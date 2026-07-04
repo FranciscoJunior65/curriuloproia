@@ -20,5 +20,11 @@ export function extractPaidCredits(value: unknown): number | undefined {
   if (isPaymentCloseResult(value) && typeof value.credits === 'number') {
     return value.credits;
   }
+  if (typeof value === 'object' && value !== null && 'credits' in value) {
+    const credits = (value as { credits?: number }).credits;
+    if (typeof credits === 'number') {
+      return credits;
+    }
+  }
   return undefined;
 }

@@ -30,4 +30,8 @@ public class PurchaseController : ControllerBase
     [HttpPost("credits/use")]
     public Task<IActionResult> RecordCreditUse([FromBody] RecordCreditUseSignature body, CancellationToken ct) =>
         _purchase.RecordCreditUse(body, ct);
+
+    [HttpGet("export")]
+    public Task<IActionResult> ExportHistory([FromQuery] string format = "json", [FromQuery] int limit = 500, CancellationToken ct = default) =>
+        _purchase.ExportHistory(format, limit, ct);
 }

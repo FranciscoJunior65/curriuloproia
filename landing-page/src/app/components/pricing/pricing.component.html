@@ -35,9 +35,9 @@
 
         <div class="flex items-baseline gap-1 mb-6">
           <span class="text-sm" [ngClass]="isPopularPlan(plan) ? 'text-white/60' : 'text-neutral-500'">R$</span>
-          <span class="text-5xl font-bold text-white">{{ priceParts(plan.priceBRL).reais }}</span>
+          <span class="text-5xl font-bold text-white">{{ priceParts(planDisplayPrice(plan)).reais }}</span>
           <span class="text-xl" [ngClass]="isPopularPlan(plan) ? 'text-white/60' : 'text-neutral-500'">
-            ,{{ priceParts(plan.priceBRL).cents }}
+            ,{{ priceParts(planDisplayPrice(plan)).cents }}
           </span>
         </div>
 
@@ -98,8 +98,8 @@
           <div class="text-center">
             <div class="flex items-baseline gap-1">
               <span class="text-sm text-neutral-500">R$</span>
-              <span class="text-3xl font-bold text-gradient">{{ priceParts(englishPlan.priceBRL).reais }}</span>
-              <span class="text-lg text-neutral-500">,{{ priceParts(englishPlan.priceBRL).cents }}</span>
+              <span class="text-3xl font-bold text-gradient">{{ priceParts(englishDisplayPrice()).reais }}</span>
+              <span class="text-lg text-neutral-500">,{{ priceParts(englishDisplayPrice()).cents }}</span>
             </div>
           </div>
           <a href="https://curriculoproia.com.br/" target="_blank" rel="noopener noreferrer" class="btn-gradient whitespace-nowrap !py-3 !px-6 !text-xs">

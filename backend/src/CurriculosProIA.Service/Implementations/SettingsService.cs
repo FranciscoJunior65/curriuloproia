@@ -10,7 +10,7 @@ public class SettingsService : ISettingsService
 {
     private const string PaymentProviderKey = "payment_provider";
     private const string MercadoPagoModeKey = "mercadopago_mode";
-    private static readonly string[] ValidProviders = ["stripe", "mercadopago", "cakto"];
+    private static readonly string[] ValidProviders = ["stripe", "mercadopago", "cakto", "kiwify"];
     private static readonly string[] ValidMercadoPagoModes =
         [MercadoPagoConfigHelper.ModeTest, MercadoPagoConfigHelper.ModeProduction];
 

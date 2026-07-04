@@ -1326,6 +1326,135 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
     }
 
+    public async Task<Purchase> CreatePendingPurchaseAsync(
+        string userId,
+        string planId,
+        string planName,
+        int creditsAmount,
+        decimal price,
+        string paymentMethod = "kiwify",
+        string? paymentId = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var purchaseId = Guid.NewGuid().ToString();
+        var now = DateTimeOffset.UtcNow;
+
+        var insert = new CompraRow
+        {
+            Id = purchaseId,
+            IdUsuario = userId,
+            IdPlano = planId,
+            NomePlano = planName,
+            QuantidadeCreditos = creditsAmount,
+            Preco = price,
+            Moeda = "BRL",
+            Status = "pendente",
+            MetodoPagamento = paymentMethod,
+            IdPagamento = paymentId ?? $"kiwify_pending_{Guid.NewGuid():N}",
+            CriadoEm = now,
+            AtualizadoEm = now,
+            TipoServico = "analysis_plan"
+        };
+
+        var purchaseResponse = await _client!
+            .From<CompraRow>()
+            .Insert(insert);
+
+        var purchase = purchaseResponse.Models.FirstOrDefault()
+            ?? throw new InvalidOperationException("Compra pendente não retornada após insert");
+
+        return MapPurchaseToEnglish(purchase)!;
+    }
+
+    public async Task<List<Purchase>> GetPendingPurchasesAsync(
+        string? userId = null,
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        limit = Math.Clamp(limit, 1, 200);
+        var query = _client!
+            .From<CompraRow>()
+            .Select("*")
+            .Filter("status", Operator.Equals, "pendente")
+            .Order("criado_em", Ordering.Descending)
+            .Limit(limit);
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            query = query.Filter("id_usuario", Operator.Equals, userId.Trim());
+        }
+
+        var response = await query.Get();
+        return response.Models
+            .Select(MapPurchaseToEnglish)
+            .Where(p => p != null)
+            .Cast<Purchase>()
+            .ToList();
+    }
+
+    public async Task UpdatePurchaseStatusAsync(
+        string purchaseId,
+        string status,
+        string? paymentId = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var updates = new CompraRow
+        {
+            Id = purchaseId,
+            Status = status,
+            AtualizadoEm = DateTimeOffset.UtcNow
+        };
+
+        if (!string.IsNullOrWhiteSpace(paymentId))
+        {
+            updates.IdPagamento = paymentId.Trim();
+        }
+
+        await _client!
+            .From<CompraRow>()
+            .Filter("id", Operator.Equals, purchaseId)
+            .Update(updates);
+    }
+
+    public async Task MarkPendingPurchasesSubstitutedAsync(
+        string userId,
+        string planId,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var response = await _client!
+            .From<CompraRow>()
+            .Select("*")
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Filter("id_plano", Operator.Equals, planId)
+            .Filter("status", Operator.Equals, "pendente")
+            .Get();
+
+        foreach (var row in response.Models)
+        {
+            await _client
+                .From<CompraRow>()
+                .Filter("id", Operator.Equals, row.Id)
+                .Update(new CompraRow
+                {
+                    Id = row.Id,
+                    Status = "substituida",
+                    AtualizadoEm = DateTimeOffset.UtcNow
+                });
+        }
+    }
+
     public async Task<List<PurchaseWithCredits>> GetUserPurchasesAsync(
         string userId,
         int limit = 50,
@@ -1528,6 +1657,186 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             CancelledPurchases = purchases.Count(p =>
                 p.Status is "cancelada" or "cancelled")
         };
+    }
+
+    public async Task<IReadOnlyList<DailyUsageDto>> GetDailyUsageAsync(
+        int days,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        days = Math.Clamp(days, 1, 365);
+        var end = DateTime.UtcNow.Date;
+        var start = end.AddDays(-days + 1);
+        var startIso = start.ToString("yyyy-MM-dd");
+
+        var purchasesResponse = await _client!
+            .From<CompraRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var profilesResponse = await _client
+            .From<PerfilUsuarioRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var analysesResponse = await _client
+            .From<AnaliseCurriculoRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var buckets = new Dictionary<string, DailyUsageDto>();
+        for (var d = start; d <= end; d = d.AddDays(1))
+        {
+            var key = d.ToString("yyyy-MM-dd");
+            buckets[key] = new DailyUsageDto { Date = key };
+        }
+
+        foreach (var row in purchasesResponse.Models)
+        {
+            var purchase = MapPurchaseToEnglish(row);
+            if (purchase?.CreatedAt == null)
+            {
+                continue;
+            }
+
+            var status = purchase.Status?.ToLowerInvariant();
+            if (status is not ("concluida" or "completed"))
+            {
+                continue;
+            }
+
+            var key = purchase.CreatedAt.Value.UtcDateTime.ToString("yyyy-MM-dd");
+            if (!buckets.TryGetValue(key, out var bucket))
+            {
+                continue;
+            }
+
+            bucket.Revenue += purchase.Price ?? 0;
+        }
+
+        foreach (var row in profilesResponse.Models)
+        {
+            if (row.CriadoEm == null)
+            {
+                continue;
+            }
+
+            var key = row.CriadoEm.Value.UtcDateTime.ToString("yyyy-MM-dd");
+            if (buckets.TryGetValue(key, out var bucket))
+            {
+                bucket.Registrations++;
+            }
+        }
+
+        foreach (var row in analysesResponse.Models)
+        {
+            if (row.CriadoEm == null)
+            {
+                continue;
+            }
+
+            var key = row.CriadoEm.Value.UtcDateTime.ToString("yyyy-MM-dd");
+            if (buckets.TryGetValue(key, out var bucket))
+            {
+                bucket.Analyses++;
+            }
+        }
+
+        return buckets.Values
+            .OrderBy(x => x.Date)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<MonthlyUsageDto>> GetMonthlyUsageAsync(
+        int months,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        months = Math.Clamp(months, 1, 24);
+        var end = DateTime.UtcNow;
+        var start = new DateTime(end.Year, end.Month, 1).AddMonths(-(months - 1));
+        var startIso = start.ToString("yyyy-MM-dd");
+
+        var purchasesResponse = await _client!
+            .From<CompraRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var profilesResponse = await _client
+            .From<PerfilUsuarioRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var analysesResponse = await _client
+            .From<AnaliseCurriculoRow>()
+            .Filter("criado_em", Operator.GreaterThanOrEqual, startIso)
+            .Get();
+
+        var buckets = new Dictionary<string, MonthlyUsageDto>();
+        for (var d = new DateTime(start.Year, start.Month, 1); d <= end; d = d.AddMonths(1))
+        {
+            var key = $"{d.Year}-{d.Month:D2}";
+            buckets[key] = new MonthlyUsageDto { Month = key };
+        }
+
+        foreach (var row in purchasesResponse.Models)
+        {
+            var purchase = MapPurchaseToEnglish(row);
+            if (purchase?.CreatedAt == null)
+            {
+                continue;
+            }
+
+            var status = purchase.Status?.ToLowerInvariant();
+            if (status is not ("concluida" or "completed"))
+            {
+                continue;
+            }
+
+            var key = $"{purchase.CreatedAt.Value.UtcDateTime:yyyy-MM}";
+            if (!buckets.TryGetValue(key, out var bucket))
+            {
+                continue;
+            }
+
+            bucket.Revenue += purchase.Price ?? 0;
+        }
+
+        foreach (var row in profilesResponse.Models)
+        {
+            if (row.CriadoEm == null)
+            {
+                continue;
+            }
+
+            var key = $"{row.CriadoEm.Value.UtcDateTime:yyyy-MM}";
+            if (buckets.TryGetValue(key, out var bucket))
+            {
+                bucket.Registrations++;
+            }
+        }
+
+        foreach (var row in analysesResponse.Models)
+        {
+            if (row.CriadoEm == null)
+            {
+                continue;
+            }
+
+            var key = $"{row.CriadoEm.Value.UtcDateTime:yyyy-MM}";
+            if (buckets.TryGetValue(key, out var bucket))
+            {
+                bucket.Analyses++;
+            }
+        }
+
+        return buckets.Values
+            .OrderBy(x => x.Month)
+            .ToList();
     }
 
     public async Task<UserProfile> UpdateVerificationTokenAsync(
@@ -1763,6 +2072,72 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             .Upsert(row);
     }
 
+    public async Task<PricingConfigDto?> GetAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            await EnsureInitializedAsync(cancellationToken);
+            var response = await _client
+                .From<ConfigPrecosRow>()
+                .Select("*")
+                .Filter("id", Operator.Equals, ConfigPrecosRow.DefaultId)
+                .Get();
+
+            var row = response.Models.FirstOrDefault();
+            return row == null ? null : MapPricingConfigRow(row);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Erro ao ler config_precos");
+            return null;
+        }
+    }
+
+    public async Task SaveAsync(PricingConfigDto config, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var row = new ConfigPrecosRow
+        {
+            Id = ConfigPrecosRow.DefaultId,
+            CreditUnitPriceBrl = config.CreditUnitPriceBRL,
+            SingleDiscountPercent = config.SingleDiscountPercent,
+            Pack3DiscountPercent = config.Pack3DiscountPercent,
+            Pack5DiscountPercent = config.Pack5DiscountPercent,
+            EnglishPriceBrl = config.EnglishPriceBRL,
+            EnglishBundlePriceBrl = config.EnglishBundlePriceBRL,
+            TransactionFeeBrl = config.TransactionFeeBRL,
+            SinglePriceOverride = config.SinglePriceOverride,
+            Pack3PriceOverride = config.Pack3PriceOverride,
+            Pack5PriceOverride = config.Pack5PriceOverride,
+            AtualizadoEm = DateTimeOffset.UtcNow
+        };
+
+        await _client!
+            .From<ConfigPrecosRow>()
+            .Upsert(row);
+    }
+
+    private static PricingConfigDto MapPricingConfigRow(ConfigPrecosRow row) => new()
+    {
+        CreditUnitPriceBRL = row.CreditUnitPriceBrl,
+        SingleDiscountPercent = row.SingleDiscountPercent,
+        Pack3DiscountPercent = row.Pack3DiscountPercent,
+        Pack5DiscountPercent = row.Pack5DiscountPercent,
+        EnglishPriceBRL = row.EnglishPriceBrl,
+        EnglishBundlePriceBRL = row.EnglishBundlePriceBrl,
+        TransactionFeeBRL = row.TransactionFeeBrl,
+        SinglePriceOverride = row.SinglePriceOverride,
+        Pack3PriceOverride = row.Pack3PriceOverride,
+        Pack5PriceOverride = row.Pack5PriceOverride
+    };
+
     public async Task<List<SiteVagasRow>> GetActiveJobSitesAsync(CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
@@ -1802,6 +2177,32 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
     }
 
+    public async Task DeleteUserAccountAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        await _client!
+            .From<CreditoRow>()
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Delete();
+
+        await _client!
+            .From<CompraRow>()
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Delete();
+
+        await _client!
+            .From<IndicacaoParceiroRow>()
+            .Filter("id_usuario", Operator.Equals, userId)
+            .Delete();
+
+        await _client!
+            .From<PerfilUsuarioRow>()
+            .Filter("id", Operator.Equals, userId)
+            .Delete();
+    }
+
     public async Task<AdminDashboardStatsDto> GetAdminDashboardStatsAsync(CancellationToken cancellationToken = default)
     {
         if (_client == null)
@@ -1829,8 +2230,15 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
 
         var users = usersResponse.Models;
         var analysesPerformed = users.Count(u => u.UltimaAnalise != null);
-        const decimal avgPricePerCredit = 8.30m;
-        var estimatedRevenue = (totalCredits + analysesPerformed) * avgPricePerCredit;
+
+        var purchasesResponse = await _client
+            .From<CompraRow>()
+            .Select("preco,status")
+            .Get();
+
+        var estimatedRevenue = purchasesResponse.Models
+            .Where(p => p.Status is "concluida" or "completed")
+            .Sum(p => p.Preco ?? 0);
 
         return new AdminDashboardStatsDto
         {

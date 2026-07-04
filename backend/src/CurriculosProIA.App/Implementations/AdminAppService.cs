@@ -29,6 +29,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ICaktoService _cakto;
+    private readonly IKiwifyService _kiwify;
+    private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IPricingService _pricing;
     private readonly IInterviewConfigService _interviewConfig;
     private readonly IConfiguration _configuration;
@@ -41,6 +43,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
         ICaktoService cakto,
+        IKiwifyService kiwify,
+        IPaymentFulfillmentService fulfillment,
         IConfiguration configuration,
         IHttpContextAccessor http)
     {
@@ -52,6 +56,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         _stripe = stripe;
         _mercadoPago = mercadoPago;
         _cakto = cakto;
+        _kiwify = kiwify;
+        _fulfillment = fulfillment;
         _configuration = configuration;
     }
 
@@ -94,7 +100,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             success = true,
             provider,
             providers = _settings.GetValidPaymentProviders(),
-            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago", cakto = "Cakto" },
+            labels = new { stripe = "Stripe", mercadopago = "Mercado Pago", cakto = "Cakto", kiwify = "Kiwify" },
             mercadoPagoMode,
             mercadoPagoModes = _settings.GetValidMercadoPagoModes(),
             mercadoPagoModeLabels = new { test = "Teste (sandbox)", production = "Produção (cobrança real)" },
@@ -109,7 +115,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
 
         if (string.IsNullOrEmpty(body.Provider))
         {
-            return BadRequest(new { success = false, error = "Campo provider é obrigatório (stripe, mercadopago ou cakto)" });
+            return BadRequest(new { success = false, error = "Campo provider é obrigatório (stripe, mercadopago, cakto ou kiwify)" });
         }
 
         try
@@ -130,6 +136,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             {
                 "stripe" => "Meio de pagamento alterado para Stripe.",
                 "cakto" => "Meio de pagamento alterado para Cakto.",
+                "kiwify" => "Meio de pagamento alterado para Kiwify.",
                 _ => "Meio de pagamento alterado para Mercado Pago."
             };
             if (savedMpMode != null)
@@ -181,6 +188,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 pack5DiscountPercent = config.Pack5DiscountPercent,
                 englishPriceBRL = config.EnglishPriceBRL,
                 englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+                transactionFeeBRL = config.TransactionFeeBRL,
                 singlePriceBRL = config.SinglePriceBRL,
                 pack3PriceBRL = config.Pack3PriceBRL,
                 pack5PriceBRL = config.Pack5PriceBRL
@@ -204,7 +212,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 Pack3DiscountPercent = body.Pack3DiscountPercent ?? current.Pack3DiscountPercent,
                 Pack5DiscountPercent = body.Pack5DiscountPercent ?? current.Pack5DiscountPercent,
                 EnglishPriceBRL = body.EnglishPriceBRL ?? current.EnglishPriceBRL,
-                EnglishBundlePriceBRL = body.EnglishBundlePriceBRL ?? current.EnglishBundlePriceBRL
+                EnglishBundlePriceBRL = body.EnglishBundlePriceBRL ?? current.EnglishBundlePriceBRL,
+                TransactionFeeBRL = body.TransactionFeeBRL ?? current.TransactionFeeBRL
             };
 
             var saved = await _pricing.SavePricingConfigAsync(updated, cancellationToken);
@@ -222,6 +231,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                     pack5DiscountPercent = saved.Pack5DiscountPercent,
                     englishPriceBRL = saved.EnglishPriceBRL,
                     englishBundlePriceBRL = saved.EnglishBundlePriceBRL,
+                    transactionFeeBRL = saved.TransactionFeeBRL,
                     singlePriceBRL = saved.SinglePriceBRL,
                     pack3PriceBRL = saved.Pack3PriceBRL,
                     pack5PriceBRL = saved.Pack5PriceBRL
@@ -243,6 +253,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         {
             "mercadopago" => await _mercadoPago.TestConnectionAsync(cancellationToken),
             "cakto" => await _cakto.TestConnectionAsync(cancellationToken),
+            "kiwify" => await _kiwify.TestConnectionAsync(cancellationToken),
             _ => await _stripe.TestConnectionAsync(cancellationToken)
         };
 
@@ -259,13 +270,15 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         public async Task<IActionResult> GetDailyUsage(int days = 30, CancellationToken cancellationToken = default)
     {
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
-        return Ok(new { success = true, data = BuildEmptyDailyUsage(days) });
+        var data = await _data.GetDailyUsageAsync(days, cancellationToken);
+        return Ok(new { success = true, data });
     }
 
         public async Task<IActionResult> GetMonthlyUsage(int months = 12, CancellationToken cancellationToken = default)
     {
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
-        return Ok(new { success = true, data = BuildEmptyMonthlyUsage(months) });
+        var data = await _data.GetMonthlyUsageAsync(months, cancellationToken);
+        return Ok(new { success = true, data });
     }
 
         public async Task<IActionResult> GetSales(int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
@@ -589,6 +602,312 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         {
             coupon.LinkParceiro = BuildPartnerLink(frontendUrl, coupon.Nome);
         }
+    }
+
+    public async Task<IActionResult> GetKiwifySale(string orderId, CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        if (string.IsNullOrWhiteSpace(orderId))
+        {
+            return BadRequest(new { success = false, error = "orderId é obrigatório" });
+        }
+
+        try
+        {
+            var sale = await _kiwify.GetSaleDetailsAsync(orderId.Trim(), cancellationToken);
+            return Ok(new { success = true, sale });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao consultar venda Kiwify", message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> ReconcileKiwifyOrder(
+        AdminReconcileKiwifySignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        if (string.IsNullOrWhiteSpace(body.OrderId))
+        {
+            return BadRequest(new { success = false, error = "orderId é obrigatório (order_ref ou order_id da Kiwify)" });
+        }
+
+        try
+        {
+            var details = await _kiwify.GetSaleDetailsAsync(body.OrderId.Trim(), cancellationToken);
+            if (!details.Paid)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    processed = false,
+                    paid = false,
+                    message = "Venda ainda não está paga/aprovada na Kiwify.",
+                    sale = details
+                });
+            }
+
+            if (details.AlreadyFulfilled)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    processed = false,
+                    paid = true,
+                    alreadyFulfilled = true,
+                    message = "Esta venda já foi baixada no sistema.",
+                    sale = details
+                });
+            }
+
+            var result = await _kiwify.ReconcileOrderAsync(body.OrderId.Trim(), cancellationToken);
+            if (result.Paid && result.User != null)
+            {
+                var meta = TryParseExternalReference(details.ExternalReference);
+                var planId = meta?.P ?? "single";
+                await _data.MarkPendingPurchasesSubstitutedAsync(result.User.Id, planId, cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(body.PendingPurchaseId))
+                {
+                    await _data.UpdatePurchaseStatusAsync(
+                        body.PendingPurchaseId.Trim(),
+                        "substituida",
+                        details.PaymentIdUsed,
+                        cancellationToken);
+                }
+            }
+
+            return Ok(new
+            {
+                success = true,
+                processed = result.Paid && !result.AlreadyFulfilled,
+                paid = result.Paid,
+                alreadyFulfilled = result.AlreadyFulfilled,
+                credits = result.User?.Credits,
+                userId = result.User?.Id,
+                sale = details
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao conciliar venda Kiwify", message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> ListPendingPurchases(
+        string? userId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        limit = Math.Clamp(limit <= 0 ? 50 : limit, 1, 200);
+        var purchases = await _data.GetPendingPurchasesAsync(userId, limit, cancellationToken);
+        var items = new List<object>();
+
+        foreach (var purchase in purchases)
+        {
+            var profile = !string.IsNullOrWhiteSpace(purchase.UserId)
+                ? await _data.GetUserProfileAsync(purchase.UserId, cancellationToken)
+                : null;
+
+            items.Add(new
+            {
+                id = purchase.Id,
+                userId = purchase.UserId,
+                userEmail = profile?.Email,
+                planId = purchase.PlanId,
+                planName = purchase.PlanName,
+                creditsAmount = purchase.CreditsAmount,
+                price = purchase.Price,
+                paymentMethod = purchase.PaymentMethod,
+                paymentId = purchase.PaymentId,
+                status = purchase.Status,
+                createdAt = purchase.CreatedAt
+            });
+        }
+
+        return Ok(new { success = true, purchases = items });
+    }
+
+    public async Task<IActionResult> CreatePendingPurchase(
+        AdminPendingPurchaseSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var user = await ResolveTargetUserAsync(body.UserId, body.Email, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { success = false, error = "Usuário não encontrado (informe userId ou email)" });
+        }
+
+        var planId = body.PlanId?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(planId))
+        {
+            return BadRequest(new { success = false, error = "planId é obrigatório (single, pack3, pack5)" });
+        }
+
+        var plan = await _pricing.GetPlanAsync(planId, cancellationToken);
+        if (plan == null)
+        {
+            return BadRequest(new { success = false, error = "planId inválido" });
+        }
+
+        var kiwifyOrderId = body.KiwifyOrderId?.Trim();
+        var purchase = await _data.CreatePendingPurchaseAsync(
+            user.Id,
+            plan.Id,
+            plan.Name,
+            plan.Analyses,
+            plan.PriceBRL,
+            paymentMethod: "kiwify",
+            paymentId: string.IsNullOrWhiteSpace(kiwifyOrderId) ? null : kiwifyOrderId,
+            cancellationToken: cancellationToken);
+
+        return Ok(new
+        {
+            success = true,
+            message = "Solicitação de compra registrada como pendente.",
+            purchase = new
+            {
+                id = purchase.Id,
+                userId = purchase.UserId,
+                userEmail = user.Email,
+                planId = purchase.PlanId,
+                planName = purchase.PlanName,
+                creditsAmount = purchase.CreditsAmount,
+                price = purchase.Price,
+                paymentId = purchase.PaymentId,
+                status = purchase.Status,
+                createdAt = purchase.CreatedAt
+            }
+        });
+    }
+
+    public async Task<IActionResult> GrantManualCredits(
+        AdminGrantCreditsSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var user = await ResolveTargetUserAsync(body.UserId, body.Email, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { success = false, error = "Usuário não encontrado (informe userId ou email)" });
+        }
+
+        string planId;
+        string planName;
+        int analyses;
+        decimal price;
+
+        if (body.Credits is > 0)
+        {
+            analyses = body.Credits.Value;
+            planId = string.IsNullOrWhiteSpace(body.PlanId) ? "single" : body.PlanId.Trim();
+            planName = $"{analyses} crédito(s) — inclusão manual admin";
+            price = body.Price ?? 0;
+        }
+        else
+        {
+            planId = body.PlanId?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(planId))
+            {
+                return BadRequest(new { success = false, error = "Informe planId ou credits" });
+            }
+
+            var plan = await _pricing.GetPlanAsync(planId, cancellationToken);
+            if (plan == null)
+            {
+                return BadRequest(new { success = false, error = "planId inválido" });
+            }
+
+            planName = plan.Name;
+            analyses = plan.Analyses;
+            price = body.Price ?? plan.PriceBRL;
+        }
+
+        var reason = string.IsNullOrWhiteSpace(body.Reason)
+            ? "Créditos incluídos manualmente pelo administrador."
+            : body.Reason.Trim();
+        var paymentMethod = string.IsNullOrWhiteSpace(body.PaymentMethod)
+            ? "admin_manual"
+            : body.PaymentMethod.Trim();
+        var paymentId = string.IsNullOrWhiteSpace(body.PaymentId)
+            ? $"admin_manual_{Guid.NewGuid():N}"
+            : body.PaymentId.Trim();
+
+        var result = await _fulfillment.FulfillPaidOrderAsync(
+            new FulfillOrderRequest
+            {
+                UserId = user.Id,
+                PlanId = planId,
+                PlanName = planName,
+                Analyses = analyses,
+                Price = price,
+                PaymentMethod = paymentMethod,
+                PaymentId = paymentId,
+                CustomerEmail = user.Email ?? string.Empty,
+                ExtraInfo = reason,
+                SendConfirmationEmail = body.SendEmail
+            },
+            cancellationToken);
+
+        return Ok(new
+        {
+            success = true,
+            message = result.AlreadyFulfilled
+                ? "Esta inclusão já havia sido registrada."
+                : $"{analyses} crédito(s) incluído(s) com sucesso.",
+            alreadyFulfilled = result.AlreadyFulfilled,
+            credits = result.User?.Credits,
+            userId = user.Id,
+            userEmail = user.Email
+        });
+    }
+
+    private async Task<UserProfile?> ResolveTargetUserAsync(
+        string? userId,
+        string? email,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return await _data.GetUserProfileAsync(userId.Trim(), cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return await _data.GetUserProfileByEmailAsync(email.Trim(), cancellationToken: cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static KiwifyExternalReferenceLite? TryParseExternalReference(string? externalReference)
+    {
+        if (string.IsNullOrWhiteSpace(externalReference))
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<KiwifyExternalReferenceLite>(externalReference);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed class KiwifyExternalReferenceLite
+    {
+        public string? P { get; set; }
     }
 
 }

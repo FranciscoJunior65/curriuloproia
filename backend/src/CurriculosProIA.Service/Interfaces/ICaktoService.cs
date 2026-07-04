@@ -52,6 +52,19 @@ public interface ICaktoService
         string? analysisId = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Checkout hospedado Cakto (pay.cakto.com.br) para cartão com redirect.</summary>
+    Task<CaktoHostedCheckoutResult> CreateHostedCardCheckoutAsync(
+        string planId,
+        string userId,
+        string email,
+        string customerName,
+        string? frontendUrl = null,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default);
+
     Task<PaymentVerificationResult> VerifyPaymentAsync(string orderId, CancellationToken cancellationToken = default);
 
     Task HandleWebhookAsync(HttpRequest request, CancellationToken cancellationToken = default);

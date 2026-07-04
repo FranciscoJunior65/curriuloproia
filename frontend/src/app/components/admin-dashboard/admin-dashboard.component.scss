@@ -173,34 +173,84 @@
   gap: 1.25rem;
 }
 
-.pricing-plans-grid {
+.pricing-base-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
+  max-width: 840px;
+
+  .period-select {
+    width: 100%;
+    box-sizing: border-box;
+    cursor: text;
+  }
+}
+
+.pricing-readonly-value {
+  display: flex;
+  align-items: center;
+  min-height: 2.375rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #f1f5f9;
+  color: #4f46e5;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+
+.pricing-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.pricing-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
 }
 
 .pricing-plan-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  padding: 1rem;
+  padding: 1.25rem;
 
   h3 {
-    margin: 0 0 0.75rem;
+    margin: 0;
     font-size: 1rem;
     color: #1e293b;
   }
 
-  label {
-    font-size: 0.8rem;
-    color: #64748b;
+  .pricing-field {
+    gap: 0.5rem;
+
+    label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #475569;
+    }
+  }
+
+  .period-select {
+    width: 100%;
+    box-sizing: border-box;
+    cursor: text;
   }
 }
 
 .pricing-preview {
-  margin: 0.75rem 0 0;
-  font-size: 0.875rem;
+  margin: 0;
+  font-size: 0.8125rem;
   color: #475569;
+  line-height: 1.45;
 
   strong {
     color: #4f46e5;
@@ -210,7 +260,14 @@
 .pricing-english-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
+  max-width: 560px;
+
+  .period-select {
+    width: 100%;
+    box-sizing: border-box;
+    cursor: text;
+  }
 }
 
 .settings-description {
@@ -639,6 +696,20 @@
 
 .coupon-create-btn {
   margin-top: 0.5rem;
+}
+
+.kiwify-sale-box {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  color: #14532d;
+
+  p {
+    margin: 0.35rem 0;
+  }
 }
 
 .coupon-hint {

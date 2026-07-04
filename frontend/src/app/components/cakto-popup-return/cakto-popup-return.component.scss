@@ -1,0 +1,54 @@
+.cakto-popup-return {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #f4f7fb;
+  box-sizing: border-box;
+}
+
+.cakto-popup-return__card {
+  width: 100%;
+  max-width: 360px;
+  padding: 2rem 1.5rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+  text-align: center;
+}
+
+.cakto-popup-return__icon {
+  width: 56px;
+  height: 56px;
+  font-size: 56px;
+  color: #0b6856;
+  margin-bottom: 0.75rem;
+}
+
+h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  color: #0f172a;
+}
+
+p {
+  margin: 0 0 0.75rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.cakto-popup-return__hint {
+  font-size: 0.9rem;
+}
+
+.cakto-popup-return__btn {
+  margin-top: 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1.25rem;
+  background: #0b6856;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -8,6 +8,7 @@
     <h2>Pagamento seguro</h2>
     <p>{{ data.planName }}</p>
     <div class="mp-checkout__amount">{{ data.amountBRL | currency:'BRL':'symbol':'1.2-2' }}</div>
+    <p *ngIf="data.email" class="mp-checkout__payer-email">{{ data.email }}</p>
   </div>
 
   <div *ngIf="errorMessage" class="mp-checkout__alert mp-checkout__alert--error">
@@ -35,54 +36,30 @@
     </button>
   </div>
 
-  <div *ngIf="loadingSdk" class="mp-checkout__loading">Carregando pagamento seguro...</div>
+  <div *ngIf="activeTab === 'card'" class="mp-checkout__card-form">
+    <p class="mp-checkout__hint">
+      Você será redirecionado para a página segura da Cakto para informar os dados do cartão.
+      Após a aprovação, os créditos são liberados automaticamente.
+    </p>
 
-  <div *ngIf="!loadingSdk && activeTab === 'card'" class="mp-checkout__card-form">
-    <label>
-      Nome no cartão
-      <input type="text" [(ngModel)]="cardForm.holderName" autocomplete="cc-name" />
-    </label>
-    <label>
-      Número do cartão
-      <input type="text" [(ngModel)]="cardForm.cardNumber" inputmode="numeric" autocomplete="cc-number" />
-    </label>
-    <div class="mp-checkout__card-row">
-      <label>
-        Validade (MM)
-        <input
-          type="text"
-          [(ngModel)]="cardForm.expMonth"
-          maxlength="2"
-          inputmode="numeric"
-          placeholder="06"
-          (input)="onExpMonthInput()" />
-      </label>
-      <label>
-        Ano (AA)
-        <input
-          type="text"
-          [(ngModel)]="cardForm.expYear"
-          maxlength="2"
-          inputmode="numeric"
-          placeholder="28"
-          (input)="onExpYearInput()" />
-      </label>
-      <label>
-        CVV
-        <input type="password" [(ngModel)]="cardForm.cvv" maxlength="4" autocomplete="cc-csc" />
-      </label>
-    </div>
     <button
       type="button"
       mat-flat-button
       color="primary"
-      [disabled]="processingCard"
-      (click)="submitCard()">
-      {{ processingCard ? 'Processando...' : 'Pagar com cartão' }}
+      [disabled]="openingCardCheckout"
+      (click)="openCardCheckout()">
+      {{ openingCardCheckout ? 'Abrindo...' : 'Pagar com cartão na Cakto' }}
     </button>
+
+    <p *ngIf="cardPopupBlocked" class="mp-checkout__alert mp-checkout__alert--error">
+      O navegador bloqueou a janela de pagamento.
+      <button type="button" mat-stroked-button (click)="openCardCheckoutInNewTab()">
+        Abrir em nova aba
+      </button>
+    </p>
   </div>
 
-  <div *ngIf="!loadingSdk && activeTab === 'pix'" class="mp-checkout__pix-actions">
+  <div *ngIf="activeTab === 'pix'" class="mp-checkout__pix-actions">
     <ng-container *ngIf="!pixQrCode && !pixQrCodeBase64">
       <p class="mp-checkout__hint">Gere o QR Code PIX e pague pelo app do seu banco.</p>
       <button
@@ -112,6 +89,6 @@
   </div>
 
   <p class="mp-checkout__hint">
-    Seus dados de cartão são processados pela Cakto. Não armazenamos informações do cartão.
+    Pagamentos processados pela Cakto. Não armazenamos dados de cartão.
   </p>
 </div>

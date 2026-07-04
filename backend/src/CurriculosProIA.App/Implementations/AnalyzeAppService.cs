@@ -1462,7 +1462,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 plan.Name,
                 plan.Description,
                 plan.Analyses,
-                plan.PriceBRL,
+                priceBRL = plan.PriceBRL,
+                displayPriceBRL = config.GetDisplayPrice(plan.PriceBRL),
                 plan.PriceUSD,
                 plan.Savings,
                 plan.PriceBRLBundle,
@@ -1485,15 +1486,21 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 pack5DiscountPercent = config.Pack5DiscountPercent,
                 englishPriceBRL = config.EnglishPriceBRL,
                 englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+                transactionFeeBRL = config.TransactionFeeBRL,
                 singlePriceBRL = config.SinglePriceBRL,
                 pack3PriceBRL = config.Pack3PriceBRL,
-                pack5PriceBRL = config.Pack5PriceBRL
+                pack5PriceBRL = config.Pack5PriceBRL,
+                englishDisplayPriceBRL = config.GetDisplayPrice(config.EnglishPriceBRL),
+                englishBundleDisplayPriceBRL = config.GetDisplayPrice(config.EnglishBundlePriceBRL)
             },
             plans,
             analysisPlans,
             englishPlan,
             englishBundlePriceBRL = config.EnglishBundlePriceBRL,
+            englishBundleDisplayPriceBRL = config.GetDisplayPrice(config.EnglishBundlePriceBRL),
             englishStandalonePriceBRL = config.EnglishPriceBRL,
+            englishStandaloneDisplayPriceBRL = config.GetDisplayPrice(config.EnglishPriceBRL),
+            transactionFeeBRL = config.TransactionFeeBRL,
             creditUnitPriceBRL = config.CreditUnitPriceBRL
         });
     }
@@ -1639,7 +1646,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var result = await _paymentProvider.CreateProviderCheckoutAsync(
                 body.PlanId,
                 userId,
-                body.Email ?? string.Empty,
+                ResolveProfileEmail(user, body.Email),
                 frontendUrl,
                 couponCode,
                 cpf,
@@ -1677,12 +1684,19 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
+            var pricingConfig = await _pricing.GetPricingConfigAsync(cancellationToken);
+
             return Ok(new
             {
                 success = true,
                 provider = result.Provider,
                 transparentCheckout = result.TransparentCheckout,
                 amountBRL = result.AmountBRL,
+                displayAmountBRL = result.AmountBRL.HasValue
+                    ? pricingConfig.GetDisplayPrice(result.AmountBRL.Value)
+                    : (decimal?)null,
+                transactionFeeBRL = pricingConfig.TransactionFeeBRL,
+                customerEmail = ResolveProfileEmail(user, body.Email),
                 publicKey = result.PublicKey,
                 pixAvailable = result.PixAvailable,
                 planId = result.PlanId,
@@ -1716,7 +1730,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var result = await _mercadoPago.ProcessCardPaymentAsync(
                 body.PlanId!,
                 purchase.UserId!,
-                body.Email ?? string.Empty,
+                purchase.Email ?? string.Empty,
                 body.Token ?? string.Empty,
                 body.PaymentMethodId ?? string.Empty,
                 body.IssuerId,
@@ -1772,7 +1786,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var result = await _mercadoPago.CreatePixPaymentAsync(
                 body.PlanId!,
                 purchase.UserId!,
-                body.Email ?? string.Empty,
+                purchase.Email ?? string.Empty,
                 string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
                 purchase.Cpf,
                 includeEnglish,
@@ -1878,13 +1892,10 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
             var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
             var customerName = await ResolveCustomerNameAsync(purchase.UserId!, body.CustomerName, cancellationToken);
-            var result = await _cakto.ProcessCardPaymentAsync(
-                body.PlanId!,
-                purchase.UserId!,
-                body.Email ?? string.Empty,
-                customerName,
-                body.CardToken ?? string.Empty,
-                new CaktoThreeDSecureData
+            var skipThreeDs = body.SkipThreeDs == true;
+            var threeDSecure = skipThreeDs
+                ? new CaktoThreeDSecureData()
+                : new CaktoThreeDSecureData
                 {
                     Cavv = body.Cavv,
                     Eci = body.Eci,
@@ -1893,7 +1904,14 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                     Version = body.Version,
                     TransStatus = body.TransStatus,
                     TdsServerTransId = body.TdsServerTransId
-                },
+                };
+            var result = await _cakto.ProcessCardPaymentAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                purchase.Email ?? string.Empty,
+                customerName,
+                body.CardToken ?? string.Empty,
+                threeDSecure,
                 body.AntifraudProfilingAttemptReference,
                 string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
                 purchase.Cpf,
@@ -1919,6 +1937,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 success = result.Success,
                 paid = false,
                 paymentId = result.PaymentId,
+                refId = result.RefId,
                 status = result.Status,
                 statusDetail = result.StatusDetail,
                 message = result.Message ?? "Pagamento não aprovado."
@@ -1947,7 +1966,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             var result = await _cakto.CreatePixPaymentAsync(
                 body.PlanId!,
                 purchase.UserId!,
-                body.Email ?? string.Empty,
+                purchase.Email ?? string.Empty,
                 customerName,
                 string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
                 purchase.Cpf,
@@ -1964,6 +1983,8 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
+            var pricingConfig = await _pricing.GetPricingConfigAsync(cancellationToken);
+
             return Ok(new
             {
                 success = true,
@@ -1972,12 +1993,65 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 qrCode = result.QrCode,
                 qrCodeBase64 = result.QrCodeBase64,
                 expiration = result.Expiration,
-                amountBRL = result.AmountBRL
+                amountBRL = result.AmountBRL,
+                displayAmountBRL = pricingConfig.GetDisplayPrice(result.AmountBRL),
+                transactionFeeBRL = pricingConfig.TransactionFeeBRL
             });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { success = false, error = "Erro ao gerar PIX", message = ex.Message });
+        }
+    }
+
+        public async Task<IActionResult> CreateCaktoCardCheckout(
+        CaktoPixPaymentSignature body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var purchase = await ResolvePurchaseRequestAsync(body, cancellationToken);
+            if (purchase.ErrorResult != null)
+            {
+                return purchase.ErrorResult;
+            }
+
+            var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+            var customerName = await ResolveCustomerNameAsync(purchase.UserId!, body.CustomerName, cancellationToken);
+            var frontendUrl = _http.HttpContext!.Request.Headers.Origin.FirstOrDefault()
+                ?? _configuration["FRONTEND_URL"];
+
+            var result = await _cakto.CreateHostedCardCheckoutAsync(
+                body.PlanId!,
+                purchase.UserId!,
+                purchase.Email ?? string.Empty,
+                customerName,
+                frontendUrl,
+                string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim(),
+                purchase.Cpf,
+                includeEnglish,
+                body.AnalysisId?.Trim(),
+                cancellationToken);
+
+            if (!result.Success || string.IsNullOrWhiteSpace(result.CheckoutUrl))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = result.Message ?? "Erro ao gerar checkout de cartão"
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                checkoutUrl = result.CheckoutUrl,
+                externalReference = result.ExternalReference
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao gerar checkout de cartão", message = ex.Message });
         }
     }
 
@@ -2643,6 +2717,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
     {
         public string? UserId { get; init; }
         public string? Cpf { get; init; }
+        public string? Email { get; init; }
         public IActionResult? ErrorResult { get; init; }
     }
 
@@ -2734,7 +2809,12 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
             };
         }
 
-        return new PurchaseRequestResolution { UserId = userId, Cpf = cpf };
+        return new PurchaseRequestResolution
+        {
+            UserId = userId,
+            Cpf = cpf,
+            Email = ResolveProfileEmail(user, body.Email)
+        };
     }
 
     private static string BuildPaymentRedirectUrl(
@@ -2784,6 +2864,21 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
         var normalized = Regex.Replace(cpf, @"\D", string.Empty);
         return normalized.Length == 11 ? normalized : null;
+    }
+
+    private static string ResolveProfileEmail(UserProfile user, string? requestedEmail)
+    {
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            return user.Email.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestedEmail))
+        {
+            return requestedEmail.Trim();
+        }
+
+        return string.Empty;
     }
 
     private async Task<string> ResolveCustomerNameAsync(

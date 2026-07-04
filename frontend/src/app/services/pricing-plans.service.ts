@@ -9,6 +9,7 @@ export interface PublicPlan {
   description?: string;
   analyses: number;
   priceBRL: number;
+  displayPriceBRL?: number;
   savings?: string;
   features?: string[];
 }
@@ -20,6 +21,7 @@ export interface PricingConfigPublic {
   pack5DiscountPercent: number;
   englishPriceBRL: number;
   englishBundlePriceBRL: number;
+  transactionFeeBRL?: number;
   singlePriceBRL?: number;
   pack3PriceBRL?: number;
   pack5PriceBRL?: number;
@@ -32,7 +34,10 @@ export interface PlansApiResponse {
   analysisPlans?: PublicPlan[];
   englishPlan?: PublicPlan;
   englishBundlePriceBRL?: number;
+  englishBundleDisplayPriceBRL?: number;
   englishStandalonePriceBRL?: number;
+  englishStandaloneDisplayPriceBRL?: number;
+  transactionFeeBRL?: number;
   creditUnitPriceBRL?: number;
 }
 
@@ -95,12 +100,14 @@ function normalizePlan(raw: Record<string, unknown>): PublicPlan | null {
   if (!id) return null;
 
   const savings = raw['savings'] ?? raw['Savings'];
+  const displayRaw = raw['displayPriceBRL'] ?? raw['DisplayPriceBRL'];
   return {
     id,
     name: String(raw['name'] ?? raw['Name'] ?? ''),
     description: (raw['description'] ?? raw['Description']) as string | undefined,
     analyses: Number(raw['analyses'] ?? raw['Analyses'] ?? 0),
     priceBRL: Number(raw['priceBRL'] ?? raw['PriceBRL'] ?? 0),
+    displayPriceBRL: displayRaw != null ? Number(displayRaw) : undefined,
     savings: savings != null ? String(savings) : undefined,
     features: (raw['features'] ?? raw['Features']) as string[] | undefined
   };
@@ -141,9 +148,16 @@ function normalizePlansResponse(body: Record<string, unknown>): PlansApiResponse
     englishBundlePriceBRL: Number(
       body['englishBundlePriceBRL'] ?? body['EnglishBundlePriceBRL'] ?? NaN
     ) || undefined,
+    englishBundleDisplayPriceBRL: Number(
+      body['englishBundleDisplayPriceBRL'] ?? body['EnglishBundleDisplayPriceBRL'] ?? NaN
+    ) || undefined,
     englishStandalonePriceBRL: Number(
       body['englishStandalonePriceBRL'] ?? body['EnglishStandalonePriceBRL'] ?? NaN
     ) || undefined,
+    englishStandaloneDisplayPriceBRL: Number(
+      body['englishStandaloneDisplayPriceBRL'] ?? body['EnglishStandaloneDisplayPriceBRL'] ?? NaN
+    ) || undefined,
+    transactionFeeBRL: Number(body['transactionFeeBRL'] ?? body['TransactionFeeBRL'] ?? NaN) || undefined,
     creditUnitPriceBRL: Number(body['creditUnitPriceBRL'] ?? body['CreditUnitPriceBRL'] ?? NaN) || undefined
   };
 }
@@ -201,5 +215,12 @@ export class PricingPlansService {
     const diff = Math.max(0, standalone - bundle);
     if (diff < 0.01) return '';
     return diff.toFixed(2).replace('.', ',');
+  }
+
+  planDisplayPrice(plan: PublicPlan, transactionFeeBRL = 0): number {
+    if (plan.displayPriceBRL != null && Number.isFinite(plan.displayPriceBRL)) {
+      return plan.displayPriceBRL;
+    }
+    return Math.round((plan.priceBRL + transactionFeeBRL) * 100) / 100;
   }
 }

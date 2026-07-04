@@ -22,6 +22,11 @@ public static class CaktoConfigHelper
     public static string? GetOfferId(IConfiguration configuration) =>
         configuration["CAKTO_OFFER_ID"]?.Trim();
 
+    /// <summary>Código do link pay.cakto.com.br (aba Links do produto). Padrão: CAKTO_OFFER_ID.</summary>
+    public static string? GetCheckoutCode(IConfiguration configuration) =>
+        configuration["CAKTO_CHECKOUT_CODE"]?.Trim()
+        ?? GetOfferId(configuration);
+
     public static string? GetWebhookSecret(IConfiguration configuration) =>
         configuration["CAKTO_WEBHOOK_SECRET"]?.Trim();
 

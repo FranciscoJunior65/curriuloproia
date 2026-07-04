@@ -1,4 +1,4 @@
-﻿import {
+import {
   AfterViewInit,
   ChangeDetectorRef,
   Component,
@@ -69,7 +69,7 @@ interface WrittenQuestion {
 
 const INTERVIEW_AVATAR = "assets/imagens/persona.png";
 
-const INTRO_VIDEO_URL = 'assets/videos/video-venda.mp4';
+const INTRO_VIDEO_URL = 'assets/videos/simulador-entrevista.mp4';
 
 /** Simli/WebRTC desativado — substituído por vídeo MP4 + foto estática. */
 const SIMLI_ENABLED = false;

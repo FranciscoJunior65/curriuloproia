@@ -138,20 +138,88 @@ a[mat-flat-button] .mat-icon {
   }
 }
 
-/* Modal de checkout (Cakto / Mercado Pago) — tamanho confortável, sem scroll desnecessário */
+/* Modal de checkout (Cakto / Mercado Pago) */
+.checkout-modal-panel.cdk-overlay-pane {
+  width: min(540px, calc(100vw - 2rem)) !important;
+  max-width: calc(100vw - 2rem) !important;
+  max-height: calc(100dvh - 1rem) !important;
+}
+
 .checkout-modal-panel .mat-mdc-dialog-container {
   padding: 0 !important;
-  overflow: visible !important;
-  max-height: none !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  max-height: calc(100dvh - 1rem) !important;
 }
 
 .checkout-modal-panel .mat-mdc-dialog-surface {
-  overflow: visible !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100dvh - 1rem) !important;
+}
+
+/* Checkout Cakto embutido: desktop = largura padrão Cakto (~480px); mobile = tela cheia */
+.checkout-modal-panel--embedded.cdk-overlay-pane {
+  width: 480px !important;
+  max-width: calc(100vw - 2rem) !important;
+  height: min(90dvh, 860px) !important;
+  max-height: calc(100dvh - 2rem) !important;
+}
+
+.checkout-modal-panel--embedded .mat-mdc-dialog-container,
+.checkout-modal-panel--embedded .mat-mdc-dialog-surface {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: min(90dvh, 860px) !important;
+  min-height: min(620px, calc(100dvh - 2rem)) !important;
   border-radius: 16px !important;
 }
 
-.checkout-modal-panel .cdk-overlay-pane {
-  max-width: calc(100vw - 2rem) !important;
+.checkout-modal-panel--embedded .mat-mdc-dialog-content,
+.checkout-modal-panel--embedded .checkout-modal-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+@media (max-width: 640px) {
+  .checkout-modal-panel--embedded.cdk-overlay-pane {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+
+  .checkout-modal-panel--embedded .mat-mdc-dialog-container,
+  .checkout-modal-panel--embedded .mat-mdc-dialog-surface {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  .checkout-modal-panel--embedded .mat-mdc-dialog-content,
+  .checkout-modal-panel--embedded .checkout-modal-content {
+    max-height: 100dvh !important;
+  }
+}
+
+.checkout-modal-panel .mat-mdc-dialog-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-height: none !important;
 }
 
 .cpf-required-modal-panel .mat-mdc-dialog-container {

@@ -89,4 +89,24 @@ public class AdminController : ControllerBase
     [HttpPut("settings/interview-config")]
     public Task<IActionResult> UpdateInterviewConfigSettings([FromBody] InterviewConfigUpdateSignature body, CancellationToken ct) =>
         _admin.UpdateInterviewConfigSettings(body, ct);
+
+    [HttpGet("kiwify/sales/{orderId}")]
+    public Task<IActionResult> GetKiwifySale(string orderId, CancellationToken ct) =>
+        _admin.GetKiwifySale(orderId, ct);
+
+    [HttpPost("kiwify/reconcile")]
+    public Task<IActionResult> ReconcileKiwifyOrder([FromBody] AdminReconcileKiwifySignature body, CancellationToken ct) =>
+        _admin.ReconcileKiwifyOrder(body, ct);
+
+    [HttpGet("purchases/pending")]
+    public Task<IActionResult> ListPendingPurchases([FromQuery] string? userId, [FromQuery] int limit = 50, CancellationToken ct = default) =>
+        _admin.ListPendingPurchases(userId, limit, ct);
+
+    [HttpPost("purchases/pending")]
+    public Task<IActionResult> CreatePendingPurchase([FromBody] AdminPendingPurchaseSignature body, CancellationToken ct) =>
+        _admin.CreatePendingPurchase(body, ct);
+
+    [HttpPost("credits/grant")]
+    public Task<IActionResult> GrantManualCredits([FromBody] AdminGrantCreditsSignature body, CancellationToken ct) =>
+        _admin.GrantManualCredits(body, ct);
 }

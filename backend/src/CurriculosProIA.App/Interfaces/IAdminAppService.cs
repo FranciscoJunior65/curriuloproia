@@ -27,4 +27,9 @@ public interface IAdminAppService
     Task<IActionResult> ListPartnerReferrals(CancellationToken cancellationToken = default);
     Task<IActionResult> GetInterviewConfigSettings(CancellationToken cancellationToken = default);
     Task<IActionResult> UpdateInterviewConfigSettings(InterviewConfigUpdateSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GetKiwifySale(string orderId, CancellationToken cancellationToken = default);
+    Task<IActionResult> ReconcileKiwifyOrder(AdminReconcileKiwifySignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> ListPendingPurchases(string? userId, int limit, CancellationToken cancellationToken = default);
+    Task<IActionResult> CreatePendingPurchase(AdminPendingPurchaseSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> GrantManualCredits(AdminGrantCreditsSignature body, CancellationToken cancellationToken = default);
 }

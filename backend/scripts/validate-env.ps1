@@ -74,6 +74,31 @@ if ($paymentProvider -eq "cakto") {
     }
 }
 
+$kiwifyApiKey = Read-EnvValue $content "KIWIFY_API_KEY"
+$kiwifySecret = Read-EnvValue $content "KIWIFY_CLIENT_SECRET"
+$kiwifyAccount = Read-EnvValue $content "KIWIFY_ACCOUNT_ID"
+$kiwifyCheckoutSingle = Read-EnvValue $content "KIWIFY_CHECKOUT_SINGLE"
+$kiwifyWebhookToken = Read-EnvValue $content "KIWIFY_WEBHOOK_TOKEN"
+
+if ($paymentProvider -eq "kiwify") {
+    if ([string]::IsNullOrWhiteSpace($kiwifyApiKey) -or [string]::IsNullOrWhiteSpace($kiwifySecret) -or [string]::IsNullOrWhiteSpace($kiwifyAccount)) {
+        $errors += "PAYMENT_PROVIDER=kiwify exige KIWIFY_API_KEY, KIWIFY_CLIENT_SECRET e KIWIFY_ACCOUNT_ID."
+    }
+    if ([string]::IsNullOrWhiteSpace($kiwifyCheckoutSingle)) {
+        $warnings += "KIWIFY_CHECKOUT_SINGLE vazio — configure links pay.kiwify.com.br para cada plano."
+    }
+    if ([string]::IsNullOrWhiteSpace($kiwifyWebhookToken)) {
+        $warnings += "KIWIFY_WEBHOOK_TOKEN vazio — webhook compra_aprovada será aceito sem validar token."
+    }
+    if ([string]::IsNullOrWhiteSpace($publicApi)) {
+        $errors += "PAYMENT_PROVIDER=kiwify em produção exige PUBLIC_API_URL (ex.: https://api.curriculoproia.com.br)."
+    }
+    if ($publicApi) {
+        $expectedWebhook = "$($publicApi.TrimEnd('/'))/api/analyze/payment/kiwify/webhook"
+        Write-Host "  Kiwify webhook (painel): $expectedWebhook" -ForegroundColor DarkGray
+    }
+}
+
 if ($mpMode -eq "production") {
     if ([string]::IsNullOrWhiteSpace($mpProd) -or $mpProd -match "seu-access-token|APP_USR-seu") {
         $errors += "MERCADOPAGO_MODE=production exige MERCADOPAGO_ACCESS_TOKEN_PRODUCTION com token REAL de produção (Developers → Credenciais de produção)."

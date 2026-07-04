@@ -1,0 +1,28 @@
+﻿{
+    "card":  {
+                 "token":  "tok_fake"
+             },
+    "antifraudProfilingAttemptReference":  "a3d90c10-c0c6-4c33-8af3-944f694ea633",
+    "threeDSecure":  {
+                         "cavv":  "AAIBBYNoEwAAACcKhAJkdQAAAAA=",
+                         "referenceId":  "cakto-3ds-test",
+                         "version":  "2.2.0",
+                         "eci":  "05"
+                     },
+    "paymentMethod":  "threeDs",
+    "items":  [
+                  {
+                      "quantity":  1,
+                      "offerType":  "main",
+                      "offerId":  "4onCrsv"
+                  }
+              ],
+    "customer":  {
+                     "name":  "Test",
+                     "docNumber":  "12345678909",
+                     "phone":  "5511999999999",
+                     "docType":  "cpf",
+                     "fingerprint":  "fp_test",
+                     "email":  "test@example.com"
+                 }
+}

@@ -12,6 +12,8 @@ public class CaktoCardPaymentSignature : CreatePaymentSessionSignature
     public string? Version { get; set; }
     public string? TransStatus { get; set; }
     public string? TdsServerTransId { get; set; }
+    /// <summary>Quando true, cobra com paymentMethod credit_card (sem bloco threeDSecure).</summary>
+    public bool? SkipThreeDs { get; set; }
 }
 
 public class CaktoPixPaymentSignature : CreatePaymentSessionSignature

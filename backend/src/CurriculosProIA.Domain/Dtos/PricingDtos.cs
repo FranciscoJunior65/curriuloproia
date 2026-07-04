@@ -82,6 +82,14 @@ public class CheckoutSessionResult
     public string? PayerEmail { get; set; }
 }
 
+public class CaktoHostedCheckoutResult
+{
+    public bool Success { get; set; }
+    public string? CheckoutUrl { get; set; }
+    public string? ExternalReference { get; set; }
+    public string? Message { get; set; }
+}
+
 public class MercadoPagoProcessPaymentResult
 {
     public bool Success { get; set; }
@@ -112,6 +120,7 @@ public class CaktoProcessPaymentResult
     public bool Success { get; set; }
     public bool Paid { get; set; }
     public string? PaymentId { get; set; }
+    public string? RefId { get; set; }
     public string? Status { get; set; }
     public string? StatusDetail { get; set; }
     public PaymentUserSummary? User { get; set; }
@@ -166,6 +175,7 @@ public class FulfillOrderRequest
     public bool IncludeEnglish { get; set; }
     public decimal EnglishPriceBRL { get; set; }
     public string? AnalysisId { get; set; }
+    public bool SendConfirmationEmail { get; set; } = true;
 }
 
 public class FulfillOrderResult

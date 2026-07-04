@@ -10,4 +10,5 @@ public interface IPurchaseAppService
     Task<IActionResult> GetHistory(int limit = 50, CancellationToken cancellationToken = default);
     Task<IActionResult> GetCreditHistory(int limit = 50, CancellationToken cancellationToken = default);
     Task<IActionResult> RecordCreditUse(RecordCreditUseSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> ExportHistory(string format = "json", int limit = 500, CancellationToken cancellationToken = default);
 }

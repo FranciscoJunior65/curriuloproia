@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Domain.Entities;
 using CurriculosProIA.Repository.Interfaces;
@@ -8,20 +7,12 @@ namespace CurriculosProIA.Service.Implementations;
 
 public class PricingService : IPricingService
 {
-    public const string PricingConfigKey = "pricing_config";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
-    private readonly IAppSettingsRepository _settings;
+    private readonly IPricingConfigRepository _pricingConfig;
     private PricingConfigDto? _cachedConfig;
 
-    public PricingService(IAppSettingsRepository settings)
+    public PricingService(IPricingConfigRepository pricingConfig)
     {
-        _settings = settings;
+        _pricingConfig = pricingConfig;
     }
 
     public async Task<PricingConfigDto> GetPricingConfigAsync(CancellationToken cancellationToken = default)
@@ -31,21 +22,8 @@ public class PricingService : IPricingService
             return _cachedConfig;
         }
 
-        var json = await _settings.GetAppConfigValueAsync(PricingConfigKey, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(json))
-        {
-            try
-            {
-                _cachedConfig = JsonSerializer.Deserialize<PricingConfigDto>(json, JsonOptions) ?? CreateDefaultConfig();
-                return _cachedConfig;
-            }
-            catch
-            {
-                // fallback
-            }
-        }
-
-        _cachedConfig = CreateDefaultConfig();
+        var fromDb = await _pricingConfig.GetAsync(cancellationToken);
+        _cachedConfig = NormalizeConfig(fromDb ?? CreateDefaultConfig());
         return _cachedConfig;
     }
 
@@ -55,8 +33,7 @@ public class PricingService : IPricingService
     {
         ValidateConfig(config);
         var normalized = NormalizeConfig(config);
-        var json = JsonSerializer.Serialize(normalized, JsonOptions);
-        await _settings.SetAppConfigValueAsync(PricingConfigKey, json, cancellationToken);
+        await _pricingConfig.SaveAsync(normalized, cancellationToken);
         _cachedConfig = normalized;
         return normalized;
     }
@@ -126,6 +103,7 @@ public class PricingService : IPricingService
             Pack5DiscountPercent = ClampPercent(config.Pack5DiscountPercent),
             EnglishPriceBRL = Math.Round(config.EnglishPriceBRL, 2),
             EnglishBundlePriceBRL = Math.Round(config.EnglishBundlePriceBRL, 2),
+            TransactionFeeBRL = Math.Round(Math.Max(0, config.TransactionFeeBRL), 2),
             SinglePriceOverride = Math.Round(config.SinglePriceBRL, 2),
             Pack3PriceOverride = Math.Round(config.Pack3PriceBRL, 2),
             Pack5PriceOverride = Math.Round(config.Pack5PriceBRL, 2)
@@ -144,6 +122,11 @@ public class PricingService : IPricingService
         if (config.EnglishPriceBRL <= 0 || config.EnglishBundlePriceBRL <= 0)
         {
             throw new ArgumentException("Preços do pacote inglês devem ser maiores que zero.");
+        }
+
+        if (config.TransactionFeeBRL < 0)
+        {
+            throw new ArgumentException("Taxa de transação não pode ser negativa.");
         }
     }
 

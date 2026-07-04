@@ -1,6 +1,6 @@
-# Como ativar a Cakto (PIX + cartão)
+# Como ativar a Cakto (checkout hospedado)
 
-Integração transparente: o CurriculosPro orquestra checkout, preço e liberação de créditos; a Cakto processa o pagamento.
+Integração via **checkout hospedado** (`pay.cakto.com.br`): PIX e cartão na página da Cakto. O site sincroniza o **preço base** da oferta; a Cakto exibe a **taxa de serviço** no resumo antes do total.
 
 Documentação oficial: https://docs.cakto.com.br/introduction
 
@@ -17,13 +17,9 @@ No painel Cakto → Integrações → Cakto API → Criar Chave API, marque:
 | Ofertas | Sim (preço dinâmico antes de cada cobrança) |
 | Webhooks | Sim (se registrar webhook via API; opcional se usar só o painel) |
 
-## 2. Chave SDK (frontend — só `client_id`)
+## 2. Chave SDK (opcional — cartão não usa mais SDK no site)
 
-Integrações → SDK → criar chave com:
-
-- Leitura
-- Escrita
-- Tokenização de Cartão
+Integrações → SDK → criar chave (só necessária se voltar ao checkout transparente de cartão).
 
 **Nunca** coloque o `client_secret` no frontend.
 
@@ -32,6 +28,15 @@ Integrações → SDK → criar chave com:
 1. Crie um produto genérico (ex.: "Créditos CurriculosPro").
 2. Crie **uma oferta ativa** (preço inicial qualquer — o backend sincroniza antes de cada cobrança).
 3. Anote `CAKTO_PRODUCT_ID` e `CAKTO_OFFER_ID` (short_id ou UUID).
+4. Na aba **Links** do produto, copie o código do link `https://pay.cakto.com.br/XXXX` → `CAKTO_CHECKOUT_CODE` (se diferente do offer id).
+
+### Página de retorno após cartão (recomendado)
+
+Produtos → seu produto → **Upsell/Downsell** → habilite **Página de obrigado** e configure **esta URL exata**:
+
+`https://curriculoproia.com.br/compra/cakto-popup-retorno?provider=cakto`
+
+Essa página abre **dentro da popup de pagamento** (não na home). Ela confirma o pagamento, avisa o modal na home e fecha a popup sozinha.
 
 ## 4. Webhook (servidor — não é a página do site)
 
@@ -58,6 +63,8 @@ CAKTO_CLIENT_SECRET=seu_client_secret_api
 CAKTO_SDK_CLIENT_ID=seu_client_id_sdk
 CAKTO_PRODUCT_ID=short_id_ou_uuid_do_produto
 CAKTO_OFFER_ID=short_id_da_oferta
+# Opcional: código do link pay.cakto.com.br (aba Links). Padrão: CAKTO_OFFER_ID
+CAKTO_CHECKOUT_CODE=
 CAKTO_WEBHOOK_SECRET=secret_configurado_no_webhook
 
 PUBLIC_API_URL=https://api.curriculoproia.com.br
@@ -69,11 +76,11 @@ Painel admin → **Meio de pagamento** → selecione **Cakto** → Salvar → **
 
 ## 7. Fluxo resumido
 
-1. Usuário escolhe plano → modal Cakto (PIX ou cartão).
-2. Backend calcula valor (cupom/descontos), atualiza preço da oferta na Cakto, cria cobrança.
-3. PIX: exibe QR + polling na popup; cartão: SDK tokeniza + 3DS → backend cobra.
-4. Popup fecha sozinha quando `paid=true`; header atualiza créditos; `/financeiro` lista a compra ao abrir o menu.
-5. Webhook `purchase_approved` (backup) → libera créditos via `PaymentFulfillmentService` se o polling não rodar.
+1. Usuário escolhe plano → abre popup `pay.cakto.com.br` (PIX ou cartão na Cakto).
+2. Backend calcula valor base (cupom/descontos) e sincroniza **só a base** na oferta Cakto.
+3. No checkout Cakto: produto (ex. R$ 18,71) + **Taxa de serviço** (ex. R$ 0,99) = total (ex. R$ 19,70).
+4. Após pagamento, redirect para `/compra/cakto-popup-retorno` (popup) ou webhook libera créditos.
+5. Ao fechar a popup, o site atualiza o saldo de créditos.
 
 ## 8. Checklist deploy produção
 
@@ -85,8 +92,6 @@ Painel admin → **Meio de pagamento** → selecione **Cakto** → Salvar → **
 
 ## 9. Endpoints
 
-- `POST /api/analyze/payment/create-session` — inicia checkout (provider `cakto`)
-- `POST /api/analyze/payment/cakto/pix` — gera QR PIX
-- `POST /api/analyze/payment/cakto/card` — cobrança cartão 3DS
-- `GET /api/analyze/payment/verify?sessionId={orderId}&provider=cakto` — polling
-- `POST /api/analyze/payment/cakto/webhook` — confirmação assíncrona
+- `POST /api/analyze/payment/create-session` — sincroniza oferta e retorna `checkoutUrl` Cakto
+- `POST /api/analyze/payment/cakto/card-checkout` — URL hospedada (legado; create-session já retorna URL)
+- `POST /api/analyze/payment/cakto/pix` — PIX via API (legado; preferir checkout hospedado)

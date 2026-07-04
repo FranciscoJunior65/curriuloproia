@@ -17,6 +17,7 @@ public static class RepositoryServiceCollectionExtensions
         services.AddScoped<ICouponAdminRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IPartnerReferralRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IAppSettingsRepository>(sp => sp.GetRequiredService<SupabaseService>());
+        services.AddScoped<IPricingConfigRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IAnalysisRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<ICurriculoRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IInterviewRepository>(sp => sp.GetRequiredService<SupabaseService>());

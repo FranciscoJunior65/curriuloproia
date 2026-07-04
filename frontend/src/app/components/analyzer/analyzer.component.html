@@ -1,4 +1,4 @@
-﻿<app-site-header></app-site-header>
+<app-site-header></app-site-header>
 <!-- Hero Section -->
 <div
   class="text-white relative overflow-hidden"
@@ -342,7 +342,7 @@
               <div class="mb-4">
                 <div class="flex flex-col items-center gap-1">
                   <span class="text-4xl md:text-5xl font-extrabold text-gray-800">
-                    R$ {{ formatPriceParts(plan.priceBRL).reais }},{{ formatPriceParts(plan.priceBRL).cents }}
+                    R$ {{ formatPriceParts(planDisplayPrice(plan)).reais }},{{ formatPriceParts(planDisplayPrice(plan)).cents }}
                   </span>
                   <p class="text-gray-500 text-sm" *ngIf="plan.id !== 'english' && plan.analyses > 0">
                     R$ {{ formatPriceParts(pricePerAnalysis(plan)).reais }},{{ formatPriceParts(pricePerAnalysis(plan)).cents }} por análise
@@ -360,8 +360,8 @@
               </li>
             </ul>
 
-            <!-- Opção de Currículo em Inglês (apenas para planos de análise) -->
-            <div *ngIf="plan.id !== 'english'" class="mb-4">
+            <!-- Opção de Currículo em Inglês (desativada na Kiwify — preço fixo por link) -->
+            <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled()" class="mb-4">
               <label class="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
                 <input
                   type="checkbox"
@@ -373,7 +373,7 @@
                 <div class="flex-1">
                   <span class="text-sm font-medium text-gray-700">Adicionar Currículo em Inglês</span>
                   <p class="text-xs text-gray-500">
-                    + R$ {{ englishBundlePriceBRL.toFixed(2).replace('.', ',') }}
+                    + R$ {{ englishBundleDisplayPriceBRL.toFixed(2).replace('.', ',') }}
                     <span *ngIf="englishBundleSavingsText()">(economia de R$ {{ englishBundleSavingsText() }})</span>
                     · PDF e Word inclusos nesta análise
                   </p>
@@ -423,12 +423,12 @@
               </span>
             </button>
             
-            <!-- Mostrar preço total se incluir inglês -->
-            <div *ngIf="plan.id !== 'english' && includeEnglishResume[plan.id]" class="mt-2 text-center">
+            <!-- Total com inglês (desativado na Kiwify) -->
+            <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled() && includeEnglishResume[plan.id]" class="mt-2 text-center">
               <p class="text-xs text-gray-600">
                 Total:
                 <span class="font-semibold text-indigo-600">
-                  R$ {{ formatPriceParts(plan.priceBRL + englishBundlePriceBRL).reais }},{{ formatPriceParts(plan.priceBRL + englishBundlePriceBRL).cents }}
+                  R$ {{ formatPriceParts(planDisplayPrice(plan) + englishBundleDisplayPriceBRL).reais }},{{ formatPriceParts(planDisplayPrice(plan) + englishBundleDisplayPriceBRL).cents }}
                 </span>
               </p>
             </div>
@@ -453,7 +453,7 @@
                     <mat-icon class="text-green-600 text-base">stars</mat-icon>
                     {{ userCredits }} análise(ões) restante(s)
                   </span>
-                  <span class="inline-flex items-center gap-1 text-sky-700 font-medium">
+                  <span *ngIf="isEnglishPurchaseEnabled() || englishCredits > 0" class="inline-flex items-center gap-1 text-sky-700 font-medium">
                     <mat-icon class="text-base">language</mat-icon>
                     {{ englishCredits }} inglês
                   </span>
@@ -897,8 +897,8 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Currículo em inglês (add-on por análise) -->
-        <mat-card *ngIf="result.analysisId" class="shadow-2xl bg-gradient-to-r from-slate-700 via-blue-800 to-indigo-800 text-white">
+        <!-- Currículo em inglês (compra desativada na Kiwify; download mantido se já pago) -->
+        <mat-card *ngIf="result.analysisId && (isEnglishPurchaseEnabled() || hasEnglishPaid())" class="shadow-2xl bg-gradient-to-r from-slate-700 via-blue-800 to-indigo-800 text-white">
           <mat-card-content class="p-8">
             <div class="text-center mb-6">
               <mat-icon class="text-5xl text-sky-200 mb-3">language</mat-icon>
@@ -919,7 +919,7 @@
               </p>
             </div>
 
-            <div *ngIf="!hasEnglishPaid()" class="flex flex-col items-center gap-3">
+            <div *ngIf="!hasEnglishPaid() && isEnglishPurchaseEnabled()" class="flex flex-col items-center gap-3">
               <button
                 mat-raised-button
                 (click)="purchaseEnglishForAnalysis()"
@@ -929,7 +929,7 @@
                 <mat-spinner *ngIf="purchasingEnglish" diameter="18" class="resume-download-btn__spinner"></mat-spinner>
                 <mat-icon *ngIf="!purchasingEnglish" class="mr-2">shopping_cart</mat-icon>
                 <span>
-                  {{ purchasingEnglish ? 'Abrindo pagamento...' : ('Comprar por R$ ' + englishStandalonePriceBRL.toFixed(2).replace('.', ',')) }}
+                  {{ purchasingEnglish ? 'Abrindo pagamento...' : ('Comprar por R$ ' + englishStandaloneDisplayPriceBRL.toFixed(2).replace('.', ',')) }}
                 </span>
               </button>
               <button
@@ -1855,7 +1855,7 @@
 <!-- Footer -->
 <footer class="app-footer bg-gray-900 text-gray-300 py-8 mt-12">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid md:grid-cols-3 gap-6 md:gap-8">
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
       <div>
         <div class="app-footer__brand mb-3">
           <img
@@ -1869,7 +1869,7 @@
         </div>
         <p class="text-xs sm:text-sm leading-relaxed">
           Transformando carreiras com inteligência artificial. Análise
-          profissional e geração de currículos otimizados.
+          profissional e geração de currículos otimizados. Você pode excluir sua conta ou baixar seus dados de compra a qualquer momento.
         </p>
       </div>
       <div>
@@ -1881,6 +1881,23 @@
           <li>Recomendações personalizadas</li>
           <li>Pesquisa de vagas</li>
           <li>Simulador de entrevista</li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold text-sm mb-3">Conta e privacidade</h4>
+        <ul class="space-y-1.5 text-xs sm:text-sm">
+          <li>
+            <a routerLink="/meus-dados" class="hover:text-white transition-colors">Meus Dados</a>
+          </li>
+          <li>
+            <a routerLink="/financeiro" class="hover:text-white transition-colors">Histórico de compras</a>
+          </li>
+          <li>
+            <a routerLink="/politica-de-privacidade" class="hover:text-white transition-colors">Política de Privacidade</a>
+          </li>
+          <li>
+            <a routerLink="/termos-de-uso" class="hover:text-white transition-colors">Termos de Uso</a>
+          </li>
         </ul>
       </div>
       <div>

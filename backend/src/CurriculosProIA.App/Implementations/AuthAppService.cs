@@ -457,6 +457,62 @@ public class AuthAppService : AppControllerBase, IAuthAppService
         }
     }
 
+    public async Task<IActionResult> DeleteAccount(DeleteAccountSignature request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetAuthenticatedUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, error = "Token não fornecido" });
+            }
+
+            if (!string.Equals(request.Confirmation?.Trim(), "EXCLUIR", StringComparison.Ordinal))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "Digite EXCLUIR no campo de confirmação para excluir a conta."
+                });
+            }
+
+            var profile = await _data.GetUserProfileAsync(userId, cancellationToken);
+            if (profile == null)
+            {
+                return NotFound(new { success = false, error = "Usuário não encontrado" });
+            }
+
+            if (string.Equals(profile.UserType, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { success = false, error = "Contas administrativas não podem ser excluídas por aqui." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(profile.PasswordHash))
+            {
+                if (string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return BadRequest(new { success = false, error = "Informe sua senha atual para excluir a conta." });
+                }
+
+                var isValidPassword = await _data.VerifyUserPasswordAsync(profile.Email!, request.Password, cancellationToken);
+                if (!isValidPassword)
+                {
+                    return Unauthorized(new { success = false, error = "Senha incorreta." });
+                }
+            }
+
+            await _data.DeleteUserAccountAsync(userId, cancellationToken);
+            _logger.LogInformation("Conta excluída: userId={UserId}", userId);
+
+            return Ok(new { success = true, message = "Conta excluída com sucesso." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao excluir conta");
+            return StatusCode(500, new { success = false, error = "Erro ao excluir conta", message = ex.Message });
+        }
+    }
+
     private async Task<object?> GetReferralCouponForUserAsync(string userId, CancellationToken cancellationToken)
     {
         var referral = await _data.GetPartnerReferralByUserIdAsync(userId, cancellationToken);

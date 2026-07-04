@@ -344,6 +344,49 @@ public class AppConfiguracaoRow : BaseModel
     public DateTimeOffset? AtualizadoEm { get; set; }
 }
 
+[Table("config_precos")]
+public class ConfigPrecosRow : BaseModel
+{
+    public const string DefaultId = "default";
+
+    [PrimaryKey("id", false)]
+    [Column("id")]
+    public string Id { get; set; } = DefaultId;
+
+    [Column("credit_unit_price_brl")]
+    public decimal CreditUnitPriceBrl { get; set; }
+
+    [Column("single_discount_percent")]
+    public decimal SingleDiscountPercent { get; set; }
+
+    [Column("pack3_discount_percent")]
+    public decimal Pack3DiscountPercent { get; set; }
+
+    [Column("pack5_discount_percent")]
+    public decimal Pack5DiscountPercent { get; set; }
+
+    [Column("english_price_brl")]
+    public decimal EnglishPriceBrl { get; set; }
+
+    [Column("english_bundle_price_brl")]
+    public decimal EnglishBundlePriceBrl { get; set; }
+
+    [Column("transaction_fee_brl")]
+    public decimal TransactionFeeBrl { get; set; }
+
+    [Column("single_price_override")]
+    public decimal? SinglePriceOverride { get; set; }
+
+    [Column("pack3_price_override")]
+    public decimal? Pack3PriceOverride { get; set; }
+
+    [Column("pack5_price_override")]
+    public decimal? Pack5PriceOverride { get; set; }
+
+    [Column("atualizado_em")]
+    public DateTimeOffset? AtualizadoEm { get; set; }
+}
+
 [Table("sites_vagas")]
 public class SiteVagasRow : BaseModel
 {

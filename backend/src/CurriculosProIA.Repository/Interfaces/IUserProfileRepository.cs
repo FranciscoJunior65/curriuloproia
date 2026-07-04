@@ -24,4 +24,5 @@ public interface IUserProfileRepository
     Task<UserProfile> VerifyEmailTokenAsync(string? email, string token, CancellationToken cancellationToken = default);
     Task<UserProfile> GetUserByResetTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<AdminDashboardStatsDto> GetAdminDashboardStatsAsync(CancellationToken cancellationToken = default);
+    Task DeleteUserAccountAsync(string userId, CancellationToken cancellationToken = default);
 }

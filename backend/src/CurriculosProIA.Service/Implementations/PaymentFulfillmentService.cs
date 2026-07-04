@@ -189,7 +189,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
             ? request.CustomerEmail.Trim()
             : userProfile?.Email?.Trim();
 
-        if (!string.IsNullOrWhiteSpace(recipientEmail))
+        if (!string.IsNullOrWhiteSpace(recipientEmail) && request.SendConfirmationEmail)
         {
             try
             {

@@ -1,5 +1,5 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
-import { Subject, takeUntil, distinctUntilChanged, switchMap } from 'rxjs';
+import { Subject, takeUntil, distinctUntilChanged, switchMap, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -18,10 +18,6 @@ import {
   MercadoPagoCheckoutModalComponent,
   MercadoPagoCheckoutModalData
 } from '../mercadopago-checkout-modal/mercadopago-checkout-modal.component';
-import {
-  CaktoCheckoutModalComponent,
-  CaktoCheckoutModalData
-} from '../cakto-checkout-modal/cakto-checkout-modal.component';
 import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
 import { extractPaidCredits, isPaidCloseResult } from '../../models/payment-close-result';
 import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
@@ -81,11 +77,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   includeEnglishResume: { [planId: string]: boolean } = {}; // Checkbox por plano
   englishBundlePriceBRL = 5.9;
   englishStandalonePriceBRL = 17.9;
+  englishBundleDisplayPriceBRL = 0;
+  englishStandaloneDisplayPriceBRL = 0;
+  transactionFeeBRL = 0;
   couponCode = '';
   validatedCoupon: { nome: string; porcentagem_desconto: number } | null = null;
   couponError = '';
   validatingCoupon = false;
-  paymentProvider: 'stripe' | 'mercadopago' | 'cakto' = 'stripe';
+  paymentProvider: 'stripe' | 'mercadopago' | 'cakto' | 'kiwify' = 'stripe';
 
   // Auth
   currentUser: User | null = null;
@@ -235,9 +234,14 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
   englishBundleSavingsText(): string {
     return this.pricingPlansService.englishBundleSavings(
-      this.englishStandalonePriceBRL,
-      this.englishBundlePriceBRL
+      this.englishStandaloneDisplayPriceBRL,
+      this.englishBundleDisplayPriceBRL
     );
+  }
+
+  /** Inglês desativado na Kiwify: checkout com preço fixo por link (sem bundle por enquanto). */
+  isEnglishPurchaseEnabled(): boolean {
+    return this.paymentProvider !== 'kiwify';
   }
 
   hasEnglishPaid(): boolean {
@@ -325,8 +329,13 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   pricePerAnalysis(plan: PublicPlan): number {
-    if (!plan.analyses) return plan.priceBRL;
-    return plan.priceBRL / plan.analyses;
+    const display = this.planDisplayPrice(plan);
+    if (!plan.analyses) return display;
+    return display / plan.analyses;
+  }
+
+  planDisplayPrice(plan: PublicPlan): number {
+    return this.pricingPlansService.planDisplayPrice(plan, this.transactionFeeBRL);
   }
 
   ngOnInit(): void {
@@ -380,7 +389,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           prev?.id === curr?.id &&
           prev?.credits === curr?.credits &&
           prev?.user_type === curr?.user_type &&
-          prev?.cpf === curr?.cpf
+          prev?.cpf === curr?.cpf &&
+          prev?.email === curr?.email
         )
       )
       .subscribe(user => {
@@ -456,13 +466,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }
   }
 
-  private normalizePaymentProvider(value: string | undefined | null): 'stripe' | 'mercadopago' | 'cakto' {
+  private normalizePaymentProvider(value: string | undefined | null): 'stripe' | 'mercadopago' | 'cakto' | 'kiwify' {
     const normalized = String(value ?? '').trim().toLowerCase();
     if (normalized === 'mercadopago') {
       return 'mercadopago';
     }
     if (normalized === 'cakto') {
       return 'cakto';
+    }
+    if (normalized === 'kiwify') {
+      return 'kiwify';
     }
     return 'stripe';
   }
@@ -472,15 +485,15 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   /** Prioriza o provider da API; fallback por formato da resposta (MP envia mercadoPagoLiveMode). */
-  private resolveCheckoutProvider(response: any): 'stripe' | 'mercadopago' | 'cakto' {
+  private resolveCheckoutProvider(response: any): 'stripe' | 'mercadopago' | 'cakto' | 'kiwify' {
     const fromApi = this.normalizePaymentProvider(response?.provider);
-    if (fromApi === 'cakto' || fromApi === 'mercadopago') {
+    if (fromApi === 'cakto' || fromApi === 'mercadopago' || fromApi === 'kiwify') {
       return fromApi;
     }
     if (response?.mercadoPagoLiveMode !== undefined && response?.mercadoPagoLiveMode !== null) {
       return 'mercadopago';
     }
-    if (this.paymentProvider === 'cakto' || this.paymentProvider === 'mercadopago') {
+    if (this.paymentProvider === 'cakto' || this.paymentProvider === 'mercadopago' || this.paymentProvider === 'kiwify') {
       return this.paymentProvider;
     }
     return 'stripe';
@@ -531,32 +544,15 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return true;
     }
 
-    if (this.isPaymentSuccess(response) && transparentCheckout && publicKey && provider === 'cakto') {
-      this.openCaktoTransparentCheckout({
-        sdkClientId: publicKey,
-        amountBRL: response.amountBRL,
-        planName: response.planName || options.planName,
-        planId: options.planId,
-        userId: this.userId!,
-        email: options.userEmail,
-        customerName: this.currentUser?.name || undefined,
-        cpf: options.userCpf,
-        couponCode: this.couponCode?.trim() || null,
-        includeEnglish: options.includeEnglish,
-        analysisId: options.analysisId
-      });
-      return true;
-    }
-
     if (this.isPaymentSuccess(response) && response.checkoutUrl) {
-      this.openCheckout(response.checkoutUrl);
+      this.openCheckout(response.checkoutUrl, provider);
       return true;
     }
 
     if (this.isPaymentSuccess(response) && transparentCheckout) {
       this.error =
-        provider === 'cakto'
-          ? 'Checkout Cakto indisponível nesta versão do site. Atualize a página (Ctrl+F5) ou aguarde o deploy do frontend.'
+        provider === 'cakto' || provider === 'kiwify'
+          ? `Checkout ${provider === 'kiwify' ? 'Kiwify' : 'Cakto'} indisponível nesta versão do site. Atualize a página (Ctrl+F5) ou aguarde o deploy do frontend.`
           : response.error ||
             response.message ||
             `Checkout transparente (${provider}) sem URL nem chave pública na resposta.`;
@@ -581,6 +577,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     }
     if (this.paymentProvider === 'cakto') {
       return 'Cakto';
+    }
+    if (this.paymentProvider === 'kiwify') {
+      return 'Kiwify';
     }
     return 'Stripe';
   }
@@ -756,16 +755,29 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             ? response.analysisPlans
             : (response.plans || []).filter((plan) => plan.id !== 'english');
         this.plans = analysis;
+        if (response.transactionFeeBRL != null) {
+          this.transactionFeeBRL = Number(response.transactionFeeBRL);
+        }
         if (response.englishBundlePriceBRL != null) {
           this.englishBundlePriceBRL = Number(response.englishBundlePriceBRL);
         }
+        if (response.englishBundleDisplayPriceBRL != null) {
+          this.englishBundleDisplayPriceBRL = Number(response.englishBundleDisplayPriceBRL);
+        } else if (response.englishBundlePriceBRL != null) {
+          this.englishBundleDisplayPriceBRL =
+            Math.round((Number(response.englishBundlePriceBRL) + this.transactionFeeBRL) * 100) / 100;
+        }
         if (response.englishStandalonePriceBRL != null) {
           this.englishStandalonePriceBRL = Number(response.englishStandalonePriceBRL);
+        }
+        if (response.englishStandaloneDisplayPriceBRL != null) {
+          this.englishStandaloneDisplayPriceBRL = Number(response.englishStandaloneDisplayPriceBRL);
         }
         const english =
           response.englishPlan || (response.plans || []).find((p) => p.id === 'english');
         if (english?.priceBRL != null) {
           this.englishStandalonePriceBRL = Number(english.priceBRL);
+          this.englishStandaloneDisplayPriceBRL = this.planDisplayPrice(english);
         }
         this.loadingPlans = false;
       },
@@ -912,25 +924,66 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
   }
 
-  private openCheckout(checkoutUrl: string): void {
+  private isHostedEmbeddedCheckout(provider: 'stripe' | 'mercadopago' | 'cakto' | 'kiwify'): boolean {
+    // Kiwify bloqueia iframe (CSP frame-ancestors só *.kiwify.com.br) — usa popup.
+    return provider === 'cakto';
+  }
+
+  private openCheckout(checkoutUrl: string, providerHint?: 'stripe' | 'mercadopago' | 'cakto' | 'kiwify'): void {
     this.processingPaymentPlanId = null;
     this.checkoutHint = null;
 
+    const provider = providerHint ?? this.paymentProvider;
+    const embedInModal = this.isHostedEmbeddedCheckout(provider);
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640;
     const ref = this.dialog.open(CheckoutModalComponent, {
       data: {
         checkoutUrl,
-        providerLabel: this.paymentProviderLabel
+        providerLabel: this.paymentProviderLabel,
+        embedInModal,
+        provider
       },
-      width: '100%',
-      maxWidth: '480px',
+      width: embedInModal ? (isMobile ? '100vw' : '480px') : '480px',
+      maxWidth: embedInModal ? (isMobile ? '100vw' : '480px') : 'calc(100vw - 0.75rem)',
+      height: embedInModal ? (isMobile ? '100dvh' : '90vh') : undefined,
+      maxHeight: embedInModal ? (isMobile ? '100dvh' : '860px') : 'calc(100dvh - 0.5rem)',
+      autoFocus: false,
+      restoreFocus: false,
       disableClose: false,
-      panelClass: 'checkout-modal-panel'
+      panelClass: embedInModal
+        ? ['checkout-modal-panel', 'checkout-modal-panel--embedded']
+        : ['checkout-modal-panel']
     });
 
     ref.afterClosed().subscribe((result) => {
-      if (result === 'completed') {
+      const completed =
+        result === 'completed' ||
+        (typeof result === 'object' &&
+          result !== null &&
+          (result as { completed?: boolean }).completed === true);
+
+      if (!completed) {
+        return;
+      }
+
+      const credits = extractPaidCredits(result);
+      if (credits != null) {
+        this.userCredits = credits;
+        this.syncUserCredits();
+        this.updateShowPlans();
+        this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', { duration: 5000 });
+        return;
+      }
+
+      this.checkCredits();
+      if (embedInModal || provider === 'kiwify') {
+        this.snackBar.open(
+          'Se o pagamento foi aprovado, os créditos serão atualizados em instantes.',
+          'OK',
+          { duration: 6000 }
+        );
+      } else {
         this.checkPaymentStatus();
-        this.checkCredits();
       }
     });
   }
@@ -962,50 +1015,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     });
 
     ref.afterClosed().subscribe((result) => {
-      this.handlePaymentConfirmed(result);
-    });
-  }
-
-  private openCaktoTransparentCheckout(data: CaktoCheckoutModalData): void {
-    if (!this.cpfEnforcement.hasValidCpf()) {
-      this.processingPaymentPlanId = null;
-      this.promptCpfIfMissing(
-        () => this.openCaktoTransparentCheckout({
-          ...data,
-          cpf: this.getUserCpfDigits() || null
-        }),
-        () => {
-          this.processingPaymentPlanId = null;
-        }
-      );
-      return;
-    }
-
-    this.processingPaymentPlanId = null;
-    this.checkoutHint = null;
-
-    const ref = this.dialog.open(CaktoCheckoutModalComponent, {
-      data,
-      width: '560px',
-      maxWidth: 'calc(100vw - 2rem)',
-      disableClose: false,
-      panelClass: 'checkout-modal-panel'
-    });
-
-    ref.afterClosed().subscribe((result) => {
-      if (result === 'cpf_required') {
-        this.promptCpfIfMissing(
-          () =>
-            this.openCaktoTransparentCheckout({
-              ...data,
-              cpf: this.getUserCpfDigits() || null
-            }),
-          () => {
-            this.processingPaymentPlanId = null;
-          }
-        );
-        return;
-      }
       this.handlePaymentConfirmed(result);
     });
   }
@@ -1062,8 +1071,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
     const userEmail = this.currentUser?.email || '';
     const userCpf = this.getUserCpfDigits();
-    const includeEnglish =
-      plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
 
     this.analyzerService
       .getPaymentProvider()
@@ -1072,6 +1079,16 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           if (providerRes.success && providerRes.provider) {
             this.paymentProvider = this.normalizePaymentProvider(providerRes.provider);
           }
+
+          if (plan.id === 'english' && !this.isEnglishPurchaseEnabled()) {
+            throw new Error('Compra de currículo em inglês indisponível com Kiwify no momento.');
+          }
+
+          const includeEnglish =
+            this.isEnglishPurchaseEnabled() &&
+            plan.id !== 'english' &&
+            !!this.includeEnglishResume[plan.id];
+
           console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
             planId: plan.id,
             planName: plan.name,
@@ -1086,11 +1103,13 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             userCpf || null,
             includeEnglish,
             plan.id === 'english' ? this.result?.analysisId ?? undefined : undefined
+          ).pipe(
+            map((response) => ({ response, includeEnglish }))
           );
         })
       )
       .subscribe({
-      next: (response: any) => {
+      next: ({ response, includeEnglish }: { response: any; includeEnglish: boolean }) => {
         console.log('📦 Resposta da sessão de pagamento:', response);
         if (
           this.handlePaymentSessionResponse(response, {
@@ -1396,6 +1415,10 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   purchaseEnglishForAnalysis(): void {
+    if (!this.isEnglishPurchaseEnabled()) {
+      this.error = 'Compra de currículo em inglês indisponível com Kiwify no momento.';
+      return;
+    }
     if (!this.result?.analysisId) {
       this.error = 'É necessário ter uma análise salva para comprar o currículo em inglês.';
       return;

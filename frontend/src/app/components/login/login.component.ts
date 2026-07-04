@@ -93,6 +93,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
   analysisPlans: PublicPlan[] = [];
   englishPlan: PublicPlan | null = null;
   loadingPricing = true;
+  transactionFeeBRL = 0;
   readonly apiBaseUrl = environment.apiUrl.replace(/\/api\/?$/, '');
 
   constructor(
@@ -105,6 +106,10 @@ export class LoginComponent implements OnInit, AfterViewInit {
 
   priceParts(priceBRL: number): PriceParts {
     return this.pricingPlansService.formatPriceParts(priceBRL);
+  }
+
+  planDisplayPrice(plan: PublicPlan): number {
+    return this.pricingPlansService.planDisplayPrice(plan, this.transactionFeeBRL);
   }
 
   planTagline(plan: PublicPlan): string {
@@ -132,6 +137,9 @@ export class LoginComponent implements OnInit, AfterViewInit {
           response.englishPlan ||
           (response.plans || []).find((p) => p.id === 'english') ||
           null;
+        if (response.transactionFeeBRL != null) {
+          this.transactionFeeBRL = Number(response.transactionFeeBRL);
+        }
         this.loadingPricing = false;
       },
       error: () => {

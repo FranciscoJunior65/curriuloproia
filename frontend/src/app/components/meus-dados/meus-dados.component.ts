@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
+import { PurchaseService } from '../../services/purchase.service';
 import { formatCpfDisplay, getCpfDigits } from '../../utils/cpf.utils';
 import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
 
@@ -45,8 +46,17 @@ export class MeusDadosComponent implements OnInit {
   currentUser: { name?: string; email?: string; credits?: number } | null = null;
   userCredits = 0;
 
+  showDeleteSection = false;
+  deletePassword = '';
+  deleteConfirmation = '';
+  deletingAccount = false;
+  deleteError: string | null = null;
+  exportingPurchases = false;
+  exportError: string | null = null;
+
   constructor(
     public authService: AuthService,
+    private purchaseService: PurchaseService,
     private router: Router
   ) {}
 
@@ -144,5 +154,66 @@ export class MeusDadosComponent implements OnInit {
         }
       }
     });
+  }
+
+  downloadPurchases(format: 'json' | 'csv'): void {
+    this.exportError = null;
+    this.exportingPurchases = true;
+    this.purchaseService.exportPurchasesObservable(format).subscribe({
+      next: (blob) => {
+        this.exportingPurchases = false;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download =
+          format === 'csv'
+            ? `compras-curriculoproia.${format}`
+            : `dados-compras-curriculoproia.${format}`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.exportingPurchases = false;
+        this.exportError = 'Não foi possível baixar os dados de compra. Tente novamente.';
+      }
+    });
+  }
+
+  toggleDeleteSection(): void {
+    this.showDeleteSection = !this.showDeleteSection;
+    this.deleteError = null;
+    this.deletePassword = '';
+    this.deleteConfirmation = '';
+  }
+
+  confirmDeleteAccount(): void {
+    this.deleteError = null;
+
+    if (this.deleteConfirmation.trim().toUpperCase() !== 'EXCLUIR') {
+      this.deleteError = 'Digite EXCLUIR no campo de confirmação.';
+      return;
+    }
+
+    this.deletingAccount = true;
+    this.authService
+      .deleteAccount(this.deletePassword.trim() || null, this.deleteConfirmation.trim())
+      .subscribe({
+        next: (response) => {
+          this.deletingAccount = false;
+          if (response.success) {
+            this.authService.logout();
+            this.router.navigate(['/login'], {
+              queryParams: { accountDeleted: '1' }
+            });
+            return;
+          }
+          this.deleteError = response.error || 'Não foi possível excluir a conta.';
+        },
+        error: (err) => {
+          this.deletingAccount = false;
+          this.deleteError =
+            err.error?.error || err.error?.message || 'Erro ao excluir conta. Tente novamente.';
+        }
+      });
   }
 }

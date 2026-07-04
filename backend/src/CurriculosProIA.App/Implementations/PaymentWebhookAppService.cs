@@ -26,14 +26,17 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ICaktoService _cakto;
+    private readonly IKiwifyService _kiwify;
 
     public PaymentWebhookAppService(IStripePaymentService stripe, IMercadoPagoService mercadoPago,
         ICaktoService cakto,
+        IKiwifyService kiwify,
         IHttpContextAccessor http)
     {
         _stripe = stripe;
         _mercadoPago = mercadoPago;
         _cakto = cakto;
+        _kiwify = kiwify;
         _http = http;
     }
 
@@ -65,5 +68,25 @@ public class PaymentWebhookAppService : AppControllerBase, IPaymentWebhookAppSer
     {
         await _cakto.HandleWebhookAsync(_http.HttpContext!.Request, cancellationToken);
         return Ok(new { received = true });
+    }
+
+    public async Task<IActionResult> KiwifyWebhook(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _kiwify.HandleWebhookAsync(_http.HttpContext!.Request, cancellationToken);
+            return Ok(new
+            {
+                received = true,
+                processed = result?.Paid == true,
+                alreadyFulfilled = result?.AlreadyFulfilled == true,
+                credits = result?.User?.Credits,
+                userId = result?.User?.Id
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { received = false, error = ex.Message });
+        }
     }
 }

@@ -311,5 +311,26 @@ export class AuthService {
       catchError(() => of({ success: false, linked: false }))
     );
   }
+
+  deleteAccount(password: string | null, confirmation: string): Observable<{ success: boolean; message?: string; error?: string }> {
+    const token = this.getToken();
+    if (!token) {
+      return new Observable(observer => {
+        observer.next({ success: false, error: 'Não autenticado' });
+        observer.complete();
+      });
+    }
+
+    const body: { confirmation: string; password?: string } = { confirmation };
+    if (password?.trim()) {
+      body.password = password.trim();
+    }
+
+    return this.http.post<{ success: boolean; message?: string; error?: string }>(
+      `${this.apiUrl}/auth/delete-account`,
+      body,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
 }
 

@@ -8,4 +8,5 @@ public class PricingConfigUpdateSignature
     public decimal? Pack5DiscountPercent { get; set; }
     public decimal? EnglishPriceBRL { get; set; }
     public decimal? EnglishBundlePriceBRL { get; set; }
+    public decimal? TransactionFeeBRL { get; set; }
 }

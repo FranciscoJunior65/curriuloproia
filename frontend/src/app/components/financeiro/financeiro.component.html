@@ -79,7 +79,24 @@
 
 <div class="min-h-screen bg-gray-100 py-12">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <h1 class="text-4xl font-bold text-gray-900 mb-8 text-center">Histórico de Compras</h1>
+    <h1 class="text-4xl font-bold text-gray-900 mb-4 text-center">Histórico de Compras</h1>
+
+    <div *ngIf="authService.isAuthenticated()" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 max-w-3xl mx-auto">
+      <p class="text-sm text-gray-600 text-center sm:text-left">
+        Baixe seus dados de compra (JSON ou CSV) para portabilidade.
+      </p>
+      <div class="flex flex-wrap justify-center gap-2">
+        <button mat-stroked-button color="primary" [disabled]="exportingPurchases" (click)="downloadPurchases('json')">
+          <mat-icon>download</mat-icon>
+          JSON
+        </button>
+        <button mat-stroked-button color="primary" [disabled]="exportingPurchases" (click)="downloadPurchases('csv')">
+          <mat-icon>table_chart</mat-icon>
+          CSV
+        </button>
+      </div>
+    </div>
+    <p *ngIf="exportError" class="text-center text-sm text-red-600 mb-4">{{ exportError }}</p>
 
     <div *ngIf="loading" class="flex justify-center items-center h-64">
       <mat-spinner></mat-spinner>

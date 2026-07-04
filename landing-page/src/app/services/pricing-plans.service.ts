@@ -9,6 +9,7 @@ export interface PublicPlan {
   description?: string;
   analyses: number;
   priceBRL: number;
+  displayPriceBRL?: number;
   savings?: string;
   features?: string[];
 }
@@ -18,6 +19,8 @@ export interface PlansApiResponse {
   plans?: PublicPlan[];
   analysisPlans?: PublicPlan[];
   englishPlan?: PublicPlan;
+  transactionFeeBRL?: number;
+  englishStandaloneDisplayPriceBRL?: number;
 }
 
 export interface PriceParts {
@@ -43,12 +46,14 @@ function normalizePlan(raw: Record<string, unknown>): PublicPlan | null {
   if (!id) return null;
 
   const savings = raw['savings'] ?? raw['Savings'];
+  const displayRaw = raw['displayPriceBRL'] ?? raw['DisplayPriceBRL'];
   return {
     id,
     name: String(raw['name'] ?? raw['Name'] ?? ''),
     description: (raw['description'] ?? raw['Description']) as string | undefined,
     analyses: Number(raw['analyses'] ?? raw['Analyses'] ?? 0),
     priceBRL: Number(raw['priceBRL'] ?? raw['PriceBRL'] ?? 0),
+    displayPriceBRL: displayRaw != null ? Number(displayRaw) : undefined,
     savings: savings != null ? String(savings) : undefined,
     features: (raw['features'] ?? raw['Features']) as string[] | undefined
   };
@@ -85,7 +90,11 @@ function normalizePlansResponse(body: Record<string, unknown>): PlansApiResponse
     success: Boolean(body['success'] ?? body['Success'] ?? true),
     plans,
     analysisPlans,
-    englishPlan: englishPlan ?? undefined
+    englishPlan: englishPlan ?? undefined,
+    transactionFeeBRL: Number(body['transactionFeeBRL'] ?? body['TransactionFeeBRL'] ?? NaN) || undefined,
+    englishStandaloneDisplayPriceBRL: Number(
+      body['englishStandaloneDisplayPriceBRL'] ?? body['EnglishStandaloneDisplayPriceBRL'] ?? NaN
+    ) || undefined
   };
 }
 
@@ -123,9 +132,20 @@ export class PricingPlansService {
     return this.cache$;
   }
 
+  clearCache(): void {
+    this.cache$ = undefined;
+  }
+
   formatPriceParts(priceBRL: number): PriceParts {
     const safe = Number.isFinite(priceBRL) ? priceBRL : 0;
     const [reais, cents] = safe.toFixed(2).split('.');
     return { reais, cents };
+  }
+
+  planDisplayPrice(plan: PublicPlan, transactionFeeBRL = 0): number {
+    if (plan.displayPriceBRL != null && Number.isFinite(plan.displayPriceBRL)) {
+      return plan.displayPriceBRL;
+    }
+    return Math.round((plan.priceBRL + transactionFeeBRL) * 100) / 100;
   }
 }

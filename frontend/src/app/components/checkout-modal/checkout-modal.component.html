@@ -1,35 +1,77 @@
-<div class="checkout-modal">
-  <button type="button" class="checkout-modal__close" (click)="close()" aria-label="Fechar">
-    <mat-icon>close</mat-icon>
-  </button>
+<mat-dialog-content class="checkout-modal-content">
+  <div class="checkout-modal" [class.checkout-modal--embedded]="embedInModal">
+    <div *ngIf="embedInModal" class="checkout-modal__toolbar">
+      <span class="checkout-modal__toolbar-title">Pagamento seguro</span>
+      <button type="button" class="checkout-modal__close" (click)="close()" aria-label="Fechar">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
 
-  <div class="checkout-modal__header">
-    <mat-icon class="checkout-modal__icon">lock</mat-icon>
-    <h2>Pagamento seguro</h2>
-    <p>
-      O checkout do <strong>{{ data.providerLabel }}</strong> abriu em uma janela separada.
-      Você pode continuar nesta página enquanto finaliza o pagamento.
-    </p>
-  </div>
-
-  <div *ngIf="popupBlocked" class="checkout-modal__alert">
-    O navegador bloqueou a janela de pagamento. Clique abaixo para abrir manualmente.
-  </div>
-
-  <div class="checkout-modal__actions">
-    <button type="button" mat-stroked-button (click)="openPopup()">
-      Reabrir janela de pagamento
+    <button
+      *ngIf="!embedInModal"
+      type="button"
+      class="checkout-modal__close checkout-modal__close--floating"
+      (click)="close()"
+      aria-label="Fechar">
+      <mat-icon>close</mat-icon>
     </button>
-    <button type="button" mat-stroked-button (click)="openInNewTab()">
-      Abrir em nova aba
-    </button>
-    <button type="button" mat-flat-button color="primary" (click)="close()">
-      Voltar aos planos
-    </button>
-  </div>
 
-  <p class="checkout-modal__hint">
-    Após pagar, use «Voltar à loja» no {{ data.providerLabel }} ou feche a janela de pagamento.
-    Seus créditos serão atualizados automaticamente.
-  </p>
-</div>
+    <ng-container *ngIf="embedInModal; else externalWindow">
+      <div class="checkout-modal__iframe-wrap">
+        <div *ngIf="iframeLoading" class="checkout-modal__iframe-loading">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Carregando pagamento seguro…</p>
+        </div>
+        <iframe
+          class="checkout-modal__iframe"
+          [src]="safeCheckoutUrl"
+          title="Pagamento Cakto"
+          allow="payment *; clipboard-write"
+          (load)="onIframeLoad()">
+        </iframe>
+      </div>
+      <p class="checkout-modal__hint">
+        PIX ou cartão na Cakto. Após pagar, a confirmação aparece aqui automaticamente.
+      </p>
+      <div class="checkout-modal__footer">
+        <div class="checkout-modal__actions checkout-modal__actions--compact">
+          <button type="button" mat-stroked-button (click)="useExternalWindow()">
+            Abrir em janela separada
+          </button>
+        </div>
+      </div>
+    </ng-container>
+
+    <ng-template #externalWindow>
+      <div class="checkout-modal__header">
+        <mat-icon class="checkout-modal__icon">lock</mat-icon>
+        <h2>Pagamento seguro</h2>
+        <p>
+          O checkout do <strong>{{ data.providerLabel }}</strong> abriu em uma janela separada.
+          Você pode continuar nesta página enquanto finaliza o pagamento.
+        </p>
+      </div>
+
+      <div *ngIf="popupBlocked" class="checkout-modal__alert">
+        O navegador bloqueou a janela de pagamento. Clique abaixo para abrir manualmente.
+      </div>
+
+      <div class="checkout-modal__actions">
+        <button type="button" mat-stroked-button (click)="openPopup()">
+          Reabrir janela de pagamento
+        </button>
+        <button type="button" mat-stroked-button (click)="openInNewTab()">
+          Abrir em nova aba
+        </button>
+        <button type="button" mat-flat-button color="primary" (click)="close()">
+          Voltar aos planos
+        </button>
+      </div>
+
+      <p class="checkout-modal__hint">
+        Após pagar, feche a janela de pagamento ou aguarde o redirecionamento.
+        Seus créditos serão atualizados automaticamente.
+      </p>
+    </ng-template>
+  </div>
+</mat-dialog-content>

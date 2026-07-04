@@ -632,8 +632,8 @@
           <h3 class="login-pricing__card-name">{{ plan.name }}</h3>
           <div class="login-pricing__price">
             <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">{{ priceParts(plan.priceBRL).reais }}</span>
-            <span class="login-pricing__price-cents">,{{ priceParts(plan.priceBRL).cents }}</span>
+            <span class="login-pricing__price-value">{{ priceParts(planDisplayPrice(plan)).reais }}</span>
+            <span class="login-pricing__price-cents">,{{ priceParts(planDisplayPrice(plan)).cents }}</span>
           </div>
           <p *ngIf="planTagline(plan)" class="login-pricing__card-tagline">{{ planTagline(plan) }}</p>
         </div>
@@ -659,8 +659,8 @@
         <div class="login-pricing__english-price">
           <div class="login-pricing__price login-pricing__price--compact">
             <span class="login-pricing__price-currency">R$</span>
-            <span class="login-pricing__price-value">{{ priceParts(englishPlan.priceBRL).reais }}</span>
-            <span class="login-pricing__price-cents">,{{ priceParts(englishPlan.priceBRL).cents }}</span>
+            <span class="login-pricing__price-value">{{ priceParts(englishPlan ? planDisplayPrice(englishPlan) : 0).reais }}</span>
+            <span class="login-pricing__price-cents">,{{ priceParts(englishPlan ? planDisplayPrice(englishPlan) : 0).cents }}</span>
           </div>
           <p class="login-pricing__english-unit">por tradução</p>
         </div>

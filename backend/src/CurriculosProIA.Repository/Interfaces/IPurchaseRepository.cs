@@ -23,7 +23,31 @@ public interface IPurchaseRepository
     /// <summary>Compras de inglês (bundle) ainda não vinculadas a uma análise.</summary>
     Task<int> GetPendingEnglishCreditsAsync(string userId, CancellationToken cancellationToken = default);
     Task<Purchase?> GetPurchaseByPaymentIdAsync(string paymentId, CancellationToken cancellationToken = default);
+    Task<Purchase> CreatePendingPurchaseAsync(
+        string userId,
+        string planId,
+        string planName,
+        int creditsAmount,
+        decimal price,
+        string paymentMethod = "kiwify",
+        string? paymentId = null,
+        CancellationToken cancellationToken = default);
+    Task<List<Purchase>> GetPendingPurchasesAsync(
+        string? userId = null,
+        int limit = 50,
+        CancellationToken cancellationToken = default);
+    Task UpdatePurchaseStatusAsync(
+        string purchaseId,
+        string status,
+        string? paymentId = null,
+        CancellationToken cancellationToken = default);
+    Task MarkPendingPurchasesSubstitutedAsync(
+        string userId,
+        string planId,
+        CancellationToken cancellationToken = default);
     Task<List<PurchaseWithCredits>> GetUserPurchasesAsync(string userId, int limit = 50, CancellationToken cancellationToken = default);
     Task<List<Purchase>> GetAllPurchasesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
     Task<SalesStatsDto> GetSalesStatsAsync(string? startDate = null, string? endDate = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DailyUsageDto>> GetDailyUsageAsync(int days, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MonthlyUsageDto>> GetMonthlyUsageAsync(int months, CancellationToken cancellationToken = default);
 }

@@ -116,7 +116,12 @@
     width: 100%;
     max-height: min(72vh, 640px);
     object-fit: contain;
+    object-position: center top;
     background: #0f172a;
+
+    @media (max-width: 767px) {
+      max-height: min(65vh, 480px);
+    }
   }
 
   &__intro-mp4-play {

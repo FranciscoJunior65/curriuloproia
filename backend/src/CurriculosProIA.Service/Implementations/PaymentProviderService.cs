@@ -16,6 +16,7 @@ public class PaymentProviderService : IPaymentProviderService
     private readonly IStripePaymentService _stripe;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ICaktoService _cakto;
+    private readonly IKiwifyService _kiwify;
     private readonly IPaymentFulfillmentService _fulfillment;
 
     public PaymentProviderService(
@@ -23,12 +24,14 @@ public class PaymentProviderService : IPaymentProviderService
         IStripePaymentService stripe,
         IMercadoPagoService mercadoPago,
         ICaktoService cakto,
+        IKiwifyService kiwify,
         IPaymentFulfillmentService fulfillment)
     {
         _settings = settings;
         _stripe = stripe;
         _mercadoPago = mercadoPago;
         _cakto = cakto;
+        _kiwify = kiwify;
         _fulfillment = fulfillment;
     }
 
@@ -61,6 +64,13 @@ public class PaymentProviderService : IPaymentProviderService
             return MapResult(provider, cakto);
         }
 
+        if (provider == "kiwify")
+        {
+            var kiwify = await _kiwify.CreateCheckoutAsync(
+                planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+            return MapResult(provider, kiwify);
+        }
+
         var stripe = await _stripe.CreateCheckoutSessionAsync(
             planId, userId, email, frontendUrl, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
         return MapResult(provider, stripe);
@@ -81,6 +91,11 @@ public class PaymentProviderService : IPaymentProviderService
         if (provider == "cakto")
         {
             return await _cakto.VerifyPaymentAsync(sessionId, cancellationToken);
+        }
+
+        if (provider == "kiwify")
+        {
+            return await _kiwify.VerifyPaymentAsync(sessionId, cancellationToken);
         }
 
         var session = await _stripe.GetCheckoutSessionAsync(sessionId, cancellationToken);

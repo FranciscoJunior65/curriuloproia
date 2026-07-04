@@ -1,0 +1,1 @@
+{"antifraudProfilingAttemptReference":"a3d90c10-c0c6-4c33-8af3-944f694ea633","paymentMethod":"credit_card","card":{"token":"tok_fake"},"customer":{"name":"Test","docNumber":"12345678909","phone":"5511999999999","docType":"cpf","fingerprint":"fp_test_user_1","email":"test@example.com"},"items":[{"quantity":1,"offerType":"main","offerId":"4onCrsv"}]}

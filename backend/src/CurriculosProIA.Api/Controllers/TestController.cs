@@ -2,6 +2,9 @@ using CurriculosProIA.Api.Infrastructure;
 using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
+using CurriculosProIA.Domain.Dtos;
+using CurriculosProIA.Domain.Signatures.Admin;
+using CurriculosProIA.Api.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Mail;
 
@@ -16,8 +19,11 @@ public class TestController : ControllerBase
     private readonly ISimliService _simli;
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ICaktoService _cakto;
+    private readonly IKiwifyService _kiwify;
     private readonly IEmailService _email;
     private readonly ISettingsService _settings;
+    private readonly IPaymentRealtimeNotifier _paymentRealtime;
+    private readonly IAppDataStore _data;
     private readonly IConfiguration _configuration;
     private readonly IHostEnvironment _hostEnvironment;
 
@@ -27,8 +33,11 @@ public class TestController : ControllerBase
         ISimliService simli,
         IMercadoPagoService mercadoPago,
         ICaktoService cakto,
+        IKiwifyService kiwify,
         IEmailService email,
         ISettingsService settings,
+        IPaymentRealtimeNotifier paymentRealtime,
+        IAppDataStore data,
         IConfiguration configuration,
         IHostEnvironment hostEnvironment)
     {
@@ -37,8 +46,11 @@ public class TestController : ControllerBase
         _simli = simli;
         _mercadoPago = mercadoPago;
         _cakto = cakto;
+        _kiwify = kiwify;
         _email = email;
         _settings = settings;
+        _paymentRealtime = paymentRealtime;
+        _data = data;
         _configuration = configuration;
         _hostEnvironment = hostEnvironment;
     }
@@ -440,6 +452,165 @@ public class TestController : ControllerBase
             connection = "OK",
             timestamp = DateTime.UtcNow
         });
+    }
+
+    /// <summary>Testa integração com Kiwify (OAuth, links de checkout e webhook).</summary>
+    [HttpGet("kiwify")]
+    public async Task<IActionResult> TestKiwify(CancellationToken cancellationToken)
+    {
+        var missingMessage = KiwifyConfigHelper.BuildMissingConfigMessage(_configuration);
+        var debug = new
+        {
+            paymentProvider = await _settings.GetPaymentProviderAsync(cancellationToken),
+            publicApiUrl = _configuration["PUBLIC_API_URL"]?.Trim() ?? "(localhost)",
+            frontendUrl = _configuration["FRONTEND_URL"]?.Trim() ?? "http://localhost:4200",
+            kiwify = new
+            {
+                hasApiKey = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetApiKey(_configuration)),
+                hasClientSecret = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetClientSecret(_configuration)),
+                hasAccountId = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetAccountId(_configuration)),
+                hasCheckoutSingle = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetCheckoutCode(_configuration, "single", false)),
+                hasCheckoutPack3 = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack3", false)),
+                hasCheckoutPack5 = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack5", false)),
+                webhookTokenConfigured = !string.IsNullOrWhiteSpace(KiwifyConfigHelper.GetWebhookToken(_configuration)),
+                apiKeyPreview = KiwifyConfigHelper.MaskSecret(KiwifyConfigHelper.GetApiKey(_configuration)),
+                accountIdPreview = KiwifyConfigHelper.MaskSecret(KiwifyConfigHelper.GetAccountId(_configuration)),
+                missingMessage = string.IsNullOrWhiteSpace(missingMessage) ? null : missingMessage
+            },
+            envFile = EnvFileLoader.LoadedPath,
+            envDiagnostics = EnvFileLoader.GetDiagnostics(_hostEnvironment.ContentRootPath)
+        };
+
+        if (!KiwifyConfigHelper.HasApiCredentials(_configuration))
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                error = "Kiwify não configurado",
+                message = missingMessage,
+                debug,
+                help = new[]
+                {
+                    "1. Defina KIWIFY_API_KEY (ou KIWIFY_CLIENT_ID), KIWIFY_CLIENT_SECRET e KIWIFY_ACCOUNT_ID no backend/.env",
+                    "2. Reinicie a API após alterar o .env",
+                    "3. Rode GET /api/test/env para ver se o arquivo foi encontrado",
+                    "4. Se validar no admin de produção, copie as chaves Kiwify para o .env do servidor"
+                }
+            });
+        }
+
+        var result = await _kiwify.TestConnectionAsync(cancellationToken);
+        if (!result.Connected)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                connected = false,
+                provider = result.Provider,
+                error = "Falha na integração Kiwify",
+                message = result.Message,
+                details = result.Details,
+                debug,
+                connection = "ERRO"
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            connected = true,
+            provider = result.Provider,
+            message = result.Message,
+            details = result.Details,
+            debug,
+            connection = "OK",
+            timestamp = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>Consulta venda na Kiwify (order_ref ou order_id). Requer admin.</summary>
+    [HttpGet("kiwify/sale/{orderId}")]
+    public async Task<IActionResult> GetKiwifySale(string orderId, CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken))
+        {
+            return Unauthorized(new { success = false, error = "Acesso negado — requer token de administrador" });
+        }
+
+        if (string.IsNullOrWhiteSpace(orderId))
+        {
+            return BadRequest(new { success = false, error = "orderId é obrigatório" });
+        }
+
+        try
+        {
+            var sale = await _kiwify.GetSaleDetailsAsync(orderId.Trim(), cancellationToken);
+            return Ok(new { success = true, sale });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>Dispara evento paymentConfirmed no hub SignalR (teste). Requer admin.</summary>
+    [HttpPost("payment-hub")]
+    public async Task<IActionResult> TestPaymentHub(
+        [FromBody] TestPaymentHubSignature? body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken))
+        {
+            return Unauthorized(new { success = false, error = "Acesso negado — requer token de administrador" });
+        }
+
+        var callerUserId = JwtAuthHelper.TryGetUserId(Request.Headers, _configuration);
+        var targetUserId = string.IsNullOrWhiteSpace(body?.UserId) ? callerUserId : body!.UserId!.Trim();
+        if (string.IsNullOrWhiteSpace(targetUserId))
+        {
+            return BadRequest(new { success = false, error = "Informe userId no body ou use token de usuário logado" });
+        }
+
+        var credits = body?.Credits > 0 ? body.Credits : 1;
+        var profile = await _data.GetUserProfileAsync(targetUserId, cancellationToken);
+        var currentCredits = profile != null
+            ? await _data.GetUserCreditsAsync(targetUserId, cancellationToken)
+            : credits;
+
+        await _paymentRealtime.NotifyPaymentConfirmedAsync(
+            new PaymentConfirmedNotification
+            {
+                UserId = targetUserId,
+                Credits = currentCredits,
+                OrderId = $"test_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+                PlanId = "test",
+                Provider = "test",
+                AlreadyFulfilled = false
+            },
+            cancellationToken);
+
+        return Ok(new
+        {
+            success = true,
+            message = body?.Message ?? "Evento paymentConfirmed enviado ao hub.",
+            userId = targetUserId,
+            credits = currentCredits,
+            hubPath = "/hubs/payment",
+            eventName = "paymentConfirmed"
+        });
+    }
+
+    private async Task<bool> EnsureAdminAsync(CancellationToken cancellationToken)
+    {
+        var userId = JwtAuthHelper.TryGetUserId(Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return false;
+        }
+
+        var profile = await _data.GetUserProfileAsync(userId, cancellationToken);
+        return profile?.UserType == "admin";
     }
 
     /// <summary>Envia e-mail de teste SMTP (diagnóstico). Query opcional: ?to=destino@email.com</summary>

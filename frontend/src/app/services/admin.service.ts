@@ -20,7 +20,7 @@ export interface UsageData {
   revenue: number;
 }
 
-export type PaymentProvider = 'stripe' | 'mercadopago' | 'cakto';
+export type PaymentProvider = 'stripe' | 'mercadopago' | 'cakto' | 'kiwify';
 export type MercadoPagoMode = 'test' | 'production';
 
 export interface PaymentProviderSetting {
@@ -48,6 +48,7 @@ export interface PricingConfig {
   pack5DiscountPercent: number;
   englishPriceBRL: number;
   englishBundlePriceBRL: number;
+  transactionFeeBRL?: number;
   singlePriceBRL?: number;
   pack3PriceBRL?: number;
   pack5PriceBRL?: number;
@@ -109,6 +110,45 @@ export interface PartnerReferral {
   partnerName?: string;
   partnerLink?: string;
   linkedAt?: string;
+}
+
+export interface PendingPurchaseItem {
+  id: string;
+  userId?: string;
+  userEmail?: string;
+  planId?: string;
+  planName?: string;
+  creditsAmount: number;
+  price?: number;
+  paymentMethod?: string;
+  paymentId?: string;
+  status: string;
+  createdAt?: string;
+}
+
+export interface KiwifySaleDetails {
+  orderId: string;
+  orderRef?: string;
+  status?: string;
+  paid: boolean;
+  alreadyFulfilled: boolean;
+  customerEmail?: string;
+  priceBRL: number;
+  externalReference?: string;
+  paymentIdUsed?: string;
+}
+
+export interface AdminCreditActionResult {
+  success: boolean;
+  message?: string;
+  processed?: boolean;
+  paid?: boolean;
+  alreadyFulfilled?: boolean;
+  credits?: number;
+  userId?: string;
+  userEmail?: string;
+  sale?: KiwifySaleDetails;
+  error?: string;
 }
 
 export interface CouponMetricRow {
@@ -256,7 +296,8 @@ export class AdminService {
         pack3DiscountPercent: config.pack3DiscountPercent,
         pack5DiscountPercent: config.pack5DiscountPercent,
         englishPriceBRL: config.englishPriceBRL,
-        englishBundlePriceBRL: config.englishBundlePriceBRL
+        englishBundlePriceBRL: config.englishBundlePriceBRL,
+        transactionFeeBRL: config.transactionFeeBRL ?? 0
       },
       { headers: this.getAuthHeaders() }
     );
@@ -332,6 +373,90 @@ export class AdminService {
   getPartnerReferrals(): Observable<{ success: boolean; referrals: PartnerReferral[] }> {
     return this.http.get<{ success: boolean; referrals: PartnerReferral[] }>(
       `${this.apiUrl}/admin/partner-referrals`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getPendingPurchases(userId?: string, limit = 50): Observable<{ success: boolean; purchases: PendingPurchaseItem[] }> {
+    const params = new URLSearchParams();
+    if (userId?.trim()) params.set('userId', userId.trim());
+    params.set('limit', String(limit));
+    const qs = params.toString();
+    return this.http.get<{ success: boolean; purchases: PendingPurchaseItem[] }>(
+      `${this.apiUrl}/admin/purchases/pending${qs ? `?${qs}` : ''}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  createPendingPurchase(body: {
+    userId?: string;
+    email?: string;
+    planId: string;
+    kiwifyOrderId?: string;
+  }): Observable<{ success: boolean; message?: string; purchase?: PendingPurchaseItem; error?: string }> {
+    return this.http.post<{ success: boolean; message?: string; purchase?: PendingPurchaseItem; error?: string }>(
+      `${this.apiUrl}/admin/purchases/pending`,
+      body,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getKiwifySale(orderId: string): Observable<{ success: boolean; sale: KiwifySaleDetails; error?: string }> {
+    return this.http.get<{ success: boolean; sale: KiwifySaleDetails; error?: string }>(
+      `${this.apiUrl}/admin/kiwify/sales/${encodeURIComponent(orderId.trim())}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  reconcileKiwifyOrder(body: {
+    orderId: string;
+    pendingPurchaseId?: string;
+  }): Observable<AdminCreditActionResult> {
+    return this.http.post<AdminCreditActionResult>(
+      `${this.apiUrl}/admin/kiwify/reconcile`,
+      body,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  grantManualCredits(body: {
+    userId?: string;
+    email?: string;
+    planId?: string;
+    credits?: number;
+    price?: number;
+    paymentMethod?: string;
+    paymentId?: string;
+    reason?: string;
+    sendEmail?: boolean;
+  }): Observable<AdminCreditActionResult> {
+    return this.http.post<AdminCreditActionResult>(
+      `${this.apiUrl}/admin/credits/grant`,
+      body,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  testPaymentHub(body?: { userId?: string; credits?: number; message?: string }): Observable<{
+    success: boolean;
+    message?: string;
+    userId?: string;
+    credits?: number;
+    hubPath?: string;
+    eventName?: string;
+    error?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      message?: string;
+      userId?: string;
+      credits?: number;
+      hubPath?: string;
+      eventName?: string;
+      error?: string;
+    }>(
+      `${this.apiUrl}/test/payment-hub`,
+      body ?? {},
       { headers: this.getAuthHeaders() }
     );
   }

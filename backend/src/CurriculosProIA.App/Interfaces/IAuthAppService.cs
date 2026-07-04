@@ -19,4 +19,5 @@ public interface IAuthAppService
     Task<IActionResult> VerifyLoginCode(EmailCodeSignature request, CancellationToken cancellationToken = default);
     Task<IActionResult> LinkPartnerCoupon(LinkPartnerCouponSignature request, CancellationToken cancellationToken = default);
     Task<IActionResult> GetReferralCoupon(CancellationToken cancellationToken = default);
+    Task<IActionResult> DeleteAccount(DeleteAccountSignature request, CancellationToken cancellationToken = default);
 }

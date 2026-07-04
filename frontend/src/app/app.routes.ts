@@ -9,6 +9,7 @@ import { PrivacyPolicyComponent } from './components/privacy-policy/privacy-poli
 import { TermsOfUseComponent } from './components/terms-of-use/terms-of-use.component';
 import { AnalysesHistoryComponent } from './components/analyses-history/analyses-history.component';
 import { PurchaseConfirmationComponent } from './components/purchase-confirmation/purchase-confirmation.component';
+import { CaktoPopupReturnComponent } from './components/cakto-popup-return/cakto-popup-return.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -23,6 +24,8 @@ export const routes: Routes = [
   { path: 'trocar-senha', component: ChangePasswordComponent, canActivate: [authGuard] },
   { path: 'meus-dados', component: MeusDadosComponent, canActivate: [authGuard] },
   { path: 'compra/sucesso', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
+  { path: 'compra/cakto-popup-retorno', component: CaktoPopupReturnComponent, canActivate: [authGuard] },
+  { path: 'compra/kiwify-popup-retorno', component: CaktoPopupReturnComponent, canActivate: [authGuard] },
   { path: 'compra/pendente', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
   { path: 'compra/falha', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
   { path: 'compra/cancelada', component: PurchaseConfirmationComponent, canActivate: [authGuard] },

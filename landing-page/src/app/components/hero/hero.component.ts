@@ -5,7 +5,7 @@ import {
   ElementRef,
   OnDestroy,
   ViewChild,
-  signal,
+  signal
 } from '@angular/core';
 
 interface TerminalCard {
@@ -52,8 +52,7 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
   showCursor = signal(true);
   showSummary = signal(false);
   visibleCards = signal<number[]>([]);
-  isMuted = signal(true);
-  volume = signal(80);
+  private readonly fixedVolume = 0.8;
 
   private observer?: IntersectionObserver;
   private timers: ReturnType<typeof setTimeout>[] = [];
@@ -72,42 +71,7 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
     );
 
     this.observer.observe(this.terminalSection.nativeElement);
-    this.tryAutoplayMuted();
-  }
-
-  toggleMute(event: Event): void {
-    event.stopPropagation();
-
-    const video = this.heroVideoRef?.nativeElement;
-    if (!video) {
-      return;
-    }
-
-    video.muted = !video.muted;
-    this.isMuted.set(video.muted);
-
-    if (!video.muted && video.volume === 0) {
-      video.volume = this.volume() / 100;
-      this.volume.set(Math.round(video.volume * 100));
-    }
-  }
-
-  onVolumeChange(event: Event): void {
-    event.stopPropagation();
-
-    const input = event.target as HTMLInputElement;
-    const value = Number(input.value);
-    const video = this.heroVideoRef?.nativeElement;
-
-    this.volume.set(value);
-
-    if (!video) {
-      return;
-    }
-
-    video.volume = value / 100;
-    video.muted = value === 0;
-    this.isMuted.set(value === 0);
+    this.startVideoWithSound();
   }
 
   isCardVisible(index: number): boolean {
@@ -159,16 +123,14 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
     this.timers.push(id);
   }
 
-  private tryAutoplayMuted(): void {
+  private startVideoWithSound(): void {
     const video = this.heroVideoRef?.nativeElement;
     if (!video) {
       return;
     }
 
-    video.muted = true;
-    video.volume = this.volume() / 100;
-    this.isMuted.set(true);
-
+    video.muted = false;
+    video.volume = this.fixedVolume;
     void video.play().catch(() => undefined);
   }
 

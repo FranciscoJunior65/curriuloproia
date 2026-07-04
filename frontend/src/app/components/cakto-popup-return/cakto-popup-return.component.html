@@ -1,0 +1,23 @@
+<main class="cakto-popup-return">
+  <div class="cakto-popup-return__card">
+    <mat-spinner *ngIf="loading" diameter="44"></mat-spinner>
+    <mat-icon *ngIf="!loading" class="cakto-popup-return__icon">check_circle</mat-icon>
+
+    <h1>{{ loading ? 'Confirmando pagamento…' : 'Pagamento aprovado!' }}</h1>
+    <p *ngIf="loading">Aguarde enquanto validamos sua compra com a Cakto.</p>
+    <p *ngIf="!loading && verified">
+      Seus créditos já estão disponíveis na janela principal.
+      <span *ngIf="userCredits > 0">Saldo atual: <strong>{{ userCredits }}</strong>.</span>
+    </p>
+    <p *ngIf="!loading && verified && !inIframe" class="cakto-popup-return__hint">
+      Esta janela fecha em {{ closeCountdown }}s ou você pode fechar agora.
+    </p>
+    <p *ngIf="!loading && verified && inIframe" class="cakto-popup-return__hint">
+      Pagamento confirmado. Você pode fechar esta janela.
+    </p>
+
+    <button *ngIf="!inIframe" type="button" class="cakto-popup-return__btn" (click)="closeNow()">
+      Fechar
+    </button>
+  </div>
+</main>

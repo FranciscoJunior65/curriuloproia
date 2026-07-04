@@ -253,6 +253,7 @@ export class AnalyzerService {
     version?: string;
     transStatus?: string;
     tdsServerTransId?: string;
+    skipThreeDs?: boolean;
   }): Observable<any> {
     const body: Record<string, unknown> = {
       planId: payload.planId,
@@ -275,6 +276,7 @@ export class AnalyzerService {
     if (payload.version) body['version'] = payload.version;
     if (payload.transStatus) body['transStatus'] = payload.transStatus;
     if (payload.tdsServerTransId) body['tdsServerTransId'] = payload.tdsServerTransId;
+    if (payload.skipThreeDs) body['skipThreeDs'] = true;
 
     return this.http.post(`${this.apiUrl}/analyze/payment/cakto/card`, body, {
       headers: this.getAuthHeaders()
@@ -303,6 +305,44 @@ export class AnalyzerService {
     if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
 
     return this.http.post(`${this.apiUrl}/analyze/payment/cakto/pix`, body, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  createCaktoCardCheckout(payload: {
+    planId: string;
+    userId: string;
+    email?: string;
+    customerName?: string;
+    couponCode?: string | null;
+    cpf?: string | null;
+    includeEnglish?: boolean;
+    analysisId?: string | null;
+  }): Observable<{
+    success: boolean;
+    checkoutUrl?: string;
+    externalReference?: string;
+    error?: string;
+    message?: string;
+  }> {
+    const body: Record<string, unknown> = {
+      planId: payload.planId,
+      userId: payload.userId,
+      email: payload.email || ''
+    };
+    if (payload.customerName?.trim()) body['customerName'] = payload.customerName.trim();
+    if (payload.couponCode?.trim()) body['couponCode'] = payload.couponCode.trim();
+    if (payload.cpf != null && String(payload.cpf).trim()) body['cpf'] = String(payload.cpf).trim();
+    if (payload.includeEnglish) body['includeEnglish'] = true;
+    if (payload.analysisId?.trim()) body['analysisId'] = payload.analysisId.trim();
+
+    return this.http.post<{
+      success: boolean;
+      checkoutUrl?: string;
+      externalReference?: string;
+      error?: string;
+      message?: string;
+    }>(`${this.apiUrl}/analyze/payment/cakto/card-checkout`, body, {
       headers: this.getAuthHeaders()
     });
   }

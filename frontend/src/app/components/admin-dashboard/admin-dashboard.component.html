@@ -159,6 +159,14 @@
           </p>
         </ng-container>
 
+        <ng-container *ngIf="paymentProvider === 'kiwify'">
+          <p class="settings-description settings-description--inline">
+            Configure <code>KIWIFY_API_KEY</code>, <code>KIWIFY_CLIENT_SECRET</code>, <code>KIWIFY_ACCOUNT_ID</code> e os links
+            <code>KIWIFY_CHECKOUT_*</code> no backend/.env.
+            Veja <strong>backend/COMO_ATIVAR_KIWIFY.md</strong>.
+          </p>
+        </ng-container>
+
         <button
           mat-raised-button
           color="primary"
@@ -196,41 +204,124 @@
         <div class="tab-content">
           <mat-card class="settings-card settings-card--tab">
             <mat-card-content>
-              <p class="settings-description">Valor por crédito, desconto de cada pacote e preços do inglês.</p>
+              <p class="settings-description">Valor por crédito, taxa exibida ao cliente, desconto de cada pacote e preços do inglês.</p>
       <div *ngIf="loadingPricingSettings" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
       <div *ngIf="!loadingPricingSettings" class="pricing-config-form">
-        <div class="pricing-field pricing-field--full">
-          <label for="credit-unit">Valor por crédito (R$)</label>
-          <input id="credit-unit" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.creditUnitPriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+        <div class="pricing-base-row">
+          <div class="pricing-field">
+            <label for="credit-unit">Valor por crédito (R$)</label>
+            <input
+              id="credit-unit"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              class="period-select"
+              [ngModel]="creditUnitPriceText"
+              (input)="onPricingBrlInput('creditUnitPriceBRL', 'creditUnitPriceText', $event)"
+              [disabled]="savingPricingSettings" />
+          </div>
+          <div class="pricing-field">
+            <label for="transaction-fee">Taxa de transação (R$)</label>
+            <input
+              id="transaction-fee"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              class="period-select"
+              [ngModel]="transactionFeeText"
+              (input)="onPricingBrlInput('transactionFeeBRL', 'transactionFeeText', $event)"
+              [disabled]="savingPricingSettings" />
+            <p class="pricing-hint">Fixa na vitrine — mesma taxa para todos os pacotes.</p>
+          </div>
+          <div class="pricing-field">
+            <label>Valor total (R$)</label>
+            <div class="pricing-readonly-value" aria-live="polite">{{ formatCurrency(creditUnitTotalBRL) }}</div>
+            <p class="pricing-hint">Crédito + taxa (não editável).</p>
+          </div>
         </div>
         <div class="pricing-plans-grid">
           <div class="pricing-plan-box">
             <h3>Análise única</h3>
-            <label>Desconto (%)</label>
-            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.singleDiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
-            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(1, pricingConfig.singleDiscountPercent)) }}</strong></p>
+            <div class="pricing-field">
+              <label for="single-discount">Desconto (%)</label>
+              <input
+                id="single-discount"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="period-select"
+                [ngModel]="singleDiscountText"
+                (input)="onPricingPercentInput('singleDiscountPercent', 'singleDiscountText', $event)"
+                [disabled]="savingPricingSettings" />
+            </div>
+            <p class="pricing-preview">
+              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
+              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
+            </p>
           </div>
           <div class="pricing-plan-box">
             <h3>Pacote 3</h3>
-            <label>Desconto (%)</label>
-            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.pack3DiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
-            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong></p>
+            <div class="pricing-field">
+              <label for="pack3-discount">Desconto (%)</label>
+              <input
+                id="pack3-discount"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="period-select"
+                [ngModel]="pack3DiscountText"
+                (input)="onPricingPercentInput('pack3DiscountPercent', 'pack3DiscountText', $event)"
+                [disabled]="savingPricingSettings" />
+            </div>
+            <p class="pricing-preview">
+              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+            </p>
           </div>
           <div class="pricing-plan-box">
             <h3>Pacote 5</h3>
-            <label>Desconto (%)</label>
-            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="pricingConfig.pack5DiscountPercent" class="period-select" [disabled]="savingPricingSettings" />
-            <p class="pricing-preview">Preço: <strong>{{ formatCurrency(previewPlanPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong></p>
+            <div class="pricing-field">
+              <label for="pack5-discount">Desconto (%)</label>
+              <input
+                id="pack5-discount"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="period-select"
+                [ngModel]="pack5DiscountText"
+                (input)="onPricingPercentInput('pack5DiscountPercent', 'pack5DiscountText', $event)"
+                [disabled]="savingPricingSettings" />
+            </div>
+            <p class="pricing-preview">
+              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+            </p>
           </div>
         </div>
         <div class="pricing-english-row">
           <div class="pricing-field">
             <label for="english-price">Inglês avulso (R$)</label>
-            <input id="english-price" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.englishPriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+            <input
+              id="english-price"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              class="period-select"
+              [ngModel]="englishPriceText"
+              (input)="onPricingBrlInput('englishPriceBRL', 'englishPriceText', $event)"
+              [disabled]="savingPricingSettings" />
           </div>
           <div class="pricing-field">
             <label for="english-bundle">Inglês no bundle (R$)</label>
-            <input id="english-bundle" type="number" min="0.01" step="0.01" [(ngModel)]="pricingConfig.englishBundlePriceBRL" class="period-select" [disabled]="savingPricingSettings" />
+            <input
+              id="english-bundle"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              class="period-select"
+              [ngModel]="englishBundlePriceText"
+              (input)="onPricingBrlInput('englishBundlePriceBRL', 'englishBundlePriceText', $event)"
+              [disabled]="savingPricingSettings" />
           </div>
         </div>
         <button mat-raised-button color="primary" (click)="savePricingSettings()" [disabled]="savingPricingSettings">{{ savingPricingSettings ? 'Salvando...' : 'Salvar preços' }}</button>
@@ -313,6 +404,153 @@
               </div>
               <p *ngIf="interviewConfigMessage" class="settings-success">{{ interviewConfigMessage }}</p>
               <p *ngIf="interviewConfigError" class="settings-error">{{ interviewConfigError }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">account_balance_wallet</mat-icon>
+          Créditos / Kiwify
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
+                Registre solicitações de compra, concilie vendas pagas na Kiwify que não baixaram via webhook,
+                ou inclua créditos manualmente (pagamento direto, erro no gateway, etc.).
+              </p>
+
+              <p *ngIf="creditsPanelMessage" class="settings-success">{{ creditsPanelMessage }}</p>
+              <p *ngIf="creditsPanelError" class="settings-error">{{ creditsPanelError }}</p>
+
+              <div class="coupon-section">
+                <h3 class="coupon-section__title">1. Iniciar solicitação de compra (pendente)</h3>
+                <div class="coupon-form-grid">
+                  <div class="pricing-field">
+                    <label>E-mail do cliente</label>
+                    <input [(ngModel)]="pendingUserEmail" type="email" class="period-select" placeholder="cliente@email.com" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Ou ID do usuário</label>
+                    <input [(ngModel)]="pendingUserId" type="text" class="period-select" placeholder="uuid" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Plano</label>
+                    <select [(ngModel)]="pendingPlanId" class="period-select">
+                      <option value="single">Single (1)</option>
+                      <option value="pack3">Pack 3</option>
+                      <option value="pack5">Pack 5</option>
+                    </select>
+                  </div>
+                  <div class="pricing-field">
+                    <label>ID Kiwify (opcional)</label>
+                    <input [(ngModel)]="pendingKiwifyOrderId" type="text" class="period-select" placeholder="order_ref ou order_id" />
+                  </div>
+                </div>
+                <button mat-raised-button color="primary" type="button" class="coupon-create-btn" (click)="createPendingPurchase()" [disabled]="savingPendingPurchase">
+                  Registrar pendente
+                </button>
+              </div>
+
+              <div class="coupon-section">
+                <h3 class="coupon-section__title">2. Consultar e baixar venda Kiwify</h3>
+                <div class="coupon-form-grid">
+                  <div class="pricing-field">
+                    <label>Order ref / order id</label>
+                    <input [(ngModel)]="kiwifyOrderId" type="text" class="period-select" placeholder="ex.: nntB0Dj" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Pendência vinculada (opcional)</label>
+                    <select [(ngModel)]="selectedPendingPurchaseId" class="period-select">
+                      <option value="">— nenhuma —</option>
+                      <option *ngFor="let p of pendingPurchases" [value]="p.id">{{ p.userEmail || p.userId }} · {{ p.planName }} · {{ p.paymentId }}</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="header-actions" style="margin-bottom: 1rem;">
+                  <button mat-stroked-button type="button" (click)="consultKiwifySale()" [disabled]="loadingKiwifySale">
+                    Consultar na Kiwify
+                  </button>
+                  <button mat-raised-button color="accent" type="button" (click)="reconcileKiwifySale()" [disabled]="reconcilingKiwify">
+                    Baixar créditos (mesmo fluxo webhook)
+                  </button>
+                  <button mat-stroked-button type="button" (click)="testPaymentHub()" [disabled]="testingPaymentHub">
+                    Testar hub SignalR
+                  </button>
+                </div>
+                <div *ngIf="kiwifySale" class="kiwify-sale-box">
+                  <p><strong>Status:</strong> {{ kiwifySale.status }} · <strong>Pago:</strong> {{ kiwifySale.paid ? 'Sim' : 'Não' }} · <strong>Já baixado:</strong> {{ kiwifySale.alreadyFulfilled ? 'Sim' : 'Não' }}</p>
+                  <p><strong>Cliente:</strong> {{ kiwifySale.customerEmail || '—' }} · <strong>Valor:</strong> {{ formatCurrency(kiwifySale.priceBRL) }}</p>
+                  <p><strong>Order ref:</strong> {{ kiwifySale.orderRef || '—' }} · <strong>Order id:</strong> {{ kiwifySale.orderId }}</p>
+                </div>
+              </div>
+
+              <div class="coupon-section">
+                <h3 class="coupon-section__title">3. Inclusão avulsa (sem Kiwify)</h3>
+                <div class="coupon-form-grid">
+                  <div class="pricing-field">
+                    <label>E-mail</label>
+                    <input [(ngModel)]="manualGrantEmail" type="email" class="period-select" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Ou ID</label>
+                    <input [(ngModel)]="manualGrantUserId" type="text" class="period-select" />
+                  </div>
+                  <div class="pricing-field">
+                    <label>Plano</label>
+                    <select [(ngModel)]="manualGrantPlanId" class="period-select" [disabled]="manualGrantCredits != null">
+                      <option value="single">Single</option>
+                      <option value="pack3">Pack 3</option>
+                      <option value="pack5">Pack 5</option>
+                    </select>
+                  </div>
+                  <div class="pricing-field">
+                    <label>Créditos avulsos (opcional)</label>
+                    <input [(ngModel)]="manualGrantCredits" type="number" min="1" class="period-select" placeholder="ex.: 3" />
+                  </div>
+                  <div class="pricing-field pricing-field--full">
+                    <label>Motivo</label>
+                    <textarea [(ngModel)]="manualGrantReason" class="period-select" rows="2" placeholder="Pagamento direto, erro Kiwify..."></textarea>
+                  </div>
+                </div>
+                <label class="coupon-checkbox">
+                  <input type="checkbox" [(ngModel)]="manualGrantSendEmail" /> Enviar e-mail de confirmação
+                </label>
+                <button mat-raised-button color="warn" type="button" class="coupon-create-btn" (click)="grantManualCredits()" [disabled]="grantingManualCredits">
+                  Incluir créditos manualmente
+                </button>
+              </div>
+
+              <div class="coupon-section">
+                <div class="coupon-section__header">
+                  <h3 class="coupon-section__title">Compras pendentes</h3>
+                  <button mat-button type="button" (click)="loadPendingPurchases()"><mat-icon>refresh</mat-icon></button>
+                </div>
+                <div *ngIf="loadingPendingPurchases" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
+                <table *ngIf="!loadingPendingPurchases && pendingPurchases.length" class="usage-table">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Plano</th>
+                      <th>ID pagamento</th>
+                      <th>Data</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let p of pendingPurchases">
+                      <td>{{ p.userEmail || p.userId }}</td>
+                      <td>{{ p.planName }} ({{ p.creditsAmount }})</td>
+                      <td>{{ p.paymentId }}</td>
+                      <td>{{ formatDateTime(p.createdAt) }}</td>
+                      <td><button mat-button type="button" (click)="selectPendingForReconcile(p)">Usar</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p *ngIf="!loadingPendingPurchases && !pendingPurchases.length" class="settings-description">Nenhuma compra pendente.</p>
+              </div>
             </mat-card-content>
           </mat-card>
         </div>

@@ -140,6 +140,10 @@ public class AnalyzeController : ControllerBase
     public Task<IActionResult> CreateCaktoPix([FromBody] CaktoPixPaymentSignature body, CancellationToken ct) =>
         _analyze.CreateCaktoPix(body, ct);
 
+    [HttpPost("payment/cakto/card-checkout")]
+    public Task<IActionResult> CreateCaktoCardCheckout([FromBody] CaktoPixPaymentSignature body, CancellationToken ct) =>
+        _analyze.CreateCaktoCardCheckout(body, ct);
+
     [HttpPost("payment/admin-free-credits")]
     public Task<IActionResult> AdminFreeCredits([FromBody] AdminFreeCreditsSignature body, CancellationToken ct) =>
         _analyze.AdminFreeCredits(body, ct);

@@ -52,10 +52,14 @@
   display: block;
   width: 100%;
   min-width: 0;
-  height: clamp(200px, 38vw, 280px);
+  height: clamp(220px, 52vw, 280px);
   flex-shrink: 0;
   overflow: hidden;
   background: #312e81;
+
+  @media (max-width: 767px) {
+    height: clamp(260px, 62vw, 380px);
+  }
 
   .login-card--wide & {
     height: 100%;
@@ -89,7 +93,7 @@
     min-width: 100%;
     min-height: 100%;
     object-fit: cover;
-    object-position: center;
+    object-position: center center;
     border: 0;
     opacity: 1;
     visibility: visible;

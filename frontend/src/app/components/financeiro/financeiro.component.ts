@@ -10,6 +10,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
+import { PurchaseService } from '../../services/purchase.service';
 import { environment } from '../../../environments/environment';
 import { AccountCreditsInlineComponent } from '../account-credits-inline/account-credits-inline.component';
 
@@ -74,6 +75,8 @@ export class FinanceiroComponent implements OnInit, OnDestroy {
   userCredits: number = 0;
   totalCreditsUsed: number = 0;
   totalCreditsActive: number = 0;
+  exportingPurchases = false;
+  exportError: string | null = null;
 
   private readonly destroy$ = new Subject<void>();
   private lastKnownCredits: number | null = null;
@@ -82,6 +85,7 @@ export class FinanceiroComponent implements OnInit, OnDestroy {
   constructor(
     private http: HttpClient,
     public authService: AuthService,
+    private purchaseService: PurchaseService,
     public router: Router
   ) {}
 
@@ -285,6 +289,29 @@ export class FinanceiroComponent implements OnInit, OnDestroy {
       case 'cancelled': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
     }
+  }
+
+  downloadPurchases(format: 'json' | 'csv'): void {
+    this.exportError = null;
+    this.exportingPurchases = true;
+    this.purchaseService.exportPurchasesObservable(format).subscribe({
+      next: (blob) => {
+        this.exportingPurchases = false;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download =
+          format === 'csv'
+            ? `compras-curriculoproia.${format}`
+            : `dados-compras-curriculoproia.${format}`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.exportingPurchases = false;
+        this.exportError = 'Não foi possível baixar os dados. Tente novamente.';
+      }
+    });
   }
 }
 

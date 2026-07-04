@@ -36,6 +36,7 @@ public interface IAnalyzeAppService
     Task<IActionResult> CreateCaktoCardToken(CaktoCardTokenSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GetCakto3dsToken(string? provider, CancellationToken cancellationToken = default);
     Task<IActionResult> CreateCaktoPix(CaktoPixPaymentSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> CreateCaktoCardCheckout(CaktoPixPaymentSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> AdminFreeCredits(AdminFreeCreditsSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> VerifyPayment(string? sessionId, string? payment_id, string? paymentId, string? provider, CancellationToken cancellationToken = default);
     Task<IActionResult> GetCredits(string? userId, CancellationToken cancellationToken = default);

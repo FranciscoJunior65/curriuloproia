@@ -18,6 +18,9 @@ public class CaktoService : ICaktoService
 {
     private const int PixExpiresInSeconds = 3600;
 
+    /// <summary>Telefone E.164 padrão (produto digital). Deve ser o mesmo usado no 3DS no front.</summary>
+    private const string DefaultCustomerPhone = "5511999999999";
+
     private readonly IPaymentCheckoutService _checkout;
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -74,15 +77,28 @@ public class CaktoService : ICaktoService
 
         EnsureConfigured();
 
-        var sdkClientId = CaktoConfigHelper.GetSdkClientId(_configuration)
-            ?? throw new InvalidOperationException("CAKTO_SDK_CLIENT_ID não configurado no backend/.env");
+        await SyncOfferPriceAsync(ctx, cancellationToken);
+
+        var checkoutCode = CaktoConfigHelper.GetCheckoutCode(_configuration)
+            ?? throw new InvalidOperationException("CAKTO_OFFER_ID ou CAKTO_CHECKOUT_CODE não configurado.");
+
+        var customerName = string.IsNullOrWhiteSpace(email)
+            ? ctx.PlanName
+            : email.Trim().Split('@')[0];
+
+        var checkoutUrl = BuildHostedCheckoutUrl(
+            checkoutCode,
+            customerName,
+            email.Trim(),
+            ctx.CpfNormalized,
+            couponCode,
+            BuildExternalReference(ctx));
 
         return new CheckoutSessionResult
         {
-            TransparentCheckout = true,
+            TransparentCheckout = false,
+            Url = checkoutUrl,
             AmountBRL = ctx.AmountBRL,
-            PublicKey = sdkClientId,
-            PixAvailable = true,
             UserId = ctx.UserId,
             PlanId = ctx.PlanId,
             PlanName = ctx.PlanName,
@@ -176,10 +192,15 @@ public class CaktoService : ICaktoService
             ? "cielo"
             : provider.Trim().ToLowerInvariant();
 
+        var sdkClientId = CaktoConfigHelper.GetSdkClientId(_configuration)
+            ?? throw new InvalidOperationException("CAKTO_SDK_CLIENT_ID não configurado no backend/.env");
+
         var client = _httpClientFactory.CreateClient("Cakto");
         var url = $"{CaktoConfigHelper.BaseUrl}/api/financial/3ds/token/?provider={Uri.EscapeDataString(normalizedProvider)}";
 
-        using var response = await client.GetAsync(url, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("X-client-id", sdkClientId);
+        using var response = await client.SendAsync(request, cancellationToken);
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -267,19 +288,45 @@ public class CaktoService : ICaktoService
 
         await SyncOfferPriceAsync(paymentCtx.Ctx, cancellationToken);
 
-        var productId = CaktoConfigHelper.GetProductId(_configuration)
-            ?? throw new InvalidOperationException("CAKTO_PRODUCT_ID não configurado no backend/.env");
+        var useThreeDs = threeDSecure is { Cavv: not null and not "", Eci: not null and not "" };
+        if (useThreeDs)
+        {
+            ValidateThreeDSecureData(threeDSecure);
+        }
 
-        var threeDsPayload = BuildThreeDSecurePayload(threeDSecure);
+        // API pública rejeita antifraudProfilingAttemptReference na raiz; a referência Nethone vai em customer.fingerprint.
+        var antifraudRef = antifraudProfilingAttemptReference.Trim();
+        var paymentCtxWithAntifraud = paymentCtx with
+        {
+            Fingerprint = antifraudRef,
+            Phone = DefaultCustomerPhone
+        };
+
+        Dictionary<string, object>? threeDsPayload = useThreeDs
+            ? BuildThreeDSecurePayload(threeDSecure)
+            : null;
+        var paymentMethod = useThreeDs ? "threeDs" : "credit_card";
         var body = BuildPaymentBody(
-            paymentCtx,
-            "threeDs",
+            paymentCtxWithAntifraud,
+            paymentMethod,
             card: new Dictionary<string, object> { ["token"] = cardToken.Trim() },
-            threeDSecure: threeDsPayload,
-            productId: productId,
-            antifraudProfilingAttemptReference: antifraudProfilingAttemptReference.Trim());
+            threeDSecure: threeDsPayload);
 
         var root = await PostPaymentAsync(body, $"cakto_card_{userId}_{Guid.NewGuid():N}", cancellationToken);
+        var orderId = root.TryGetProperty("id", out var idLog) ? idLog.GetString() : null;
+        if (root.TryGetProperty("status", out var statusProp))
+        {
+            var status = statusProp.GetString();
+            if (!string.Equals(status, "paid", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "Cakto cartão não aprovado: status={Status}, orderId={OrderId}, response={Response}",
+                    status,
+                    orderId,
+                    root.GetRawText());
+            }
+        }
+
         return await MapProcessPaymentResultAsync(root, cancellationToken);
     }
 
@@ -356,6 +403,49 @@ public class CaktoService : ICaktoService
             Message = string.IsNullOrEmpty(qrCode)
                 ? "Cakto não retornou QR Code PIX."
                 : null
+        };
+    }
+
+    public async Task<CaktoHostedCheckoutResult> CreateHostedCardCheckoutAsync(
+        string planId,
+        string userId,
+        string email,
+        string customerName,
+        string? frontendUrl = null,
+        string? couponCode = null,
+        string? cpf = null,
+        bool includeEnglish = false,
+        string? analysisId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var paymentCtx = await BuildPaymentContextAsync(
+            planId, userId, email, customerName, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
+
+        await SyncOfferPriceAsync(paymentCtx.Ctx, cancellationToken);
+
+        var checkoutCode = CaktoConfigHelper.GetCheckoutCode(_configuration);
+        if (string.IsNullOrWhiteSpace(checkoutCode))
+        {
+            return new CaktoHostedCheckoutResult
+            {
+                Success = false,
+                Message = "CAKTO_OFFER_ID ou CAKTO_CHECKOUT_CODE não configurado."
+            };
+        }
+
+        var checkoutUrl = BuildHostedCheckoutUrl(
+            checkoutCode,
+            paymentCtx.CustomerName,
+            paymentCtx.Email,
+            paymentCtx.CpfNormalized,
+            couponCode,
+            paymentCtx.ExternalReference);
+
+        return new CaktoHostedCheckoutResult
+        {
+            Success = true,
+            CheckoutUrl = checkoutUrl,
+            ExternalReference = paymentCtx.ExternalReference
         };
     }
 
@@ -528,7 +618,7 @@ public class CaktoService : ICaktoService
     {
         var offerId = CaktoConfigHelper.GetOfferId(_configuration)!;
         var client = await CreateAuthorizedClientAsync(cancellationToken);
-
+        // Preço base na oferta; a Cakto adiciona "Taxa de serviço" no checkout hospedado.
         var body = new
         {
             name = TruncatePlanName(ctx.PlanName),
@@ -550,9 +640,7 @@ public class CaktoService : ICaktoService
         string paymentMethod,
         Dictionary<string, object>? card = null,
         Dictionary<string, object>? threeDSecure = null,
-        int? pixExpiresIn = null,
-        string? productId = null,
-        string? antifraudProfilingAttemptReference = null)
+        int? pixExpiresIn = null)
     {
         var offerId = CaktoConfigHelper.GetOfferId(_configuration)!;
 
@@ -574,16 +662,6 @@ public class CaktoService : ICaktoService
                 ["sck"] = paymentCtx.ExternalReference
             }
         };
-
-        if (!string.IsNullOrWhiteSpace(productId))
-        {
-            body["productId"] = productId;
-        }
-
-        if (!string.IsNullOrWhiteSpace(antifraudProfilingAttemptReference))
-        {
-            body["antifraudProfilingAttemptReference"] = antifraudProfilingAttemptReference;
-        }
 
         if (card != null)
         {
@@ -656,9 +734,12 @@ public class CaktoService : ICaktoService
             payload["trans_status"] = threeDSecure.TransStatus;
         }
 
-        if (!string.IsNullOrWhiteSpace(threeDSecure.TdsServerTransId))
+        var tdsServerTransId = !string.IsNullOrWhiteSpace(threeDSecure.TdsServerTransId)
+            ? threeDSecure.TdsServerTransId
+            : threeDSecure.Xid;
+        if (!string.IsNullOrWhiteSpace(tdsServerTransId))
         {
-            payload["tds_server_trans_id"] = threeDSecure.TdsServerTransId;
+            payload["tds_server_trans_id"] = tdsServerTransId;
         }
 
         return payload;
@@ -706,6 +787,7 @@ public class CaktoService : ICaktoService
         CancellationToken cancellationToken)
     {
         var orderId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+        var refId = root.TryGetProperty("refId", out var refIdProp) ? refIdProp.GetString() : null;
         var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
 
         if (string.Equals(status, "paid", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(orderId))
@@ -716,10 +798,33 @@ public class CaktoService : ICaktoService
                 Success = true,
                 Paid = true,
                 PaymentId = orderId,
+                RefId = refId,
                 Status = status,
                 User = verify.User,
                 AlreadyFulfilled = verify.AlreadyFulfilled
             };
+        }
+
+        string? statusDetail = ExtractStatusDetail(root);
+        if (!string.IsNullOrEmpty(orderId)
+            && (string.Equals(status, "refused", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(status, "declined", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                var order = await GetOrderAsync(orderId, cancellationToken);
+                statusDetail ??= ExtractOrderReason(order);
+                refId ??= order.TryGetProperty("refId", out var orderRef) ? orderRef.GetString() : null;
+                _logger.LogWarning(
+                    "Cakto pedido {OrderId} status={Status}, reason={Reason}",
+                    orderId,
+                    status,
+                    statusDetail ?? "(sem motivo na API)");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Não foi possível consultar pedido Cakto {OrderId}", orderId);
+            }
         }
 
         return new CaktoProcessPaymentResult
@@ -727,11 +832,70 @@ public class CaktoService : ICaktoService
             Success = !string.IsNullOrEmpty(orderId),
             Paid = false,
             PaymentId = orderId,
+            RefId = refId,
             Status = status,
-            Message = status is "waiting_payment" or "pending"
-                ? "Pagamento em processamento."
-                : "Pagamento não aprovado."
+            StatusDetail = statusDetail,
+            Message = MapCaktoDeclineMessage(status, statusDetail, refId)
         };
+    }
+
+    private static string? ExtractStatusDetail(JsonElement root)
+    {
+        if (root.TryGetProperty("statusDetail", out var detail) && detail.ValueKind == JsonValueKind.String)
+        {
+            return detail.GetString();
+        }
+
+        if (root.TryGetProperty("status_detail", out var snake) && snake.ValueKind == JsonValueKind.String)
+        {
+            return snake.GetString();
+        }
+
+        return null;
+    }
+
+    private static string MapCaktoDeclineMessage(string? status, string? statusDetail = null, string? refId = null)
+    {
+        var normalized = status?.Trim().ToLowerInvariant();
+        var refSuffix = string.IsNullOrWhiteSpace(refId) ? string.Empty : $" Pedido Cakto: {refId.Trim()}.";
+
+        var baseMessage = normalized switch
+        {
+            "declined" => "Pagamento recusado pelo banco ou emissor do cartão. Tente outro cartão ou use PIX.",
+            "refused" =>
+                "Cartão recusado por falha técnica no adquirente da Cakto (não é erro do site). Use PIX ou abra chamado no suporte Cakto com o código do pedido abaixo.",
+            "waiting_payment" or "pending" => "Pagamento em processamento.",
+            _ => "Pagamento não aprovado."
+        };
+
+        if (!string.IsNullOrWhiteSpace(statusDetail))
+        {
+            return $"{baseMessage}{refSuffix} ({statusDetail.Trim()})";
+        }
+
+        return $"{baseMessage}{refSuffix}";
+    }
+
+    private static void ValidateThreeDSecureData(CaktoThreeDSecureData threeDSecure)
+    {
+        if (string.IsNullOrWhiteSpace(threeDSecure.Cavv)
+            || string.IsNullOrWhiteSpace(threeDSecure.Eci)
+            || string.IsNullOrWhiteSpace(threeDSecure.ReferenceId)
+            || string.IsNullOrWhiteSpace(threeDSecure.Version))
+        {
+            throw new InvalidOperationException(
+                "Dados 3DS incompletos (cavv, eci, referenceId e version são obrigatórios).");
+        }
+    }
+
+    private static string? ExtractOrderReason(JsonElement order)
+    {
+        if (order.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String)
+        {
+            return reason.GetString();
+        }
+
+        return null;
     }
 
     private async Task<CaktoPaymentContext> BuildPaymentContextAsync(
@@ -763,7 +927,7 @@ public class CaktoService : ICaktoService
             resolvedEmail,
             cpfNormalized,
             $"fp_{userId}",
-            "5511000000000");
+            DefaultCustomerPhone);
     }
 
     private static string BuildExternalReference(CheckoutContext ctx)
@@ -986,6 +1150,36 @@ public class CaktoService : ICaktoService
 
     private static string TruncatePlanName(string value) =>
         value.Length <= 40 ? value : value[..40];
+
+    private static string BuildHostedCheckoutUrl(
+        string checkoutCode,
+        string customerName,
+        string email,
+        string? cpfNormalized,
+        string? couponCode,
+        string externalReference)
+    {
+        var query = new List<string>
+        {
+            $"name={Uri.EscapeDataString(customerName)}",
+            $"email={Uri.EscapeDataString(email)}",
+            $"confirmEmail={Uri.EscapeDataString(email)}",
+            $"phone={Uri.EscapeDataString(DefaultCustomerPhone)}",
+            $"sck={Uri.EscapeDataString(externalReference)}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(cpfNormalized) && cpfNormalized.Length == 11)
+        {
+            query.Add($"cpf={Uri.EscapeDataString(cpfNormalized)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(couponCode))
+        {
+            query.Add($"coupon={Uri.EscapeDataString(couponCode.Trim())}");
+        }
+
+        return $"https://pay.cakto.com.br/{checkoutCode.Trim()}?{string.Join("&", query)}";
+    }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

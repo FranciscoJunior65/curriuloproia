@@ -3,7 +3,9 @@ using CurriculosProIA.Api.Authorization;
 using CurriculosProIA.App.DependencyInjection;
 using CurriculosProIA.Repository.DependencyInjection;
 using CurriculosProIA.Service.DependencyInjection;
+using CurriculosProIA.Api.Hubs;
 using CurriculosProIA.Api.Infrastructure;
+using CurriculosProIA.Service.Interfaces;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -21,7 +23,11 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Evita 500 no swagger.json quando há rotas duplicadas (ex.: com/sem barra final).
+    options.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
+});
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -83,6 +89,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddRepositories();
 builder.Services.AddInfrastructureServices();
 builder.Services.AddApplicationServices();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IPaymentRealtimeNotifier, PaymentRealtimeNotifier>();
 
 var jwtSecret = builder.Configuration["JWT_SECRET"]?.Trim()
     ?? "seu_secret_key_super_seguro_aqui_mude_em_producao";
@@ -104,6 +112,21 @@ var authBuilder = builder.Services
             IssuerSigningKey = signingKey,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs/payment", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -141,10 +164,14 @@ app.Use(async (context, next) =>
     if (IsAllowedCorsOrigin(origin, allowedOrigins))
     {
         var normalizedOrigin = origin.TrimEnd('/');
+        var requestedHeaders = context.Request.Headers["Access-Control-Request-Headers"].ToString();
         context.Response.Headers["Access-Control-Allow-Origin"] = normalizedOrigin;
         context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
         context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
-        context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With";
+        context.Response.Headers["Access-Control-Allow-Headers"] =
+            string.IsNullOrWhiteSpace(requestedHeaders)
+                ? "Content-Type, Authorization, Accept, X-Requested-With, x-signalr-user-agent"
+                : requestedHeaders;
         context.Response.Headers.Vary = "Origin";
 
         if (HttpMethods.IsOptions(context.Request.Method))
@@ -186,5 +213,6 @@ app.Use(async (context, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<PaymentHub>("/hubs/payment");
 
 app.Run();

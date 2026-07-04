@@ -12,10 +12,9 @@ using CurriculosProIA.Domain.Signatures.Purchase;
 using CurriculosProIA.App.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-
-
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
 
 namespace CurriculosProIA.App.Implementations;
 using CurriculosProIA.App;
@@ -329,6 +328,133 @@ public class PurchaseAppService : AppControllerBase, IPurchaseAppService
                 createdAt = (DateTimeOffset?)null
             }
         });
+    }
+
+    public async Task<IActionResult> ExportHistory(
+        string format = "json",
+        int limit = 500,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new { success = false, error = "Token não fornecido" });
+        }
+
+        limit = Math.Clamp(limit, 1, 2000);
+        var normalizedFormat = (format ?? "json").Trim().ToLowerInvariant();
+
+        var profile = await _data.GetUserProfileAsync(userId, cancellationToken);
+        if (profile == null)
+        {
+            return NotFound(new { success = false, error = "Usuário não encontrado" });
+        }
+
+        var purchases = await _data.GetUserPurchasesAsync(userId, limit, cancellationToken);
+        var creditUsage = await _data.GetUserCreditUsageAsync(userId, limit, cancellationToken);
+
+        var exportPayload = new
+        {
+            exportedAt = DateTimeOffset.UtcNow,
+            profile = new
+            {
+                id = profile.Id,
+                name = profile.Name,
+                email = profile.Email,
+                cpf = profile.Cpf,
+                dateOfBirth = profile.DateOfBirth,
+                city = profile.City,
+                country = profile.Country,
+                credits = profile.Credits,
+                createdAt = profile.CreatedAt
+            },
+            purchases = purchases.Select(p =>
+            {
+                var creditsInfo = p.CreditsInfo ?? new PurchaseCreditsInfo();
+                return new
+                {
+                    id = p.Id,
+                    planId = p.PlanId,
+                    planName = p.PlanName,
+                    creditsAmount = p.CreditsAmount,
+                    price = p.Price ?? 0,
+                    currency = p.Currency,
+                    status = p.Status,
+                    paymentMethod = p.PaymentMethod,
+                    paymentId = p.PaymentId,
+                    serviceType = p.ServiceType,
+                    parentPurchaseId = p.ParentPurchaseId,
+                    createdAt = p.CreatedAt,
+                    credits = new
+                    {
+                        total = creditsInfo.Total,
+                        used = creditsInfo.Used,
+                        available = creditsInfo.Available,
+                        items = creditsInfo.Credits
+                    }
+                };
+            }),
+            creditUsage = creditUsage.Select(u => new
+            {
+                id = u.Id,
+                purchaseId = u.PurchaseId,
+                used = u.Used,
+                usedAt = u.UsedAt,
+                actionType = u.ActionType,
+                resumeFileName = u.ResumeFileName,
+                createdAt = u.CreatedAt
+            })
+        };
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+
+        if (normalizedFormat == "csv")
+        {
+            var csv = BuildPurchasesCsv(purchases);
+            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
+            return File(bytes, "text/csv; charset=utf-8", $"compras-curriculoproia-{timestamp}.csv");
+        }
+
+        var json = JsonSerializer.Serialize(exportPayload, new JsonSerializerOptions { WriteIndented = true });
+        var jsonBytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(json)).ToArray();
+        return File(jsonBytes, "application/json; charset=utf-8", $"dados-compras-curriculoproia-{timestamp}.json");
+    }
+
+    private static string BuildPurchasesCsv(IReadOnlyList<PurchaseWithCredits> purchases)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("id;plano;plano_id;creditos;preco_brl;status;metodo_pagamento;id_pagamento;tipo_servico;data_compra;creditos_usados;creditos_disponiveis");
+
+        foreach (var p in purchases)
+        {
+            var creditsInfo = p.CreditsInfo ?? new PurchaseCreditsInfo();
+            sb.Append(EscapeCsvField(p.Id)).Append(';');
+            sb.Append(EscapeCsvField(p.PlanName)).Append(';');
+            sb.Append(EscapeCsvField(p.PlanId)).Append(';');
+            sb.Append(EscapeCsvField(p.CreditsAmount.ToString(CultureInfo.InvariantCulture))).Append(';');
+            sb.Append(EscapeCsvField((p.Price ?? 0).ToString(CultureInfo.InvariantCulture))).Append(';');
+            sb.Append(EscapeCsvField(p.Status)).Append(';');
+            sb.Append(EscapeCsvField(p.PaymentMethod)).Append(';');
+            sb.Append(EscapeCsvField(p.PaymentId)).Append(';');
+            sb.Append(EscapeCsvField(p.ServiceType)).Append(';');
+            sb.Append(EscapeCsvField(p.CreatedAt?.ToString("o", CultureInfo.InvariantCulture))).Append(';');
+            sb.Append(EscapeCsvField(creditsInfo.Used.ToString(CultureInfo.InvariantCulture))).Append(';');
+            sb.AppendLine(EscapeCsvField(creditsInfo.Available.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string EscapeCsvField(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var needsQuotes = value.Contains(';') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+        var escaped = value.Replace("\"", "\"\"", StringComparison.Ordinal);
+        return needsQuotes ? $"\"{escaped}\"" : escaped;
     }
 
 }
