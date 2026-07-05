@@ -1,8 +1,9 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs/operators';
-import { Subscription } from 'rxjs';
+import { interval, Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
+import { AnalyzerService } from './services/analyzer.service';
 import { CpfEnforcementService } from './services/cpf-enforcement.service';
 import { PaymentRealtimeService } from './services/payment-realtime.service';
 
@@ -15,9 +16,12 @@ import { PaymentRealtimeService } from './services/payment-realtime.service';
 export class AppComponent implements OnInit, OnDestroy {
   title = 'CurriculosPro IA';
   private authSub: Subscription | null = null;
+  private paymentSub: Subscription | null = null;
+  private creditsPollSub: Subscription | null = null;
 
   constructor(
     private authService: AuthService,
+    private analyzerService: AnalyzerService,
     private cpfEnforcement: CpfEnforcementService,
     private paymentRealtime: PaymentRealtimeService,
     private router: Router
@@ -27,14 +31,26 @@ export class AppComponent implements OnInit, OnDestroy {
     this.authSub = this.authService.currentUser$.subscribe((user) => {
       if (user && this.authService.getToken()) {
         this.paymentRealtime.ensureSessionConnected();
+        this.startCreditsPolling();
       } else {
+        this.stopCreditsPolling();
         this.paymentRealtime.endSession();
       }
     });
 
     if (this.authService.isAuthenticated()) {
       this.paymentRealtime.ensureSessionConnected();
+      this.startCreditsPolling();
     }
+
+    this.paymentSub = this.paymentRealtime.watchPaymentConfirmed().subscribe((event) => {
+      const currentUser = this.authService.getCurrentUser();
+      if (!currentUser || currentUser.id !== event.userId) {
+        return;
+      }
+
+      this.refreshCreditsFromApi();
+    });
 
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
@@ -49,7 +65,47 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.authSub?.unsubscribe();
+    this.paymentSub?.unsubscribe();
+    this.stopCreditsPolling();
     this.paymentRealtime.endSession();
+  }
+
+  private startCreditsPolling(): void {
+    if (this.creditsPollSub) {
+      return;
+    }
+
+    this.refreshCreditsFromApi();
+    this.creditsPollSub = interval(60000).subscribe(() => {
+      this.refreshCreditsFromApi();
+    });
+  }
+
+  private stopCreditsPolling(): void {
+    this.creditsPollSub?.unsubscribe();
+    this.creditsPollSub = null;
+  }
+
+  private refreshCreditsFromApi(): void {
+    if (!this.authService.isAuthenticated()) {
+      return;
+    }
+
+    this.analyzerService.getCredits().subscribe({
+      next: (res: { success?: boolean; credits?: number }) => {
+        if (!res?.success || typeof res.credits !== 'number') {
+          return;
+        }
+
+        const currentUser = this.authService.getCurrentUser();
+        if (!currentUser || currentUser.credits === res.credits) {
+          return;
+        }
+
+        this.authService.updateCurrentUser({ credits: res.credits });
+      },
+      error: () => {}
+    });
   }
 
   private promptCpfIfNeeded(url: string): void {

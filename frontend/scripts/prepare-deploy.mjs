@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -24,6 +24,15 @@ cpSync(browserDir, deployDir, { recursive: true });
 
 const files = readdirSync(deployDir);
 const jsFiles = files.filter((name) => name.endsWith('.js'));
+const indexHtml = readFileSync(join(deployDir, 'index.html'), 'utf8');
+const referencedJs = [...indexHtml.matchAll(/script src="([^"]+\.js)"/g)].map((m) => m[1]);
+const missingJs = referencedJs.filter((name) => !jsFiles.includes(name));
+
+if (missingJs.length > 0) {
+  console.error('ERRO: index.html referencia JS que não está no pacote:');
+  missingJs.forEach((name) => console.error(`  - ${name}`));
+  process.exit(1);
+}
 
 writeFileSync(
   join(deployDir, 'LEIA-ANTES-DO-UPLOAD.txt'),
@@ -35,11 +44,13 @@ writeFileSync(
     '',
     'NÃO envie só o index.html.',
     'NÃO envie a pasta browser/ aninhada — os .js devem ficar na raiz do site.',
+    'NÃO envie a pasta dist/ — use dist/deploy/ (conteúdo já achatado).',
     '',
     `Arquivos JS neste pacote (${jsFiles.length}):`,
     ...jsFiles.map((name) => `  - ${name}`),
     '',
-    'Após o upload: limpe cache do navegador (Ctrl+Shift+R).',
+    'Após o upload: apague no servidor main-*.js e polyfills-*.js antigos (hashes diferentes).',
+    'Depois limpe cache do navegador (Ctrl+Shift+R).',
   ].join('\n'),
   'utf8'
 );

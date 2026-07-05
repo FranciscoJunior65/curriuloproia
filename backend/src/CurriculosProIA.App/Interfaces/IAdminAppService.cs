@@ -28,7 +28,10 @@ public interface IAdminAppService
     Task<IActionResult> GetInterviewConfigSettings(CancellationToken cancellationToken = default);
     Task<IActionResult> UpdateInterviewConfigSettings(InterviewConfigUpdateSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GetKiwifySale(string orderId, CancellationToken cancellationToken = default);
+    Task<IActionResult> ListKiwifyWebhookLogs(string? orderId, string? orderRef, int limit, CancellationToken cancellationToken = default);
     Task<IActionResult> ReconcileKiwifyOrder(AdminReconcileKiwifySignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> ProcessKiwifyWebhook(AdminProcessKiwifyWebhookSignature body, CancellationToken cancellationToken = default);
+    Task<IActionResult> SearchUsers(string query, int limit, CancellationToken cancellationToken = default);
     Task<IActionResult> ListPendingPurchases(string? userId, int limit, CancellationToken cancellationToken = default);
     Task<IActionResult> CreatePendingPurchase(AdminPendingPurchaseSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> GrantManualCredits(AdminGrantCreditsSignature body, CancellationToken cancellationToken = default);

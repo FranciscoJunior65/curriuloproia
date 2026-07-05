@@ -1,0 +1,101 @@
+.kiwify-popup-return {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #f4f7fb;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.kiwify-popup-return__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1;
+}
+
+.kiwify-popup-return__card {
+  width: 100%;
+  max-width: 380px;
+  padding: 2rem 1.5rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.kiwify-popup-return__card--dimmed {
+  filter: blur(1px);
+  opacity: 0.35;
+}
+
+.kiwify-popup-return__icon {
+  width: 56px;
+  height: 56px;
+  font-size: 56px;
+  margin-bottom: 0.75rem;
+}
+
+.kiwify-popup-return__icon--pending {
+  color: #b45309;
+}
+
+.kiwify-popup-return__success-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: calc(100% - 2rem);
+  max-width: 360px;
+  padding: 2rem 1.5rem;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  text-align: center;
+}
+
+.kiwify-popup-return__success-icon {
+  width: 64px;
+  height: 64px;
+  font-size: 64px;
+  color: #0b6856;
+  margin-bottom: 0.5rem;
+}
+
+h1,
+h2 {
+  margin: 0 0 0.75rem;
+  color: #0f172a;
+}
+
+h1 {
+  font-size: 1.35rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.kiwify-popup-return__credits {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.kiwify-popup-return__hint {
+  font-size: 0.9rem;
+}
+
+button {
+  margin-top: 0.25rem;
+}

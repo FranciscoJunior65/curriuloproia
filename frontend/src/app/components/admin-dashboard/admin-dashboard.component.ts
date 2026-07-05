@@ -15,7 +15,11 @@ import {
   CouponMetrics,
   PartnerReferral,
   PendingPurchaseItem,
-  KiwifySaleDetails
+  KiwifySaleDetails,
+  KiwifyWebhookLogItem,
+  AdminUserSearchItem,
+  SalesListItem,
+  SalesStatsSummary
 } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
@@ -50,15 +54,19 @@ import { formatBrlDisplay, maskBrlInput } from '../../utils/currency.utils';
 })
 export class AdminDashboardComponent implements OnInit {
   stats: DashboardStats | null = null;
+  recentSales: SalesListItem[] = [];
+  salesStats: SalesStatsSummary | null = null;
   dailyUsage: UsageData[] = [];
   monthlyUsage: UsageData[] = [];
   
   loading = true;
+  loadingSales = false;
   loadingDaily = false;
   loadingMonthly = false;
   
   selectedPeriod = 30; // dias
   selectedMonths = 12; // meses
+  selectedChartDays = 7;
   isAdmin = false;
   accessDenied = false;
 
@@ -159,11 +167,26 @@ export class AdminDashboardComponent implements OnInit {
 
   manualGrantEmail = '';
   manualGrantUserId = '';
+  manualGrantUserSearch = '';
+  manualGrantUserResults: AdminUserSearchItem[] = [];
+  manualGrantSelectedUser: AdminUserSearchItem | null = null;
+  showManualGrantUserDropdown = false;
+  loadingManualGrantUserSearch = false;
+  private manualGrantUserSearchTimer: ReturnType<typeof setTimeout> | null = null;
   manualGrantPlanId = 'single';
   manualGrantCredits: number | null = null;
   manualGrantReason = '';
   manualGrantSendEmail = true;
   grantingManualCredits = false;
+
+  kiwifyWebhookJson = '';
+  processingKiwifyWebhook = false;
+
+  kiwifyWebhookLogs: KiwifyWebhookLogItem[] = [];
+  loadingKiwifyWebhookLogs = false;
+  kiwifyLogsFilterOrder = '';
+  kiwifyLogsError = '';
+  selectedKiwifyLog: KiwifyWebhookLogItem | null = null;
 
   creditsPanelMessage = '';
   creditsPanelError = '';
@@ -178,68 +201,74 @@ export class AdminDashboardComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Verifica se o usuário é admin
-    if (!this.authService.isAuthenticated()) {
-      this.accessDenied = true;
-      return;
-    }
-
-    this.isAdmin = this.authService.isAdmin();
-    
-    if (!this.isAdmin) {
-      this.accessDenied = true;
-      return;
-    }
-
-    // Verifica e atualiza o token antes de carregar os dados
     const token = this.authService.getToken();
     if (!token) {
       console.error('❌ Token não encontrado');
-      this.authService.logout();
-      this.router.navigate(['/']);
+      this.redirectToLogin();
       return;
     }
 
-    // Verifica o token primeiro
+    const currentUser = this.authService.getCurrentUser();
+    this.isAdmin = currentUser?.user_type === 'admin';
+
     this.authService.verifyToken().subscribe({
       next: (response) => {
-        if (response.success) {
-          console.log('✅ Token verificado, carregando dados...');
-          // Se for admin, carrega os dados
-          this.loadDashboard();
-          this.loadDailyUsage();
-          this.loadMonthlyUsage();
-          this.loadPaymentProviderSettings();
-          this.loadPricingSettings();
-          this.loadInterviewConfigSettings();
-          this.loadCouponsData();
-          this.loadPendingPurchases();
-        } else {
+        if (!response?.success || !response.user) {
           console.error('❌ Token inválido, redirecionando...');
-          alert('Sua sessão expirou. Por favor, faça login novamente.');
-          this.authService.logout();
-          this.router.navigate(['/']);
+          this.redirectToLogin();
+          return;
         }
+
+        this.authService.setUser(response.user);
+        this.isAdmin = response.user.user_type === 'admin';
+
+        if (!this.isAdmin) {
+          this.accessDenied = true;
+          this.loading = false;
+          return;
+        }
+
+        console.log('✅ Token verificado, carregando dados...');
+        this.loadInitialAdminData();
       },
       error: (error) => {
         console.error('❌ Erro ao verificar token:', error);
-        if (error.status === 401) {
-          alert('Sua sessão expirou. Por favor, faça login novamente.');
-          this.authService.logout();
-          this.router.navigate(['/']);
-        } else {
-          // Tenta carregar mesmo assim (pode ser um erro de rede)
-          this.loadDashboard();
-          this.loadDailyUsage();
-          this.loadMonthlyUsage();
-          this.loadPaymentProviderSettings();
-          this.loadPricingSettings();
-          this.loadInterviewConfigSettings();
-          this.loadCouponsData();
-          this.loadPendingPurchases();
+        if (error.status === 401 || error.status === 403) {
+          this.redirectToLogin();
+          return;
         }
+
+        if (this.isAdmin) {
+          console.warn('⚠️ Falha ao verificar token, usando sessão local para carregar o admin.');
+          this.loadInitialAdminData();
+          return;
+        }
+
+        this.accessDenied = true;
+        this.loading = false;
       }
     });
+  }
+
+  private loadInitialAdminData(): void {
+    this.accessDenied = false;
+    this.loadDashboard();
+    this.loadDailyUsage();
+    this.loadMonthlyUsage();
+    this.loadPaymentProviderSettings();
+    this.loadPricingSettings();
+    this.loadInterviewConfigSettings();
+    this.loadCouponsData();
+    this.loadPendingPurchases();
+    this.loadKiwifyWebhookLogs();
+    this.loadSales();
+    this.loadSalesStatistics();
+  }
+
+  private redirectToLogin(): void {
+    this.loading = false;
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   loadDashboard(): void {
@@ -362,6 +391,234 @@ export class AdminDashboardComponent implements OnInit {
 
   onMonthsChange(): void {
     this.loadMonthlyUsage();
+  }
+
+  refreshAdminData(): void {
+    this.loadDashboard();
+    this.loadSales();
+    this.loadSalesStatistics();
+    this.loadDailyUsage();
+    this.loadMonthlyUsage();
+    this.loadPendingPurchases();
+  }
+
+  loadSales(): void {
+    this.loadingSales = true;
+    this.adminService.getSales(100, 0).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.recentSales = response.purchases || [];
+        }
+        this.loadingSales = false;
+      },
+      error: (error) => {
+        console.error('Erro ao carregar vendas:', error);
+        this.loadingSales = false;
+      }
+    });
+  }
+
+  loadSalesStatistics(): void {
+    this.adminService.getSalesStatistics().subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.salesStats = response.stats;
+        }
+      },
+      error: (error) => {
+        console.error('Erro ao carregar estatísticas de vendas:', error);
+      }
+    });
+  }
+
+  formatPaymentMethod(method?: string): string {
+    const normalized = (method || '').trim().toLowerCase();
+    return (
+      {
+        stripe: 'Stripe',
+        mercadopago: 'Mercado Pago',
+        mercado_pago: 'Mercado Pago',
+        cakto: 'Cakto',
+        kiwify: 'Kiwify',
+        pix: 'PIX',
+        credit_card: 'Cartão',
+        boleto: 'Boleto',
+        admin_manual: 'Manual',
+        admin_free: 'Admin grátis',
+        coupon: 'Cupom'
+      }[normalized] || method || '—'
+    );
+  }
+
+  formatPurchaseStatus(status?: string): string {
+    const normalized = (status || '').trim().toLowerCase();
+    return (
+      {
+        concluida: 'Aprovada',
+        completed: 'Aprovada',
+        paid: 'Aprovada',
+        pendente: 'Pendente',
+        pending: 'Pendente',
+        cancelada: 'Cancelada',
+        cancelled: 'Cancelada',
+        substituida: 'Substituída'
+      }[normalized] || status || '—'
+    );
+  }
+
+  salesRowClass(status?: string): string {
+    const normalized = (status || '').trim().toLowerCase();
+    if (normalized === 'concluida' || normalized === 'completed' || normalized === 'paid') {
+      return 'sales-row--approved';
+    }
+    if (normalized === 'pendente' || normalized === 'pending') {
+      return 'sales-row--pending';
+    }
+    return '';
+  }
+
+  get recentApprovedSales(): SalesListItem[] {
+    return this.recentSales.filter((sale) => {
+      const status = (sale.status || '').toLowerCase();
+      return status === 'concluida' || status === 'completed' || status === 'paid';
+    });
+  }
+
+  get recentBuyersCount(): number {
+    const keys = new Set(
+      this.recentApprovedSales
+        .map((sale) => sale.userEmail || sale.userId)
+        .filter((value): value is string => !!value)
+        .map((value) => value.toLowerCase())
+    );
+    return keys.size;
+  }
+
+  get pendingWithOrderIdCount(): number {
+    return this.pendingPurchases.filter((purchase) => this.hasRealPaymentId(purchase.paymentId)).length;
+  }
+
+  get pendingWithoutOrderIdCount(): number {
+    return this.pendingPurchases.length - this.pendingWithOrderIdCount;
+  }
+
+  get averageApprovedTicket(): number {
+    const total = this.salesStats?.approvedRevenue
+      ?? this.recentApprovedSales.reduce((sum, sale) => sum + (sale.price || 0), 0);
+    const count = this.salesStats?.completedPurchases ?? this.recentApprovedSales.length;
+    return count > 0 ? total / count : 0;
+  }
+
+  get paymentMethodSummary(): Array<{ label: string; count: number; revenue: number; width: number }> {
+    const buckets = new Map<string, { label: string; count: number; revenue: number }>();
+    for (const sale of this.recentApprovedSales) {
+      const label = this.formatPaymentMethod(sale.paymentMethod);
+      const current = buckets.get(label) ?? { label, count: 0, revenue: 0 };
+      current.count += 1;
+      current.revenue += sale.price || 0;
+      buckets.set(label, current);
+    }
+
+    const items = Array.from(buckets.values()).sort((a, b) => b.count - a.count);
+    const max = Math.max(...items.map((item) => item.count), 1);
+    return items.map((item) => ({
+      ...item,
+      width: Math.max(8, Math.round((item.count / max) * 100))
+    }));
+  }
+
+  get salesTrend(): Array<{ label: string; count: number; revenue: number; height: number }> {
+    const days = this.selectedChartDays;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const buckets = new Map<string, { label: string; count: number; revenue: number }>();
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const key = date.toISOString().slice(0, 10);
+      buckets.set(key, {
+        label: new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date),
+        count: 0,
+        revenue: 0
+      });
+    }
+
+    for (const sale of this.recentApprovedSales) {
+      if (!sale.createdAt) continue;
+      const date = new Date(sale.createdAt);
+      if (Number.isNaN(date.getTime())) continue;
+      const key = date.toISOString().slice(0, 10);
+      const bucket = buckets.get(key);
+      if (!bucket) continue;
+      bucket.count += 1;
+      bucket.revenue += sale.price || 0;
+    }
+
+    const items = Array.from(buckets.values());
+    const max = Math.max(...items.map((item) => item.count), 1);
+    return items.map((item) => ({
+      ...item,
+      height: Math.max(10, Math.round((item.count / max) * 100))
+    }));
+  }
+
+  hasRealPaymentId(paymentId?: string): boolean {
+    return !!paymentId && !paymentId.startsWith('kiwify_pending_');
+  }
+
+  consultPendingPurchase(purchase: PendingPurchaseItem): void {
+    this.selectPendingForReconcile(purchase);
+    if (!this.hasRealPaymentId(purchase.paymentId)) {
+      this.creditsPanelError = 'Essa pendência ainda não tem order_ref/order_id da Kiwify.';
+      return;
+    }
+    this.consultKiwifySale();
+  }
+
+  reconcilePendingPurchase(purchase: PendingPurchaseItem): void {
+    this.selectPendingForReconcile(purchase);
+    if (!this.hasRealPaymentId(purchase.paymentId)) {
+      this.creditsPanelError = 'Essa pendência ainda não tem order_ref/order_id da Kiwify para conciliar.';
+      return;
+    }
+    this.reconcileKiwifySale();
+  }
+
+  grantPendingManually(purchase: PendingPurchaseItem): void {
+    const target = purchase.userEmail || purchase.userId || 'este cliente';
+    if (!window.confirm(`Liberar manualmente os créditos de ${target}?`)) {
+      return;
+    }
+
+    this.grantingManualCredits = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    this.adminService.grantManualCredits({
+      email: purchase.userEmail || undefined,
+      userId: purchase.userId || undefined,
+      planId: purchase.planId || undefined,
+      price: purchase.price,
+      pendingPurchaseId: purchase.id,
+      reason: 'Liberação manual de pendência no admin',
+      sendEmail: true
+    }).subscribe({
+      next: (res) => {
+        this.grantingManualCredits = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message || 'Créditos liberados manualmente.';
+          this.loadPendingPurchases();
+          this.loadKiwifyWebhookLogs();
+          this.loadSales();
+          this.loadSalesStatistics();
+          this.loadDashboard();
+        }
+      },
+      error: (err) => {
+        this.grantingManualCredits = false;
+        this.creditsPanelError = err.error?.error || err.error?.message || 'Erro ao liberar pendência manualmente';
+      }
+    });
   }
 
   goHome(): void {
@@ -781,6 +1038,52 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
+  loadKiwifyWebhookLogs(): void {
+    this.loadingKiwifyWebhookLogs = true;
+    this.kiwifyLogsError = '';
+    const filter = this.kiwifyLogsFilterOrder.trim();
+    const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(filter);
+    this.adminService.getKiwifyWebhookLogs({
+      orderRef: filter && !looksLikeUuid ? filter : undefined,
+      orderId: filter && looksLikeUuid ? filter : undefined,
+      limit: 100
+    }).subscribe({
+      next: (res) => {
+        this.loadingKiwifyWebhookLogs = false;
+        if (res.success) {
+          this.kiwifyWebhookLogs = res.logs || [];
+          if (this.selectedKiwifyLog) {
+            this.selectedKiwifyLog = this.kiwifyWebhookLogs.find(l => l.id === this.selectedKiwifyLog?.id) || null;
+          }
+        }
+      },
+      error: (err) => {
+        this.loadingKiwifyWebhookLogs = false;
+        this.kiwifyLogsError = err.error?.error || err.error?.message || 'Erro ao carregar logs Kiwify';
+      }
+    });
+  }
+
+  selectKiwifyLog(log: KiwifyWebhookLogItem): void {
+    this.selectedKiwifyLog = this.selectedKiwifyLog?.id === log.id ? null : log;
+  }
+
+  useKiwifyLogInCreditsPanel(log: KiwifyWebhookLogItem): void {
+    if (log.orderRef || log.orderId) {
+      this.kiwifyOrderId = log.orderRef || log.orderId || '';
+    }
+    if (log.payloadRecebido?.trim()) {
+      this.kiwifyWebhookJson = log.payloadRecebido;
+    }
+  }
+
+  kiwifyLogStatusLabel(log: KiwifyWebhookLogItem): string {
+    if (log.processed) return 'Baixado';
+    if (log.alreadyFulfilled) return 'Já existia';
+    if (log.failureStage) return 'Falhou';
+    return 'Recebido';
+  }
+
   createPendingPurchase(): void {
     if (!this.pendingUserEmail.trim() && !this.pendingUserId.trim()) {
       this.creditsPanelError = 'Informe e-mail ou ID do usuário';
@@ -855,6 +1158,9 @@ export class AdminDashboardComponent implements OnInit {
             this.kiwifySale = res.sale;
           }
           this.loadPendingPurchases();
+          this.loadKiwifyWebhookLogs();
+          this.loadSales();
+          this.loadSalesStatistics();
           this.loadDashboard();
         }
       },
@@ -866,8 +1172,13 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   grantManualCredits(): void {
-    if (!this.manualGrantEmail.trim() && !this.manualGrantUserId.trim()) {
-      this.creditsPanelError = 'Informe e-mail ou ID do usuário';
+    if (!this.manualGrantSelectedUser && !this.manualGrantEmail.trim() && !this.manualGrantUserId.trim()) {
+      this.creditsPanelError = 'Selecione um cliente na busca';
+      return;
+    }
+
+    if (!this.manualGrantReason.trim()) {
+      this.creditsPanelError = 'Informe o motivo da inclusão';
       return;
     }
 
@@ -875,11 +1186,10 @@ export class AdminDashboardComponent implements OnInit {
     this.creditsPanelMessage = '';
     this.creditsPanelError = '';
     this.adminService.grantManualCredits({
-      email: this.manualGrantEmail.trim() || undefined,
-      userId: this.manualGrantUserId.trim() || undefined,
-      planId: this.manualGrantCredits ? undefined : this.manualGrantPlanId,
-      credits: this.manualGrantCredits ?? undefined,
-      reason: this.manualGrantReason.trim() || undefined,
+      email: this.manualGrantSelectedUser?.email || this.manualGrantEmail.trim() || undefined,
+      userId: this.manualGrantSelectedUser?.id || this.manualGrantUserId.trim() || undefined,
+      planId: this.manualGrantPlanId,
+      reason: this.manualGrantReason.trim(),
       sendEmail: this.manualGrantSendEmail
     }).subscribe({
       next: (res) => {
@@ -887,12 +1197,135 @@ export class AdminDashboardComponent implements OnInit {
         if (res.success) {
           this.creditsPanelMessage = res.message || 'Créditos incluídos.';
           this.manualGrantReason = '';
+          this.loadPendingPurchases();
+          this.loadKiwifyWebhookLogs();
+          this.loadSales();
+          this.loadSalesStatistics();
           this.loadDashboard();
         }
       },
       error: (err) => {
         this.grantingManualCredits = false;
         this.creditsPanelError = err.error?.error || err.error?.message || 'Erro ao incluir créditos';
+      }
+    });
+  }
+
+  onManualGrantUserSearchInput(): void {
+    this.manualGrantSelectedUser = null;
+    this.manualGrantEmail = '';
+    this.manualGrantUserId = '';
+
+    if (this.manualGrantUserSearchTimer) {
+      clearTimeout(this.manualGrantUserSearchTimer);
+    }
+
+    const query = this.manualGrantUserSearch.trim();
+    if (query.length < 2) {
+      this.manualGrantUserResults = [];
+      this.showManualGrantUserDropdown = false;
+      return;
+    }
+
+    this.manualGrantUserSearchTimer = setTimeout(() => {
+      this.loadingManualGrantUserSearch = true;
+      this.adminService.searchUsers(query).subscribe({
+        next: (res) => {
+          this.loadingManualGrantUserSearch = false;
+          this.manualGrantUserResults = res.users || [];
+          this.showManualGrantUserDropdown = this.manualGrantUserResults.length > 0;
+        },
+        error: () => {
+          this.loadingManualGrantUserSearch = false;
+          this.manualGrantUserResults = [];
+          this.showManualGrantUserDropdown = false;
+        }
+      });
+    }, 300);
+  }
+
+  selectManualGrantUser(user: AdminUserSearchItem): void {
+    this.manualGrantSelectedUser = user;
+    this.manualGrantUserId = user.id;
+    this.manualGrantEmail = user.email || '';
+    this.manualGrantUserSearch = user.email || user.name || user.id;
+    this.showManualGrantUserDropdown = false;
+    this.manualGrantUserResults = [];
+  }
+
+  clearManualGrantUserSelection(): void {
+    this.manualGrantSelectedUser = null;
+    this.manualGrantUserId = '';
+    this.manualGrantEmail = '';
+    this.manualGrantUserSearch = '';
+    this.manualGrantUserResults = [];
+    this.showManualGrantUserDropdown = false;
+  }
+
+  onKiwifyWebhookJsonChange(): void {
+    const raw = this.kiwifyWebhookJson.trim();
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        order?: { order_ref?: string; order_id?: string };
+        order_ref?: string;
+        order_id?: string;
+      };
+      const orderRef = parsed.order?.order_ref?.trim() || parsed.order_ref?.trim();
+      const orderId = parsed.order?.order_id?.trim() || parsed.order_id?.trim();
+      if (orderRef || orderId) {
+        this.kiwifyOrderId = orderRef || orderId || this.kiwifyOrderId;
+      }
+    } catch {
+      // JSON incompleto enquanto digita/cola
+    }
+  }
+
+  processKiwifyWebhookJson(): void {
+    const payload = this.kiwifyWebhookJson.trim();
+    if (!payload) {
+      this.creditsPanelError = 'Cole o JSON completo do webhook Kiwify';
+      return;
+    }
+
+    try {
+      JSON.parse(payload);
+    } catch {
+      this.creditsPanelError = 'JSON inválido — verifique o formato';
+      return;
+    }
+
+    this.processingKiwifyWebhook = true;
+    this.creditsPanelMessage = '';
+    this.creditsPanelError = '';
+    this.adminService.processKiwifyWebhook({
+      payload,
+      pendingPurchaseId: this.selectedPendingPurchaseId.trim() || undefined
+    }).subscribe({
+      next: (res) => {
+        this.processingKiwifyWebhook = false;
+        if (res.success) {
+          this.creditsPanelMessage = res.message
+            || (res.processed ? 'Créditos liberados via JSON.' : 'Webhook processado.');
+          if (res.sale) {
+            this.kiwifySale = res.sale;
+          }
+          if (res.orderRef || res.orderId) {
+            this.kiwifyOrderId = res.orderRef || res.orderId || this.kiwifyOrderId;
+          }
+          this.loadPendingPurchases();
+          this.loadKiwifyWebhookLogs();
+          this.loadSales();
+          this.loadSalesStatistics();
+          this.loadDashboard();
+        }
+      },
+      error: (err) => {
+        this.processingKiwifyWebhook = false;
+        this.creditsPanelError = err.error?.message || err.error?.error || 'Erro ao processar JSON Kiwify';
       }
     });
   }
@@ -921,11 +1354,18 @@ export class AdminDashboardComponent implements OnInit {
     if (purchase.paymentId && !purchase.paymentId.startsWith('kiwify_pending_')) {
       this.kiwifyOrderId = purchase.paymentId;
     }
-    if (purchase.userEmail) {
-      this.pendingUserEmail = purchase.userEmail;
-    }
-    if (purchase.userId) {
-      this.pendingUserId = purchase.userId;
+    this.manualGrantPlanId = purchase.planId || 'single';
+    this.manualGrantCredits = null;
+    if (purchase.userEmail || purchase.userId) {
+      this.manualGrantSelectedUser = {
+        id: purchase.userId || '',
+        email: purchase.userEmail,
+        name: purchase.userName,
+        credits: purchase.creditsAmount
+      };
+      this.manualGrantUserSearch = purchase.userEmail || purchase.userName || purchase.userId || '';
+      this.manualGrantEmail = purchase.userEmail || '';
+      this.manualGrantUserId = purchase.userId || '';
     }
   }
 }

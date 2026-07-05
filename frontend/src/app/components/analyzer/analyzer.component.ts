@@ -848,9 +848,13 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           this.adminFreeLoading = false;
           this.adminFreePlanId = null;
           if (response.success) {
-            this.userCredits = response.credits ?? this.userCredits + (plan.analyses || 0);
-            if (this.currentUser) this.currentUser.credits = this.userCredits;
-            this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
+            if (typeof response.credits === 'number') {
+              this.userCredits = response.credits;
+              if (this.currentUser) this.currentUser.credits = this.userCredits;
+              this.authService.setUser({ ...this.currentUser!, credits: this.userCredits });
+            } else {
+              this.checkCredits();
+            }
             this.updateShowPlans();
             this.snackBar.open(
               response.message || 'Compra gratuita aplicada (admin).',
@@ -966,25 +970,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         return;
       }
 
-      const credits = extractPaidCredits(result);
-      if (credits != null) {
-        this.userCredits = credits;
-        this.syncUserCredits();
-        this.updateShowPlans();
-        this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', { duration: 5000 });
-        return;
-      }
-
       this.checkCredits();
-      if (embedInModal || provider === 'kiwify') {
-        this.snackBar.open(
-          'Se o pagamento foi aprovado, os créditos serão atualizados em instantes.',
-          'OK',
-          { duration: 6000 }
-        );
-      } else {
-        this.checkPaymentStatus();
-      }
+      this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', { duration: 5000 });
+      return;
     });
   }
 
@@ -1024,15 +1012,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const credits = extractPaidCredits(result);
-    if (credits != null) {
-      this.userCredits = credits;
-      this.syncUserCredits();
-      this.updateShowPlans();
-    } else {
-      this.checkCredits();
-    }
-
+    this.checkCredits();
     this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', {
       duration: 5000
     });

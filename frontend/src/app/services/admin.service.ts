@@ -20,6 +20,23 @@ export interface UsageData {
   revenue: number;
 }
 
+export interface SalesListItem {
+  id: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  planId?: string;
+  planName?: string;
+  creditsAmount: number;
+  price?: number;
+  currency?: string;
+  status: string;
+  paymentMethod?: string;
+  paymentId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type PaymentProvider = 'stripe' | 'mercadopago' | 'cakto' | 'kiwify';
 export type MercadoPagoMode = 'test' | 'production';
 
@@ -115,6 +132,7 @@ export interface PartnerReferral {
 export interface PendingPurchaseItem {
   id: string;
   userId?: string;
+  userName?: string;
   userEmail?: string;
   planId?: string;
   planName?: string;
@@ -149,6 +167,51 @@ export interface AdminCreditActionResult {
   userEmail?: string;
   sale?: KiwifySaleDetails;
   error?: string;
+  failureStage?: string;
+  failureMessage?: string;
+  orderId?: string;
+  orderRef?: string;
+}
+
+export interface AdminUserSearchItem {
+  id: string;
+  email?: string;
+  name?: string;
+  credits: number;
+}
+
+export interface KiwifyWebhookLogItem {
+  id: string;
+  orderId?: string;
+  orderRef?: string;
+  eventType?: string;
+  paymentStatus?: string;
+  processed: boolean;
+  alreadyFulfilled: boolean;
+  credits?: number;
+  userId?: string;
+  httpStatus: number;
+  apiVersion?: string;
+  message?: string;
+  erro?: string;
+  failureStage?: string;
+  processingDetails?: string;
+  payloadRecebido?: string;
+  payloadParseado?: string;
+  respostaJson?: string;
+  createdAt?: string;
+}
+
+export interface SalesStatsSummary {
+  totalPurchases: number;
+  totalRevenue: number;
+  approvedRevenue: number;
+  pendingRevenue: number;
+  totalCreditsSold: number;
+  completedPurchases: number;
+  pendingPurchases: number;
+  cancelledPurchases: number;
+  uniqueBuyers: number;
 }
 
 export interface CouponMetricRow {
@@ -251,6 +314,31 @@ export class AdminService {
         }
         return throwError(() => error);
       })
+    );
+  }
+
+  getSales(limit: number = 100, offset: number = 0): Observable<{ success: boolean; purchases: SalesListItem[]; total: number; limit: number; offset: number }> {
+    return this.http.get<{ success: boolean; purchases: SalesListItem[]; total: number; limit: number; offset: number }>(
+      `${this.apiUrl}/admin/sales?limit=${limit}&offset=${offset}`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      catchError((error) => {
+        if (error.status === 401) {
+          console.error('❌ Erro 401 - Token inválido ou expirado');
+        }
+        return throwError(() => error);
+      })
+    );
+  }
+
+  getSalesStatistics(startDate?: string, endDate?: string): Observable<{ success: boolean; stats: SalesStatsSummary }> {
+    const params = new URLSearchParams();
+    if (startDate?.trim()) params.set('startDate', startDate.trim());
+    if (endDate?.trim()) params.set('endDate', endDate.trim());
+    const qs = params.toString();
+    return this.http.get<{ success: boolean; stats: SalesStatsSummary }>(
+      `${this.apiUrl}/admin/sales/statistics${qs ? `?${qs}` : ''}`,
+      { headers: this.getAuthHeaders() }
     );
   }
 
@@ -419,6 +507,41 @@ export class AdminService {
     );
   }
 
+  processKiwifyWebhook(body: {
+    payload: string;
+    pendingPurchaseId?: string;
+  }): Observable<AdminCreditActionResult> {
+    return this.http.post<AdminCreditActionResult>(
+      `${this.apiUrl}/admin/kiwify/webhook`,
+      body,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  searchUsers(q: string, limit = 20): Observable<{ success: boolean; users: AdminUserSearchItem[] }> {
+    const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
+    return this.http.get<{ success: boolean; users: AdminUserSearchItem[] }>(
+      `${this.apiUrl}/admin/users/search?${params.toString()}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getKiwifyWebhookLogs(params?: {
+    orderId?: string;
+    orderRef?: string;
+    limit?: number;
+  }): Observable<{ success: boolean; logs: KiwifyWebhookLogItem[] }> {
+    const search = new URLSearchParams();
+    if (params?.orderId?.trim()) search.set('orderId', params.orderId.trim());
+    if (params?.orderRef?.trim()) search.set('orderRef', params.orderRef.trim());
+    search.set('limit', String(params?.limit ?? 50));
+    const query = search.toString();
+    return this.http.get<{ success: boolean; logs: KiwifyWebhookLogItem[] }>(
+      `${this.apiUrl}/admin/kiwify/webhook-logs${query ? `?${query}` : ''}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
   grantManualCredits(body: {
     userId?: string;
     email?: string;
@@ -427,6 +550,7 @@ export class AdminService {
     price?: number;
     paymentMethod?: string;
     paymentId?: string;
+    pendingPurchaseId?: string;
     reason?: string;
     sendEmail?: boolean;
   }): Observable<AdminCreditActionResult> {

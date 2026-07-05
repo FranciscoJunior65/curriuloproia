@@ -26,10 +26,13 @@ public class SalesStatsDto
 {
     public int TotalPurchases { get; set; }
     public double TotalRevenue { get; set; }
+    public double ApprovedRevenue { get; set; }
+    public double PendingRevenue { get; set; }
     public int TotalCreditsSold { get; set; }
     public int CompletedPurchases { get; set; }
     public int PendingPurchases { get; set; }
     public int CancelledPurchases { get; set; }
+    public int UniqueBuyers { get; set; }
 }
 
 public class CreditUsageResultDto

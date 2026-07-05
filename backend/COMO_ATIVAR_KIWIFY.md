@@ -6,7 +6,12 @@ Documentação oficial: [docs.kiwify.com.br](https://docs.kiwify.com.br/api-refe
 
 ## 1. Painel Kiwify — produto e ofertas
 
-1. Crie um produto (ex.: **Créditos CurriculosPro IA**).
+> **Por que a popup fica em “ACESSAR MEU PRODUTO”?**  
+> Isso acontece quando o produto foi criado como **Área de membros da Kiwify** (`product_type: club`). Nesse modo a Kiwify **ignora** a URL de página de obrigado e mostra a tela de acesso aos membros.  
+> A URL `kiwify-popup-retorno` só funciona de forma confiável com produto **“Quero apenas aceitar pagamentos”**.  
+> **Não dá para converter** produto club — crie um **produto novo**, recrie ofertas/links (`6xng4IG`, etc.) e atualize `KIWIFY_CHECKOUT_*` no `.env`.
+
+1. Crie um produto (ex.: **Créditos CurriculosPro IA**) escolhendo **Quero apenas aceitar pagamentos**.
 2. Para cada plano do app, crie uma **oferta** com o preço final (o mesmo `displayAmountBRL` da vitrine, se repassar taxa ao cliente):
    - Análise única (`single`)
    - Pacote 3 (`pack3`)
@@ -55,17 +60,29 @@ KIWIFY_WEBHOOK_TOKEN=rxue90njjv1
 4. Copie o **token** do webhook para `KIWIFY_WEBHOOK_TOKEN`
 5. Teste com **Testar Webhook** no painel
 
-O backend valida o `token` no JSON (se `KIWIFY_WEBHOOK_TOKEN` estiver definido), consulta a venda na API e libera créditos usando o parâmetro `sck` da URL de checkout.
+O backend valida o `token` no JSON ou na query string (`?token=...`) quando presente.  
+A Kiwify Apps também envia **só o objeto `order`** (sem `signature` no corpo) — nesse caso a venda é confirmada via **API Kiwify** antes de liberar créditos.
 
-## 5. Página de obrigado (opcional — fecha o modal)
+## 5. Página de obrigado (recomendado — fecha a popup da Kiwify)
 
-No produto Kiwify, configure a página de obrigado para:
+Sem isso, após o PIX/cartão aprovado a Kiwify fica na tela de “obrigado” dela e a popup não fecha sozinha.
+
+1. Painel Kiwify → **Produtos** → seu produto de créditos → aba **Configurações**
+2. Seção **Página de obrigado e upsell**
+3. Ative **“Esse produto tem uma página de obrigado personalizada ou upsell”**
+4. URL (produção):
 
 ```
 https://curriculoproia.com.br/compra/kiwify-popup-retorno
 ```
 
-(ou reutilize `/compra/cakto-popup-retorno` — o componente é o mesmo.)
+Em homologação/local, use a mesma rota no seu domínio (ex.: `http://localhost:4200/compra/kiwify-popup-retorno`).
+
+Essa página avisa o app principal via `postMessage`, atualiza créditos e tenta **fechar a popup** em ~4s.
+
+> Vale para venda **aprovada** (PIX pago ou cartão). Boleto/Pix “gerado” usa a página padrão da Kiwify ([ajuda Kiwify](https://ajuda.kiwify.com.br/pt-br/article/o-que-e-e-como-funcionam-as-paginas-de-obrigado-dsy5hb/)).
+
+O app também fecha a popup quando o webhook libera créditos (SignalR), mas o redirect acima dá a melhor experiência.
 
 ## 6. Admin do app
 

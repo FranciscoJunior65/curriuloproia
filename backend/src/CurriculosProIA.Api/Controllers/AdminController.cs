@@ -94,9 +94,25 @@ public class AdminController : ControllerBase
     public Task<IActionResult> GetKiwifySale(string orderId, CancellationToken ct) =>
         _admin.GetKiwifySale(orderId, ct);
 
+    [HttpGet("kiwify/webhook-logs")]
+    public Task<IActionResult> ListKiwifyWebhookLogs(
+        [FromQuery] string? orderId,
+        [FromQuery] string? orderRef,
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default) =>
+        _admin.ListKiwifyWebhookLogs(orderId, orderRef, limit, ct);
+
     [HttpPost("kiwify/reconcile")]
     public Task<IActionResult> ReconcileKiwifyOrder([FromBody] AdminReconcileKiwifySignature body, CancellationToken ct) =>
         _admin.ReconcileKiwifyOrder(body, ct);
+
+    [HttpPost("kiwify/webhook")]
+    public Task<IActionResult> ProcessKiwifyWebhook([FromBody] AdminProcessKiwifyWebhookSignature body, CancellationToken ct) =>
+        _admin.ProcessKiwifyWebhook(body, ct);
+
+    [HttpGet("users/search")]
+    public Task<IActionResult> SearchUsers([FromQuery] string q, [FromQuery] int limit = 20, CancellationToken ct = default) =>
+        _admin.SearchUsers(q, limit, ct);
 
     [HttpGet("purchases/pending")]
     public Task<IActionResult> ListPendingPurchases([FromQuery] string? userId, [FromQuery] int limit = 50, CancellationToken ct = default) =>

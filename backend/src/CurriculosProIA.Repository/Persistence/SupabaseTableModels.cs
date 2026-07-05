@@ -412,3 +412,65 @@ public class SiteVagasRow : BaseModel
     [Column("caracteristicas")]
     public Dictionary<string, object>? Caracteristicas { get; set; }
 }
+
+[Table("webhooks_kiwify_log")]
+public class KiwifyWebhookLogRow : BaseModel
+{
+    [PrimaryKey("id", false)]
+    [Column("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [Column("payload_recebido")]
+    public string? PayloadRecebido { get; set; }
+
+    [Column("payload_parseado")]
+    public string? PayloadParseado { get; set; }
+
+    [Column("order_id")]
+    public string? OrderId { get; set; }
+
+    [Column("order_ref")]
+    public string? OrderRef { get; set; }
+
+    [Column("event_type")]
+    public string? EventType { get; set; }
+
+    [Column("payment_status")]
+    public string? PaymentStatus { get; set; }
+
+    [Column("processed")]
+    public bool Processed { get; set; }
+
+    [Column("already_fulfilled")]
+    public bool AlreadyFulfilled { get; set; }
+
+    [Column("credits")]
+    public int? Credits { get; set; }
+
+    [Column("id_usuario")]
+    public string? IdUsuario { get; set; }
+
+    [Column("http_status")]
+    public int HttpStatus { get; set; } = 200;
+
+    [Column("api_version")]
+    public string? ApiVersion { get; set; }
+
+    [Column("message")]
+    public string? Message { get; set; }
+
+    [Column("resposta_json")]
+    public string? RespostaJson { get; set; }
+
+    [Column("erro")]
+    public string? Erro { get; set; }
+
+    [Column("estagio_falha")]
+    public string? EstagioFalha { get; set; }
+
+    [Column("detalhes_processamento")]
+    public string? DetalhesProcessamento { get; set; }
+
+    [Column("criado_em")]
+    public DateTimeOffset? CriadoEm { get; set; }
+}

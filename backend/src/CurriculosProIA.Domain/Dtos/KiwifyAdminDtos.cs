@@ -27,3 +27,13 @@ public class PendingPurchaseDto
     public string Status { get; set; } = "pendente";
     public DateTimeOffset? CreatedAt { get; set; }
 }
+
+public class KiwifyAutoReconcileResult
+{
+    public int Checked { get; set; }
+    public int Candidates { get; set; }
+    public int Processed { get; set; }
+    public int AlreadyFulfilled { get; set; }
+    public int SkippedWithoutReference { get; set; }
+    public int Errors { get; set; }
+}

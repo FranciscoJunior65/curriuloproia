@@ -22,6 +22,7 @@ public static class RepositoryServiceCollectionExtensions
         services.AddScoped<ICurriculoRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IInterviewRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IJobSiteRepository>(sp => sp.GetRequiredService<SupabaseService>());
+        services.AddScoped<IKiwifyWebhookLogRepository>(sp => sp.GetRequiredService<SupabaseService>());
         services.AddScoped<IAppDataStore>(sp => sp.GetRequiredService<SupabaseService>());
         return services;
     }

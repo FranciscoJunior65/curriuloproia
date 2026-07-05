@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 export const authGuard = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
+  const loginUrlTree = router.createUrlTree(['/login']);
 
   // Verifica se tem token
   const token = authService.getToken();
@@ -18,8 +19,8 @@ export const authGuard = () => {
 
   if (!token) {
     console.log('🔐 AuthGuard - Token não encontrado, redirecionando para login');
-    router.navigate(['/login']);
-    return false;
+    authService.logout();
+    return loginUrlTree;
   }
 
   // Verifica o token no backend para garantir que não está expirado
@@ -33,19 +34,14 @@ export const authGuard = () => {
       } else {
         console.log('🔐 AuthGuard - Token inválido, redirecionando para login');
         authService.logout();
-        router.navigate(['/login']);
-        return false;
+        return loginUrlTree;
       }
     }),
     catchError(error => {
       console.error('🔐 AuthGuard - Erro ao verificar token:', error);
-      // Se o erro for 401 (não autorizado), o token está expirado ou inválido
-      if (error.status === 401 || error.status === 0) {
-        console.log('🔐 AuthGuard - Token expirado ou inválido, redirecionando para login');
-        authService.logout();
-        router.navigate(['/login']);
-      }
-      return of(false);
+      console.log('🔐 AuthGuard - Falha na verificação, redirecionando para login');
+      authService.logout();
+      return of(loginUrlTree);
     })
   );
 };

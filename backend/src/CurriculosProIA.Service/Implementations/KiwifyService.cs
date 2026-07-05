@@ -6,10 +6,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CurriculosProIA.Domain.Dtos;
+using CurriculosProIA.Domain.Signatures.Analyze;
 using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 namespace CurriculosProIA.Service.Implementations;
@@ -178,7 +178,6 @@ public class KiwifyService : IKiwifyService
             }
         }
 
-        var paymentId = ResolvePaymentId(webhookOrder, orderId);
         var sck = ResolveExternalReference(sale, webhookPayload);
         var meta = ParseExternalReference(sck);
         if (meta == null || string.IsNullOrWhiteSpace(meta.U))
@@ -187,6 +186,8 @@ public class KiwifyService : IKiwifyService
                 $"Venda Kiwify {orderId} sem referência de checkout (sck) com userId. " +
                 "Confirme que o checkout foi aberto pelo app (parâmetro sck na URL).");
         }
+
+        var paymentId = ResolvePaymentId(sale, webhookOrder, orderId);
 
         _logger.LogInformation(
             "Kiwify: liberando créditos order={OrderId} paymentId={PaymentId} user={UserId} plan={PlanId} analyses={Analyses}",
@@ -207,13 +208,16 @@ public class KiwifyService : IKiwifyService
             AlreadyFulfilled = result.AlreadyFulfilled
         };
 
-        await NotifyPaymentConfirmedSafeAsync(
-            meta.U,
-            result.User?.Credits ?? 0,
-            paymentId,
-            meta.P,
-            result.AlreadyFulfilled,
-            cancellationToken);
+        if (!result.AlreadyFulfilled)
+        {
+            await NotifyPaymentConfirmedSafeAsync(
+                meta.U,
+                result.User?.Credits ?? 0,
+                paymentId,
+                meta.P,
+                false,
+                cancellationToken);
+        }
 
         return verifyResult;
     }
@@ -246,46 +250,69 @@ public class KiwifyService : IKiwifyService
         }
     }
 
-    public async Task<PaymentVerificationResult?> HandleWebhookAsync(
-        HttpRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<KiwifyWebhookHandleResult> HandleWebhookAsync(
+        KiwifyWebhookSignature body,
+        string? rawBody = null,
+        CancellationToken cancellationToken = default,
+        string? queryToken = null)
     {
-        request.EnableBuffering();
-        request.Body.Position = 0;
+        var result = new KiwifyWebhookHandleResult();
 
-        string rawBody;
-        using (var reader = new StreamReader(request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true))
+        if (body == null)
         {
-            rawBody = await reader.ReadToEndAsync(cancellationToken);
+            result.FailureStage = "payload_vazio";
+            result.FailureMessage = "Webhook recebido sem payload.";
+            return result;
         }
 
-        request.Body.Position = 0;
-        using var doc = JsonDocument.Parse(rawBody);
+        var bodyForAuth = string.IsNullOrWhiteSpace(rawBody)
+            ? JsonSerializer.Serialize(body, JsonOptions)
+            : rawBody;
+
+        using var doc = JsonDocument.Parse(bodyForAuth);
         var root = doc.RootElement;
 
-        if (!ValidateWebhookAuth(root, rawBody))
+        if (!ValidateWebhookAuth(root, bodyForAuth, queryToken))
         {
-            _logger.LogWarning("Webhook Kiwify rejeitado: autenticação inválida");
-            return null;
+            result.FailureStage = "auth_invalida";
+            result.FailureMessage = "Autenticação do webhook inválida (token/signature).";
+            return result;
         }
 
         if (!IsApprovedWebhook(root))
         {
             var eventType = ReadWebhookEventType(root);
-            _logger.LogDebug("Webhook Kiwify ignorado: evento {EventType}", eventType ?? "(desconhecido)");
-            return null;
+            result.FailureStage = "evento_ignorado";
+            result.FailureMessage = string.IsNullOrWhiteSpace(eventType)
+                ? "Evento do webhook não exige liberação de crédito."
+                : $"Evento {eventType} não exige liberação de crédito.";
+            result.FailureDetails = eventType;
+            return result;
         }
 
         var orderId = ExtractOrderId(root);
         if (string.IsNullOrWhiteSpace(orderId))
         {
-            _logger.LogWarning("Webhook Kiwify compra_aprovada sem order_id/order_ref");
-            return null;
+            result.FailureStage = "order_id_ausente";
+            result.FailureMessage = "Webhook de compra aprovada sem order_id/order_ref.";
+            return result;
         }
 
         try
         {
             var verify = await VerifyPaymentAsync(orderId, cancellationToken, root);
+            result.Verification = verify;
+
+            if (!verify.Paid)
+            {
+                result.FailureStage = "pagamento_nao_aprovado";
+                result.FailureMessage = string.IsNullOrWhiteSpace(verify.PaymentStatus)
+                    ? "Pagamento não está aprovado na verificação."
+                    : $"Pagamento com status {verify.PaymentStatus}.";
+                result.FailureDetails = verify.PaymentStatus;
+                return result;
+            }
+
             if (verify.Paid)
             {
                 _logger.LogInformation(
@@ -296,12 +323,15 @@ public class KiwifyService : IKiwifyService
                     verify.AlreadyFulfilled);
             }
 
-            return verify;
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao processar webhook Kiwify order={OrderId}", orderId);
-            throw;
+            result.FailureStage = "processamento_falhou";
+            result.FailureMessage = ex.Message;
+            result.FailureDetails = ex.GetType().Name;
+            return result;
         }
     }
 
@@ -340,6 +370,80 @@ public class KiwifyService : IKiwifyService
         string orderId,
         CancellationToken cancellationToken = default) =>
         VerifyPaymentAsync(orderId, cancellationToken);
+
+    public async Task<KiwifyAutoReconcileResult> ReconcileRecentSalesAsync(
+        int lookbackMinutes = 1440,
+        int pageSize = 100,
+        int maxPages = 5,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+
+        lookbackMinutes = Math.Clamp(lookbackMinutes, 1, 60 * 24 * 30);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        maxPages = Math.Clamp(maxPages, 1, 10);
+
+        var summary = new KiwifyAutoReconcileResult();
+        var candidates = await ListRecentPaidSalesAsync(lookbackMinutes, pageSize, maxPages, cancellationToken);
+        summary.Candidates = candidates.Count;
+
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            summary.Checked += 1;
+
+            try
+            {
+                var details = await GetSaleDetailsAsync(candidate.OrderId, cancellationToken);
+                if (!details.Paid)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(details.ExternalReference))
+                {
+                    summary.SkippedWithoutReference += 1;
+                    continue;
+                }
+
+                if (details.AlreadyFulfilled)
+                {
+                    summary.AlreadyFulfilled += 1;
+                    continue;
+                }
+
+                var result = await ReconcileOrderAsync(candidate.OrderId, cancellationToken);
+                if (!result.Paid)
+                {
+                    continue;
+                }
+
+                if (result.AlreadyFulfilled)
+                {
+                    summary.AlreadyFulfilled += 1;
+                    continue;
+                }
+
+                summary.Processed += 1;
+
+                var meta = ParseExternalReference(details.ExternalReference);
+                if (!string.IsNullOrWhiteSpace(result.User?.Id) && !string.IsNullOrWhiteSpace(meta?.P))
+                {
+                    await _purchases.MarkPendingPurchasesSubstitutedAsync(
+                        result.User!.Id,
+                        meta!.P!,
+                        cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                summary.Errors += 1;
+                _logger.LogWarning(ex, "Kiwify auto reconcile falhou para venda {OrderId}", candidate.OrderId);
+            }
+        }
+
+        return summary;
+    }
 
     private async Task RegisterPendingPurchaseSafeAsync(
         CheckoutContext ctx,
@@ -438,6 +542,92 @@ public class KiwifyService : IKiwifyService
         return doc.RootElement.Clone();
     }
 
+    private async Task<List<KiwifyRecentSaleCandidate>> ListRecentPaidSalesAsync(
+        int lookbackMinutes,
+        int pageSize,
+        int maxPages,
+        CancellationToken cancellationToken)
+    {
+        var from = DateTimeOffset.UtcNow.AddMinutes(-lookbackMinutes);
+        var to = DateTimeOffset.UtcNow;
+        var startDate = from.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var endDate = to.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var client = await CreateAuthorizedClientAsync(cancellationToken);
+        var result = new List<KiwifyRecentSaleCandidate>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var page = 1; page <= maxPages; page++)
+        {
+            var url =
+                $"v1/sales?start_date={Uri.EscapeDataString(startDate)}" +
+                $"&end_date={Uri.EscapeDataString(endDate)}" +
+                $"&status=paid&view_full_sale_details=true" +
+                $"&page_size={pageSize}&page_number={page}";
+
+            using var response = await client.GetAsync(url, cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"Erro ao listar vendas Kiwify: {json}");
+            }
+
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            {
+                break;
+            }
+
+            var itemsOnPage = 0;
+            foreach (var sale in data.EnumerateArray())
+            {
+                itemsOnPage += 1;
+
+                var status = ReadString(sale, "status", "order_status");
+                if (!IsPaidStatus(status))
+                {
+                    continue;
+                }
+
+                var orderId = ReadString(sale, "id", "order_id", "sale_id");
+                if (string.IsNullOrWhiteSpace(orderId))
+                {
+                    continue;
+                }
+
+                orderId = orderId.Trim();
+                if (!seen.Add(orderId))
+                {
+                    continue;
+                }
+
+                var activityAt = ReadDateTimeOffset(sale, "updated_at", "approved_date", "created_at");
+                if (activityAt.HasValue && activityAt.Value < from)
+                {
+                    continue;
+                }
+
+                var externalReference = ExtractExternalReference(sale);
+                if (string.IsNullOrWhiteSpace(externalReference))
+                {
+                    continue;
+                }
+
+                result.Add(new KiwifyRecentSaleCandidate
+                {
+                    OrderId = orderId
+                });
+            }
+
+            if (itemsOnPage < pageSize)
+            {
+                break;
+            }
+        }
+
+        return result;
+    }
+
     private static bool IsApprovedWebhook(JsonElement root)
     {
         var eventType = ReadWebhookEventType(root);
@@ -512,7 +702,7 @@ public class KiwifyService : IKiwifyService
         return null;
     }
 
-    private static string ResolvePaymentId(JsonElement webhookOrder, string orderId)
+    private static string ResolvePaymentId(JsonElement sale, JsonElement webhookOrder, string orderId)
     {
         if (webhookOrder.ValueKind == JsonValueKind.Object)
         {
@@ -523,13 +713,25 @@ public class KiwifyService : IKiwifyService
             }
         }
 
-        return orderId;
+        var refFromSale = ReadString(sale, "order_ref", "reference");
+        if (!string.IsNullOrWhiteSpace(refFromSale))
+        {
+            return refFromSale.Trim();
+        }
+
+        return orderId.Trim();
     }
 
-    private bool ValidateWebhookAuth(JsonElement root, string rawBody)
+    private bool ValidateWebhookAuth(JsonElement root, string rawBody, string? queryToken = null)
     {
         var configuredToken = KiwifyConfigHelper.GetWebhookToken(_configuration);
         if (string.IsNullOrWhiteSpace(configuredToken))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(queryToken) &&
+            string.Equals(queryToken.Trim(), configuredToken, StringComparison.Ordinal))
         {
             return true;
         }
@@ -555,9 +757,48 @@ public class KiwifyService : IKiwifyService
             return true;
         }
 
+        // Apps → Webhooks (vendas): corpo é só o objeto order, sem token/signature no JSON.
+        // A confirmação real ocorre em VerifyPaymentAsync via API Kiwify + sck do checkout.
+        if (LooksLikeFlatOrderPayload(root))
+        {
+            _logger.LogInformation(
+                "Webhook Kiwify: payload order flat (sem token/signature) — aceito; confirmação via API Kiwify.");
+            return true;
+        }
+
         _logger.LogWarning(
             "Webhook Kiwify sem campo token/signature no payload; defina KIWIFY_WEBHOOK_TOKEN vazio para aceitar sem auth");
         return false;
+    }
+
+    private static bool LooksLikeFlatOrderPayload(JsonElement root) =>
+        !string.IsNullOrWhiteSpace(TryReadString(root, "order_id", "sale_id", "order_ref", "reference")) ||
+        !string.IsNullOrWhiteSpace(TryReadString(root, "order_status", "status")) ||
+        !string.IsNullOrWhiteSpace(TryReadString(root, "webhook_event_type", "event", "type"));
+
+    private static string? TryReadString(JsonElement source, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!source.TryGetProperty(name, out var prop))
+            {
+                continue;
+            }
+
+            var value = prop.ValueKind switch
+            {
+                JsonValueKind.String => prop.GetString(),
+                JsonValueKind.Number => prop.GetRawText(),
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static string ComputeHmacSha1Hex(string payload, string secret)
@@ -702,7 +943,8 @@ public class KiwifyService : IKiwifyService
             CpfNormalized = meta.F,
             IncludeEnglish = meta.E,
             EnglishPriceBRL = meta.G ?? 0,
-            AnalysisId = meta.I
+            AnalysisId = meta.I,
+            SendConfirmationEmail = true
         };
     }
 
@@ -814,6 +1056,43 @@ public class KiwifyService : IKiwifyService
             JsonValueKind.Number => prop.GetRawText(),
             _ => null
         };
+
+    private static DateTimeOffset? ReadDateTimeOffset(JsonElement source, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!source.TryGetProperty(name, out var prop))
+            {
+                continue;
+            }
+
+            var raw = ReadStringValue(prop);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            if (DateTimeOffset.TryParse(
+                    raw,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces,
+                    out var parsed))
+            {
+                return parsed;
+            }
+
+            if (DateTime.TryParse(
+                    raw,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces,
+                    out var localParsed))
+            {
+                return new DateTimeOffset(localParsed);
+            }
+        }
+
+        return null;
+    }
 
     private static string BuildExternalReference(CheckoutContext ctx)
     {
@@ -995,5 +1274,10 @@ public class KiwifyService : IKiwifyService
         public bool E { get; set; }
         public decimal? G { get; set; }
         public string? I { get; set; }
+    }
+
+    private sealed class KiwifyRecentSaleCandidate
+    {
+        public string OrderId { get; set; } = string.Empty;
     }
 }

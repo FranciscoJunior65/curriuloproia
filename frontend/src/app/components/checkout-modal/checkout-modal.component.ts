@@ -34,6 +34,7 @@ export interface CheckoutModalData {
 export class CheckoutModalComponent implements OnInit, OnDestroy {
   popupBlocked = false;
   popupClosed = false;
+  paymentConfirmed = false;
   iframeLoading = true;
   iframeBlocked = false;
   safeCheckoutUrl: SafeResourceUrl;
@@ -51,7 +52,9 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
     }
 
     this.paidHandled = true;
+    this.paymentConfirmed = true;
     this.stopPolling();
+    this.closeCheckoutPopup();
     this.dialogRef.close({
       completed: true,
       paid: true,
@@ -77,8 +80,8 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
     window.addEventListener('message', this.onPaymentMessage);
 
     if (this.data.provider === 'kiwify') {
-      this.paymentRealtimeSub = this.paymentRealtime.connect().subscribe((event) => {
-        this.handleKiwifyPaymentConfirmed(event.credits);
+      this.paymentRealtimeSub = this.paymentRealtime.connect().subscribe(() => {
+        this.handleKiwifyPaymentConfirmed();
       });
     }
 
@@ -99,18 +102,42 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
     this.stopCreditsPolling();
   }
 
-  private handleKiwifyPaymentConfirmed(credits: number): void {
+  private handleKiwifyPaymentConfirmed(): void {
     if (this.paidHandled) {
       return;
     }
 
-    this.paidHandled = true;
-    this.stopPolling();
-    this.stopCreditsPolling();
-    this.dialogRef.close({
-      completed: true,
-      paid: true,
-      credits
+    this.analyzerService.getCredits().subscribe({
+      next: (res) => {
+        if (this.paidHandled) {
+          return;
+        }
+
+        this.paidHandled = true;
+        this.paymentConfirmed = true;
+        this.stopPolling();
+        this.stopCreditsPolling();
+        this.closeCheckoutPopup();
+
+        const credits = res?.success && typeof res.credits === 'number' ? res.credits : undefined;
+        this.dialogRef.close({
+          completed: true,
+          paid: credits != null,
+          credits
+        });
+      },
+      error: () => {
+        if (this.paidHandled) {
+          return;
+        }
+
+        this.paidHandled = true;
+        this.paymentConfirmed = true;
+        this.stopPolling();
+        this.stopCreditsPolling();
+        this.closeCheckoutPopup();
+        this.dialogRef.close({ completed: true, paid: false });
+      }
     });
   }
 
@@ -193,6 +220,7 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
           if (increased || attempts >= 12) {
             this.paidHandled = true;
             this.stopCreditsPolling();
+            this.closeCheckoutPopup();
             this.dialogRef.close({
               completed: true,
               paid: increased,
@@ -222,6 +250,43 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  /** Fecha a janela pay.kiwify.com.br ou redireciona para nossa página de retorno. */
+  private closeCheckoutPopup(): void {
+    const popup = this.popup;
+    if (!popup || popup.closed) {
+      this.popup = null;
+      this.popupClosed = true;
+      return;
+    }
+
+    try {
+      popup.close();
+    } catch {
+      // Cross-origin pode bloquear close em alguns browsers.
+    }
+
+    if (!popup.closed && this.data.provider === 'kiwify') {
+      try {
+        popup.location.href = `${window.location.origin}/compra/kiwify-popup-retorno`;
+      } catch {
+        // COOP pode bloquear navegação da popup pelo opener.
+      }
+    }
+
+    if (!popup.closed) {
+      window.setTimeout(() => {
+        try {
+          popup.close();
+        } catch {
+          /* ignore */
+        }
+      }, 1000);
+    }
+
+    this.popup = null;
+    this.popupClosed = true;
   }
 
   openInNewTab(): void {

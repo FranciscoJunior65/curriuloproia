@@ -28,5 +28,6 @@ public class PaymentWebhookController : ControllerBase
     public Task<IActionResult> CaktoWebhook(CancellationToken ct) => _webhooks.CaktoWebhook(ct);
 
     [HttpPost("kiwify/webhook")]
-    public Task<IActionResult> KiwifyWebhook(CancellationToken ct) => _webhooks.KiwifyWebhook(ct);
+    public Task<IActionResult> KiwifyWebhook(CancellationToken ct) =>
+        _webhooks.KiwifyWebhook(ct);
 }

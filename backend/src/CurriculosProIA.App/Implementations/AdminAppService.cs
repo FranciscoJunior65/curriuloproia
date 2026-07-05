@@ -12,10 +12,7 @@ using CurriculosProIA.Domain.Signatures.Purchase;
 using CurriculosProIA.App.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-
-
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace CurriculosProIA.App.Implementations;
 using CurriculosProIA.App;
@@ -30,6 +27,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
     private readonly IMercadoPagoService _mercadoPago;
     private readonly ICaktoService _cakto;
     private readonly IKiwifyService _kiwify;
+    private readonly IKiwifyWebhookLogRepository _kiwifyWebhookLogs;
     private readonly IPaymentFulfillmentService _fulfillment;
     private readonly IPricingService _pricing;
     private readonly IInterviewConfigService _interviewConfig;
@@ -44,6 +42,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         IMercadoPagoService mercadoPago,
         ICaktoService cakto,
         IKiwifyService kiwify,
+        IKiwifyWebhookLogRepository kiwifyWebhookLogs,
         IPaymentFulfillmentService fulfillment,
         IConfiguration configuration,
         IHttpContextAccessor http)
@@ -57,6 +56,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         _mercadoPago = mercadoPago;
         _cakto = cakto;
         _kiwify = kiwify;
+        _kiwifyWebhookLogs = kiwifyWebhookLogs;
         _fulfillment = fulfillment;
         _configuration = configuration;
     }
@@ -286,11 +286,34 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
 
         var purchases = await _data.GetAllPurchasesAsync(limit, offset, cancellationToken);
+        var userIds = purchases
+            .Select(p => p.UserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Cast<string>()
+            .ToList();
+
+        var userProfiles = new Dictionary<string, UserProfile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var userId in userIds)
+        {
+            var profile = await _data.GetUserProfileAsync(userId, cancellationToken);
+            if (profile != null)
+            {
+                userProfiles[userId] = profile;
+            }
+        }
+
         return Ok(new
         {
             success = true,
             purchases = purchases.Select(p => new
             {
+                userName = !string.IsNullOrWhiteSpace(p.UserId) && userProfiles.TryGetValue(p.UserId, out var profile)
+                    ? (string.IsNullOrWhiteSpace(profile.Name) ? profile.Email : profile.Name)
+                    : null,
+                userEmail = !string.IsNullOrWhiteSpace(p.UserId) && userProfiles.TryGetValue(p.UserId, out profile)
+                    ? profile.Email
+                    : null,
                 id = p.Id,
                 userId = p.UserId,
                 planId = p.PlanId,
@@ -624,6 +647,24 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         }
     }
 
+    public async Task<IActionResult> ListKiwifyWebhookLogs(
+        string? orderId,
+        string? orderRef,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        limit = Math.Clamp(limit <= 0 ? 50 : limit, 1, 200);
+        var logs = await _kiwifyWebhookLogs.ListAsync(
+            string.IsNullOrWhiteSpace(orderId) ? null : orderId.Trim(),
+            string.IsNullOrWhiteSpace(orderRef) ? null : orderRef.Trim(),
+            limit,
+            cancellationToken);
+
+        return Ok(new { success = true, logs });
+    }
+
     public async Task<IActionResult> ReconcileKiwifyOrder(
         AdminReconcileKiwifySignature body,
         CancellationToken cancellationToken)
@@ -718,6 +759,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             {
                 id = purchase.Id,
                 userId = purchase.UserId,
+                userName = string.IsNullOrWhiteSpace(profile?.Name) ? profile?.Email : profile?.Name,
                 userEmail = profile?.Email,
                 planId = purchase.PlanId,
                 planName = purchase.PlanName,
@@ -776,6 +818,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             {
                 id = purchase.Id,
                 userId = purchase.UserId,
+                userName = string.IsNullOrWhiteSpace(user.Name) ? user.Email : user.Name,
                 userEmail = user.Email,
                 planId = purchase.PlanId,
                 planName = purchase.PlanName,
@@ -857,6 +900,15 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             },
             cancellationToken);
 
+        if (!string.IsNullOrWhiteSpace(body.PendingPurchaseId))
+        {
+            await _data.UpdatePurchaseStatusAsync(
+                body.PendingPurchaseId.Trim(),
+                "substituida",
+                paymentId,
+                cancellationToken);
+        }
+
         return Ok(new
         {
             success = true,
@@ -868,6 +920,128 @@ public class AdminAppService : AppControllerBase, IAdminAppService
             userId = user.Id,
             userEmail = user.Email
         });
+    }
+
+    public async Task<IActionResult> SearchUsers(
+        string query,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var users = await _data.SearchUsersAsync(query, limit, cancellationToken);
+        return Ok(new
+        {
+            success = true,
+            users = users.Select(u => new
+            {
+                id = u.Id,
+                email = u.Email,
+                name = u.Name,
+                credits = u.Credits
+            })
+        });
+    }
+
+    public async Task<IActionResult> ProcessKiwifyWebhook(
+        AdminProcessKiwifyWebhookSignature body,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var rawBody = body.Payload?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(rawBody))
+        {
+            return BadRequest(new { success = false, error = "Informe o JSON do webhook Kiwify no campo payload." });
+        }
+
+        KiwifyWebhookSignature? payload;
+        try
+        {
+            payload = TryParseKiwifyWebhookPayload(rawBody);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, error = "JSON inválido.", message = ex.Message });
+        }
+
+        if (payload?.Order == null)
+        {
+            return BadRequest(new { success = false, error = "JSON sem objeto order (formato de webhook Kiwify)." });
+        }
+
+        var orderId = payload.Order.OrderRef ?? payload.Order.OrderId;
+        var orderRef = payload.Order.OrderRef;
+        var eventType = payload.Order.WebhookEventType;
+        var paymentStatus = payload.Order.OrderStatus;
+
+        try
+        {
+            var handleResult = await _kiwify.HandleWebhookAsync(payload, rawBody, cancellationToken);
+            var result = handleResult.Verification;
+            var processed = result?.Paid == true && result.AlreadyFulfilled != true;
+            var alreadyFulfilled = result?.AlreadyFulfilled == true;
+
+            if (result?.Paid == true && result.User != null)
+            {
+                var paymentId = orderRef ?? orderId ?? string.Empty;
+                var externalRef = payload.Order.TrackingParameters?.Sck;
+                var meta = TryParseExternalReference(externalRef);
+                var planId = meta?.P ?? "single";
+                await _data.MarkPendingPurchasesSubstitutedAsync(result.User.Id, planId, cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(body.PendingPurchaseId))
+                {
+                    await _data.UpdatePurchaseStatusAsync(
+                        body.PendingPurchaseId.Trim(),
+                        "substituida",
+                        paymentId,
+                        cancellationToken);
+                }
+            }
+
+            KiwifySaleDetailsDto? sale = null;
+            if (!string.IsNullOrWhiteSpace(orderId))
+            {
+                try
+                {
+                    sale = await _kiwify.GetSaleDetailsAsync(orderId, cancellationToken);
+                }
+                catch
+                {
+                    // detalhes opcionais para o painel
+                }
+            }
+
+            var message = processed
+                ? "Créditos liberados via JSON do webhook."
+                : alreadyFulfilled
+                    ? "Esta venda já havia sido baixada no sistema."
+                    : handleResult.FailureMessage
+                      ?? (result?.Paid == true ? "Processado." : "Pagamento não aprovado ou evento ignorado.");
+
+            return Ok(new
+            {
+                success = true,
+                processed,
+                paid = result?.Paid == true,
+                alreadyFulfilled,
+                credits = result?.User?.Credits,
+                userId = result?.User?.Id,
+                message,
+                orderId = payload.Order.OrderId,
+                orderRef,
+                eventType,
+                paymentStatus,
+                failureStage = handleResult.FailureStage,
+                failureMessage = handleResult.FailureMessage,
+                sale
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = "Erro ao processar JSON Kiwify", message = ex.Message });
+        }
     }
 
     private async Task<UserProfile?> ResolveTargetUserAsync(
@@ -903,6 +1077,28 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         {
             return null;
         }
+    }
+
+    private static KiwifyWebhookSignature? TryParseKiwifyWebhookPayload(string rawBody)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        using var doc = JsonDocument.Parse(rawBody);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("order", out var orderElement) && orderElement.ValueKind == JsonValueKind.Object)
+        {
+            return JsonSerializer.Deserialize<KiwifyWebhookSignature>(rawBody, options);
+        }
+
+        if (root.TryGetProperty("order_id", out _) ||
+            root.TryGetProperty("order_ref", out _) ||
+            root.TryGetProperty("webhook_event_type", out _))
+        {
+            var order = JsonSerializer.Deserialize<KiwifyWebhookOrderSignature>(rawBody, options);
+            return order == null ? null : new KiwifyWebhookSignature { Order = order };
+        }
+
+        return JsonSerializer.Deserialize<KiwifyWebhookSignature>(rawBody, options);
     }
 
     private sealed class KiwifyExternalReferenceLite

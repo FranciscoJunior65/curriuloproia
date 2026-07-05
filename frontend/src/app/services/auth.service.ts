@@ -146,18 +146,6 @@ export class AuthService {
 
   isAdmin(): boolean {
     const user = this.getCurrentUser();
-    // Se o usuário não tem user_type, tenta buscar do servidor
-    if (user && !user.user_type) {
-      console.log('Usuário sem user_type, verificando token...');
-      this.verifyToken().subscribe({
-        next: (response) => {
-          if (response.success && response.user) {
-            console.log('Atualizando usuário com user_type:', response.user.user_type);
-            this.setUser(response.user);
-          }
-        }
-      });
-    }
     const isAdmin = user?.user_type === 'admin';
     console.log('isAdmin check:', { user, user_type: user?.user_type, isAdmin });
     return isAdmin;
@@ -190,6 +178,16 @@ export class AuthService {
     // Verifica se foi salvo corretamente
     const stored = this.getStoredUser();
     console.log('AuthService - Usuário salvo no localStorage:', stored);
+  }
+
+  /** Substitui campos do usuário logado (ex.: créditos sempre vêm do banco, nunca somam). */
+  public updateCurrentUser(patch: Partial<User>): void {
+    const current = this.getCurrentUser();
+    if (!current) {
+      return;
+    }
+
+    this.setUser({ ...current, ...patch });
   }
 
   private getStoredUser(): User | null {

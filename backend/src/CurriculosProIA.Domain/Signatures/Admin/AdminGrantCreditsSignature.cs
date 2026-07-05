@@ -9,6 +9,7 @@ public class AdminGrantCreditsSignature
     public decimal? Price { get; set; }
     public string? PaymentMethod { get; set; }
     public string? PaymentId { get; set; }
+    public string? PendingPurchaseId { get; set; }
     public string? Reason { get; set; }
     public bool SendEmail { get; set; } = true;
 }

@@ -246,6 +246,7 @@ public class EmailService : IEmailService
             var greeting = string.IsNullOrWhiteSpace(details.CustomerName)
                 ? "Olá!"
                 : $"Olá, {details.CustomerName}!";
+            var frontendUrl = GetFrontendUrl().TrimEnd('/');
 
             var couponHtml = usedCoupon
                 ? $"""<div style="margin-top: 12px; padding: 10px; background: #fff8e1; border-radius: 6px;"><strong>🎟️ Cupom:</strong> {details.CouponName} — <strong>{discountPctStr}% de desconto</strong>{(string.IsNullOrEmpty(originalPriceStr) ? "" : $" (preço original: R$ {originalPriceStr})")}</div>"""
@@ -255,6 +256,7 @@ public class EmailService : IEmailService
                 ? $"""<div><strong>Créditos de análise:</strong> {credits}</div>"""
                 : "";
 
+            var siteUrl = $"{frontendUrl}/";
             var html = $"""
                 <!DOCTYPE html>
                 <html><head><meta charset="utf-8"></head>
@@ -270,11 +272,24 @@ public class EmailService : IEmailService
                       <div><strong>Data:</strong> {now}</div>
                       {(string.IsNullOrEmpty(details.ExtraInfo) ? "" : $"<p>{details.ExtraInfo}</p>")}
                     </div>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 28px auto 0;">
+                      <tr>
+                        <td style="border-radius: 8px; background: #4f46e5;">
+                          <a href="{siteUrl}" target="_blank" rel="noopener noreferrer"
+                             style="display: inline-block; padding: 16px 36px; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px;">
+                            Entrar no site
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="font-size: 13px; color: #666; text-align: center; margin-top: 16px;">
+                      Seus créditos já estão disponíveis em <a href="{siteUrl}" style="color: #4f46e5;">{frontendUrl}</a>.
+                    </p>
                   </div>
                 </body></html>
                 """;
 
-            var text = $"{greeting} Compra confirmada. Plano: {details.PlanName}. Valor: R$ {priceStr}. Data: {now}.";
+            var text = $"{greeting} Compra confirmada. Plano: {details.PlanName}. Valor: R$ {priceStr}. Data: {now}. Entrar no site: {siteUrl}";
 
             await SendAsync(
                 clientEmail,

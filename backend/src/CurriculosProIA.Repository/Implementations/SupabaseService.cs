@@ -14,7 +14,7 @@ using static Postgrest.Constants;
 
 namespace CurriculosProIA.Repository.Implementations;
 
-public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
+public class SupabaseService : IAppDataStore, ISupabaseConnectionTester, IKiwifyWebhookLogRepository
 {
     private readonly Client? _client;
     private readonly ILogger<SupabaseService> _logger;
@@ -908,6 +908,73 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         }
     }
 
+    public async Task<List<UserProfile>> SearchUsersAsync(
+        string query,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var trimmed = query?.Trim() ?? string.Empty;
+        if (trimmed.Length < 2)
+        {
+            return new List<UserProfile>();
+        }
+
+        limit = Math.Clamp(limit <= 0 ? 20 : limit, 1, 50);
+        var pattern = $"%{trimmed}%";
+        var selectFields =
+            "id, email, nome, cpf, data_nascimento, cidade, pais, plano, criado_em, ultima_analise, atualizado_em, email_verificado, codigo_verificacao, codigo_verificacao_expira_em, tipo_usuario";
+
+        try
+        {
+            var emailResponse = await _client!
+                .From<PerfilUsuarioRow>()
+                .Select(selectFields)
+                .Filter("email", Operator.ILike, pattern)
+                .Limit(limit)
+                .Get();
+
+            var nameResponse = await _client
+                .From<PerfilUsuarioRow>()
+                .Select(selectFields)
+                .Filter("nome", Operator.ILike, pattern)
+                .Limit(limit)
+                .Get();
+
+            var merged = new Dictionary<string, PerfilUsuarioRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in emailResponse.Models.Concat(nameResponse.Models))
+            {
+                if (!string.IsNullOrWhiteSpace(row.Id))
+                {
+                    merged[row.Id] = row;
+                }
+            }
+
+            var profiles = new List<UserProfile>();
+            foreach (var row in merged.Values.Take(limit))
+            {
+                var profile = await MapProfileToEnglishAsync(row, cancellationToken);
+                if (profile != null)
+                {
+                    profiles.Add(profile);
+                }
+            }
+
+            return profiles
+                .OrderBy(p => p.Email, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(limit)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar usuários");
+            return new List<UserProfile>();
+        }
+    }
+
     public async Task<UserProfile?> GetUserProfileByEmailAsync(
         string email,
         bool includePassword = false,
@@ -1649,13 +1716,24 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
         {
             TotalPurchases = purchases.Count,
             TotalRevenue = purchases.Sum(p => Convert.ToDouble(p.Price ?? 0)),
+            ApprovedRevenue = purchases
+                .Where(p => p.Status is "concluida" or "completed")
+                .Sum(p => Convert.ToDouble(p.Price ?? 0)),
+            PendingRevenue = purchases
+                .Where(p => p.Status is "pendente" or "pending")
+                .Sum(p => Convert.ToDouble(p.Price ?? 0)),
             TotalCreditsSold = purchases.Sum(p => p.CreditsAmount),
             CompletedPurchases = purchases.Count(p =>
                 p.Status is "concluida" or "completed"),
             PendingPurchases = purchases.Count(p =>
                 p.Status is "pendente" or "pending"),
             CancelledPurchases = purchases.Count(p =>
-                p.Status is "cancelada" or "cancelled")
+                p.Status is "cancelada" or "cancelled"),
+            UniqueBuyers = purchases
+                .Select(p => p.UserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count()
         };
     }
 
@@ -3394,5 +3472,123 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester
             _logger.LogError(ex, "Erro ao contar indicações por cupom");
             return new Dictionary<string, int>();
         }
+    }
+
+    public async Task<KiwifyWebhookLogDto> CreateKiwifyWebhookLogAsync(
+        CreateKiwifyWebhookLogRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        var row = new KiwifyWebhookLogRow
+        {
+            Id = Guid.NewGuid().ToString(),
+            PayloadRecebido = TruncateLogText(request.PayloadRecebido, 100_000),
+            PayloadParseado = TruncateLogText(request.PayloadParseado, 100_000),
+            OrderId = request.OrderId,
+            OrderRef = request.OrderRef,
+            EventType = request.EventType,
+            PaymentStatus = request.PaymentStatus,
+            Processed = request.Processed,
+            AlreadyFulfilled = request.AlreadyFulfilled,
+            Credits = request.Credits,
+            IdUsuario = request.UserId,
+            HttpStatus = request.HttpStatus,
+            ApiVersion = request.ApiVersion,
+            Message = TruncateLogText(request.Message, 4000),
+            RespostaJson = TruncateLogText(request.RespostaJson, 100_000),
+            Erro = TruncateLogText(request.Erro, 8000),
+            EstagioFalha = request.FailureStage,
+            DetalhesProcessamento = TruncateLogText(request.ProcessingDetails, 20_000),
+            CriadoEm = DateTimeOffset.UtcNow
+        };
+
+        var response = await _client!
+            .From<KiwifyWebhookLogRow>()
+            .Insert(row);
+
+        var saved = response.Models.FirstOrDefault() ?? row;
+        return MapKiwifyWebhookLog(saved);
+    }
+
+    public Task<KiwifyWebhookLogDto> CreateAsync(
+        CreateKiwifyWebhookLogRequest request,
+        CancellationToken cancellationToken = default) =>
+        CreateKiwifyWebhookLogAsync(request, cancellationToken);
+
+    public async Task<List<KiwifyWebhookLogDto>> ListAsync(
+        string? orderId = null,
+        string? orderRef = null,
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null)
+        {
+            return new List<KiwifyWebhookLogDto>();
+        }
+
+        await EnsureInitializedAsync(cancellationToken);
+        limit = Math.Clamp(limit, 1, 200);
+
+        try
+        {
+            var query = _client
+                .From<KiwifyWebhookLogRow>()
+                .Select("*")
+                .Order("criado_em", Ordering.Descending)
+                .Limit(limit);
+
+            if (!string.IsNullOrWhiteSpace(orderRef))
+            {
+                query = query.Filter("order_ref", Operator.Equals, orderRef.Trim());
+            }
+            else if (!string.IsNullOrWhiteSpace(orderId))
+            {
+                query = query.Filter("order_id", Operator.Equals, orderId.Trim());
+            }
+
+            var response = await query.Get(cancellationToken);
+            return response.Models.Select(MapKiwifyWebhookLog).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao listar logs de webhook Kiwify");
+            return new List<KiwifyWebhookLogDto>();
+        }
+    }
+
+    private static KiwifyWebhookLogDto MapKiwifyWebhookLog(KiwifyWebhookLogRow row) =>
+        new()
+        {
+            Id = row.Id,
+            PayloadRecebido = row.PayloadRecebido,
+            PayloadParseado = row.PayloadParseado,
+            OrderId = row.OrderId,
+            OrderRef = row.OrderRef,
+            EventType = row.EventType,
+            PaymentStatus = row.PaymentStatus,
+            Processed = row.Processed,
+            AlreadyFulfilled = row.AlreadyFulfilled,
+            Credits = row.Credits,
+            UserId = row.IdUsuario,
+            HttpStatus = row.HttpStatus,
+            ApiVersion = row.ApiVersion,
+            Message = row.Message,
+            RespostaJson = row.RespostaJson,
+            Erro = row.Erro,
+            FailureStage = row.EstagioFalha,
+            ProcessingDetails = row.DetalhesProcessamento,
+            CreatedAt = row.CriadoEm
+        };
+
+    private static string? TruncateLogText(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength];
     }
 }

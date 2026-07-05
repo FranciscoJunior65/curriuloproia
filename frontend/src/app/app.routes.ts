@@ -10,6 +10,7 @@ import { TermsOfUseComponent } from './components/terms-of-use/terms-of-use.comp
 import { AnalysesHistoryComponent } from './components/analyses-history/analyses-history.component';
 import { PurchaseConfirmationComponent } from './components/purchase-confirmation/purchase-confirmation.component';
 import { CaktoPopupReturnComponent } from './components/cakto-popup-return/cakto-popup-return.component';
+import { KiwifyPopupReturnComponent } from './components/kiwify-popup-return/kiwify-popup-return.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -25,7 +26,7 @@ export const routes: Routes = [
   { path: 'meus-dados', component: MeusDadosComponent, canActivate: [authGuard] },
   { path: 'compra/sucesso', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
   { path: 'compra/cakto-popup-retorno', component: CaktoPopupReturnComponent, canActivate: [authGuard] },
-  { path: 'compra/kiwify-popup-retorno', component: CaktoPopupReturnComponent, canActivate: [authGuard] },
+  { path: 'compra/kiwify-popup-retorno', component: KiwifyPopupReturnComponent, canActivate: [authGuard] },
   { path: 'compra/pendente', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
   { path: 'compra/falha', component: PurchaseConfirmationComponent, canActivate: [authGuard] },
   { path: 'compra/cancelada', component: PurchaseConfirmationComponent, canActivate: [authGuard] },

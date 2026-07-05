@@ -54,6 +54,11 @@ export class PaymentRealtimeService {
     return this.paymentConfirmed$.asObservable();
   }
 
+  /** Observa eventos do hub sem alterar o ciclo de vida da conexao. */
+  watchPaymentConfirmed(): Observable<PaymentConfirmedEvent> {
+    return this.paymentConfirmed$.asObservable();
+  }
+
   /** Remove um listener de componente (ex.: modal fechou). */
   disconnect(): void {
     this.componentListeners = Math.max(0, this.componentListeners - 1);

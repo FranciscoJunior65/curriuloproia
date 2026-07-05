@@ -52,6 +52,10 @@
         </p>
       </div>
 
+      <div *ngIf="paymentConfirmed && data.provider === 'kiwify'" class="checkout-modal__alert checkout-modal__alert--success">
+        Pagamento confirmado! Fechando a janela da Kiwify…
+      </div>
+
       <div *ngIf="popupBlocked" class="checkout-modal__alert">
         O navegador bloqueou a janela de pagamento. Clique abaixo para abrir manualmente.
       </div>

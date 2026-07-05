@@ -25,7 +25,7 @@
         Painel Administrativo
       </h1>
       <div class="header-actions">
-        <button mat-raised-button color="primary" class="admin-refresh-btn" (click)="loadDashboard()">
+        <button mat-raised-button color="primary" class="admin-refresh-btn" (click)="refreshAdminData()">
           <mat-icon>refresh</mat-icon>
           Atualizar
         </button>
@@ -485,41 +485,99 @@
                   <p><strong>Cliente:</strong> {{ kiwifySale.customerEmail || '—' }} · <strong>Valor:</strong> {{ formatCurrency(kiwifySale.priceBRL) }}</p>
                   <p><strong>Order ref:</strong> {{ kiwifySale.orderRef || '—' }} · <strong>Order id:</strong> {{ kiwifySale.orderId }}</p>
                 </div>
+
+                <div class="pricing-field pricing-field--full" style="margin-top: 1rem;">
+                  <label>JSON do webhook Kiwify (colar payload completo)</label>
+                  <textarea
+                    [(ngModel)]="kiwifyWebhookJson"
+                    (ngModelChange)="onKiwifyWebhookJsonChange()"
+                    class="period-select kiwify-json-textarea"
+                    rows="8"
+                    placeholder="Cole aqui o JSON exatamente como recebido pela API (url, signature, order...)"
+                  ></textarea>
+                </div>
+                <button
+                  mat-raised-button
+                  color="primary"
+                  type="button"
+                  class="coupon-create-btn"
+                  (click)="processKiwifyWebhookJson()"
+                  [disabled]="processingKiwifyWebhook"
+                >
+                  {{ processingKiwifyWebhook ? 'Processando JSON...' : 'Baixar créditos via JSON (fluxo webhook)' }}
+                </button>
               </div>
 
               <div class="coupon-section">
                 <h3 class="coupon-section__title">3. Inclusão avulsa (sem Kiwify)</h3>
                 <div class="coupon-form-grid">
-                  <div class="pricing-field">
-                    <label>E-mail</label>
-                    <input [(ngModel)]="manualGrantEmail" type="email" class="period-select" />
-                  </div>
-                  <div class="pricing-field">
-                    <label>Ou ID</label>
-                    <input [(ngModel)]="manualGrantUserId" type="text" class="period-select" />
+                  <div class="pricing-field pricing-field--full user-search-field">
+                    <label>Cliente</label>
+                    <div class="user-search-wrap">
+                      <input
+                        [(ngModel)]="manualGrantUserSearch"
+                        (ngModelChange)="onManualGrantUserSearchInput()"
+                        (focus)="showManualGrantUserDropdown = manualGrantUserResults.length > 0"
+                        type="text"
+                        class="period-select"
+                        placeholder="Digite e-mail ou nome (mín. 2 caracteres)"
+                        autocomplete="off"
+                      />
+                      <button
+                        *ngIf="manualGrantSelectedUser"
+                        mat-icon-button
+                        type="button"
+                        class="user-search-clear"
+                        (click)="clearManualGrantUserSelection()"
+                        aria-label="Limpar cliente"
+                      >
+                        <mat-icon>close</mat-icon>
+                      </button>
+                      <div *ngIf="loadingManualGrantUserSearch" class="user-search-loading">
+                        <mat-spinner diameter="20"></mat-spinner>
+                      </div>
+                      <ul *ngIf="showManualGrantUserDropdown" class="user-search-dropdown">
+                        <li
+                          *ngFor="let user of manualGrantUserResults"
+                          (mousedown)="selectManualGrantUser(user)"
+                        >
+                          <strong>{{ user.email || '—' }}</strong>
+                          <span *ngIf="user.name"> · {{ user.name }}</span>
+                          <span class="user-search-meta"> · {{ user.credits }} crédito(s)</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <p *ngIf="manualGrantSelectedUser" class="user-search-selected">
+                      Selecionado: <strong>{{ manualGrantSelectedUser.email }}</strong>
+                      <span *ngIf="manualGrantSelectedUser.name"> ({{ manualGrantSelectedUser.name }})</span>
+                      · saldo {{ manualGrantSelectedUser.credits }} crédito(s)
+                    </p>
                   </div>
                   <div class="pricing-field">
                     <label>Plano</label>
-                    <select [(ngModel)]="manualGrantPlanId" class="period-select" [disabled]="manualGrantCredits != null">
+                    <select [(ngModel)]="manualGrantPlanId" class="period-select">
                       <option value="single">Single</option>
                       <option value="pack3">Pack 3</option>
                       <option value="pack5">Pack 5</option>
                     </select>
                   </div>
-                  <div class="pricing-field">
-                    <label>Créditos avulsos (opcional)</label>
-                    <input [(ngModel)]="manualGrantCredits" type="number" min="1" class="period-select" placeholder="ex.: 3" />
-                  </div>
                   <div class="pricing-field pricing-field--full">
                     <label>Motivo</label>
-                    <textarea [(ngModel)]="manualGrantReason" class="period-select" rows="2" placeholder="Pagamento direto, erro Kiwify..."></textarea>
+                    <textarea [(ngModel)]="manualGrantReason" class="period-select" rows="2" placeholder="Pagamento direto, erro Kiwify, cortesia..."></textarea>
                   </div>
                 </div>
                 <label class="coupon-checkbox">
                   <input type="checkbox" [(ngModel)]="manualGrantSendEmail" /> Enviar e-mail de confirmação
                 </label>
-                <button mat-raised-button color="warn" type="button" class="coupon-create-btn" (click)="grantManualCredits()" [disabled]="grantingManualCredits">
-                  Incluir créditos manualmente
+                <button
+                  mat-raised-button
+                  color="warn"
+                  type="button"
+                  class="coupon-create-btn"
+                  (click)="grantManualCredits()"
+                  [disabled]="grantingManualCredits || !manualGrantSelectedUser"
+                >
+                  {{ grantingManualCredits ? 'Incluindo...' : 'Incluir crédito grátis' }}
                 </button>
               </div>
 
@@ -528,24 +586,45 @@
                   <h3 class="coupon-section__title">Compras pendentes</h3>
                   <button mat-button type="button" (click)="loadPendingPurchases()"><mat-icon>refresh</mat-icon></button>
                 </div>
+                <div class="sales-summary-grid sales-summary-grid--compact" *ngIf="pendingPurchases.length">
+                  <div class="metric-pill metric-pill--warn">
+                    <span class="metric-pill__label">Pendências com order_ref</span>
+                    <strong>{{ pendingWithOrderIdCount }}</strong>
+                  </div>
+                  <div class="metric-pill metric-pill--warn">
+                    <span class="metric-pill__label">Pendências sem order_ref</span>
+                    <strong>{{ pendingWithoutOrderIdCount }}</strong>
+                  </div>
+                </div>
                 <div *ngIf="loadingPendingPurchases" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
                 <table *ngIf="!loadingPendingPurchases && pendingPurchases.length" class="usage-table">
                   <thead>
                     <tr>
                       <th>Cliente</th>
+                      <th>Nome</th>
                       <th>Plano</th>
+                      <th>Valor</th>
                       <th>ID pagamento</th>
                       <th>Data</th>
-                      <th></th>
+                      <th>Situação</th>
+                      <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr *ngFor="let p of pendingPurchases">
                       <td>{{ p.userEmail || p.userId }}</td>
+                      <td>{{ p.userName || '—' }}</td>
                       <td>{{ p.planName }} ({{ p.creditsAmount }})</td>
+                      <td>{{ formatCurrency(p.price || 0) }}</td>
                       <td>{{ p.paymentId }}</td>
                       <td>{{ formatDateTime(p.createdAt) }}</td>
-                      <td><button mat-button type="button" (click)="selectPendingForReconcile(p)">Usar</button></td>
+                      <td>{{ hasRealPaymentId(p.paymentId) ? 'Pronta para consulta' : 'Aguardando order_ref' }}</td>
+                      <td class="pending-actions-cell">
+                        <button mat-button type="button" (click)="selectPendingForReconcile(p)">Usar</button>
+                        <button mat-button type="button" (click)="consultPendingPurchase(p)" [disabled]="!hasRealPaymentId(p.paymentId)">Consultar</button>
+                        <button mat-button color="primary" type="button" (click)="reconcilePendingPurchase(p)" [disabled]="!hasRealPaymentId(p.paymentId)">Baixar</button>
+                        <button mat-button color="warn" type="button" (click)="grantPendingManually(p)">Manual</button>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -820,12 +899,258 @@
           </mat-card>
         </div>
       </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">receipt_long</mat-icon>
+          Logs Kiwify
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
+                Histórico de webhooks Kiwify recebidos pela API (automático ou via JSON no admin).
+                Use para diagnosticar pagamentos que não baixaram créditos.
+              </p>
+
+              <div class="coupon-form-grid" style="margin-bottom: 1rem;">
+                <div class="pricing-field">
+                  <label>Filtrar order ref / order id</label>
+                  <input
+                    [(ngModel)]="kiwifyLogsFilterOrder"
+                    type="text"
+                    class="period-select"
+                    placeholder="ex.: hwg2Yjf"
+                    (keyup.enter)="loadKiwifyWebhookLogs()"
+                  />
+                </div>
+              </div>
+
+              <div class="header-actions" style="margin-bottom: 1rem;">
+                <button mat-stroked-button type="button" (click)="loadKiwifyWebhookLogs()" [disabled]="loadingKiwifyWebhookLogs">
+                  <mat-icon>refresh</mat-icon> Atualizar
+                </button>
+                <button mat-button type="button" (click)="kiwifyLogsFilterOrder = ''; loadKiwifyWebhookLogs()" [disabled]="loadingKiwifyWebhookLogs">
+                  Limpar filtro
+                </button>
+              </div>
+
+              <p *ngIf="kiwifyLogsError" class="settings-error">{{ kiwifyLogsError }}</p>
+
+              <div *ngIf="loadingKiwifyWebhookLogs" class="loading-inline">
+                <mat-spinner diameter="28"></mat-spinner>
+              </div>
+
+              <table *ngIf="!loadingKiwifyWebhookLogs && kiwifyWebhookLogs.length" class="usage-table kiwify-logs-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Order ref</th>
+                    <th>Evento</th>
+                    <th>Status</th>
+                    <th>Resultado</th>
+                    <th>Créditos</th>
+                    <th>HTTP</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    *ngFor="let log of kiwifyWebhookLogs"
+                    [class.kiwify-log-row--selected]="selectedKiwifyLog?.id === log.id"
+                    (click)="selectKiwifyLog(log)"
+                  >
+                    <td data-label="Data">{{ formatDateTime(log.createdAt) }}</td>
+                    <td data-label="Order ref">
+                      <strong>{{ log.orderRef || log.orderId || '—' }}</strong>
+                    </td>
+                    <td data-label="Evento">{{ log.eventType || '—' }}</td>
+                    <td data-label="Status">{{ log.paymentStatus || '—' }}</td>
+                    <td data-label="Resultado">
+                      <span
+                        class="kiwify-log-badge"
+                        [class.kiwify-log-badge--ok]="log.processed"
+                        [class.kiwify-log-badge--warn]="log.alreadyFulfilled && !log.processed"
+                        [class.kiwify-log-badge--err]="!!log.failureStage && !log.processed"
+                      >
+                        {{ kiwifyLogStatusLabel(log) }}
+                      </span>
+                    </td>
+                    <td data-label="Créditos">{{ log.credits ?? '—' }}</td>
+                    <td data-label="HTTP">{{ log.httpStatus }}</td>
+                    <td data-label="Ações">
+                      <button
+                        mat-button
+                        type="button"
+                        (click)="useKiwifyLogInCreditsPanel(log); $event.stopPropagation()"
+                      >
+                        Usar na aba Créditos
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p *ngIf="!loadingKiwifyWebhookLogs && !kiwifyWebhookLogs.length" class="settings-description">
+                Nenhum log encontrado{{ kiwifyLogsFilterOrder.trim() ? ' para este filtro' : '' }}.
+              </p>
+
+              <div *ngIf="selectedKiwifyLog" class="kiwify-log-detail">
+                <div class="kiwify-log-detail__header">
+                  <h3>Detalhe do log</h3>
+                  <button mat-icon-button type="button" (click)="selectedKiwifyLog = null" aria-label="Fechar detalhe">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+                <p><strong>Mensagem:</strong> {{ selectedKiwifyLog.message || '—' }}</p>
+                <p *ngIf="selectedKiwifyLog.failureStage">
+                  <strong>Falha:</strong> {{ selectedKiwifyLog.failureStage }}
+                  <span *ngIf="selectedKiwifyLog.erro"> — {{ selectedKiwifyLog.erro }}</span>
+                </p>
+                <p *ngIf="selectedKiwifyLog.userId"><strong>Usuário:</strong> {{ selectedKiwifyLog.userId }}</p>
+                <div *ngIf="selectedKiwifyLog.payloadRecebido" class="kiwify-log-detail__block">
+                  <label>Payload recebido</label>
+                  <pre>{{ selectedKiwifyLog.payloadRecebido }}</pre>
+                </div>
+                <div *ngIf="selectedKiwifyLog.respostaJson" class="kiwify-log-detail__block">
+                  <label>Resposta da API</label>
+                  <pre>{{ selectedKiwifyLog.respostaJson }}</pre>
+                </div>
+                <div *ngIf="selectedKiwifyLog.processingDetails" class="kiwify-log-detail__block">
+                  <label>Detalhes do processamento</label>
+                  <pre>{{ selectedKiwifyLog.processingDetails }}</pre>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
     </mat-tab-group>
   </div>
 
   <!-- Usage Tabs -->
   <div *ngIf="!loading && stats" class="usage-section">
     <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" class="admin-tabs">
+      <mat-tab label="Compras Reais">
+        <div class="tab-content">
+          <div class="tab-header">
+            <h2>Compras Aprovadas e Recentes</h2>
+            <div class="period-selector">
+              <label>Gráfico:</label>
+              <select [(ngModel)]="selectedChartDays" class="period-select">
+                <option [value]="7">7 dias</option>
+                <option [value]="14">14 dias</option>
+                <option [value]="30">30 dias</option>
+              </select>
+              <button mat-button (click)="loadSales()" [disabled]="loadingSales">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="sales-summary-grid">
+            <div class="metric-pill">
+              <span class="metric-pill__label">Receita aprovada</span>
+              <strong>{{ formatCurrency(salesStats?.approvedRevenue || 0) }}</strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">Compras aprovadas</span>
+              <strong>{{ salesStats?.completedPurchases || recentApprovedSales.length }}</strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">Compradores</span>
+              <strong>{{ salesStats?.uniqueBuyers || recentBuyersCount }}</strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">Ticket médio</span>
+              <strong>{{ formatCurrency(averageApprovedTicket) }}</strong>
+            </div>
+            <div class="metric-pill metric-pill--warn">
+              <span class="metric-pill__label">Pendências</span>
+              <strong>{{ salesStats?.pendingPurchases || pendingPurchases.length }}</strong>
+            </div>
+            <div class="metric-pill metric-pill--warn">
+              <span class="metric-pill__label">Receita pendente</span>
+              <strong>{{ formatCurrency(salesStats?.pendingRevenue || 0) }}</strong>
+            </div>
+          </div>
+
+          <div class="sales-analytics-grid">
+            <div class="analytics-card">
+              <div class="analytics-card__header">
+                <h3>Andamento das compras</h3>
+                <span>Últimos {{ selectedChartDays }} dias</span>
+              </div>
+              <div class="sales-bars-chart" *ngIf="salesTrend.length">
+                <div class="sales-bars-chart__item" *ngFor="let point of salesTrend">
+                  <div class="sales-bars-chart__bar-wrap">
+                    <div class="sales-bars-chart__bar" [style.height.%]="point.height" [title]="point.label + ': ' + point.count + ' compra(s)'"></div>
+                  </div>
+                  <div class="sales-bars-chart__meta">
+                    <strong>{{ point.count }}</strong>
+                    <span>{{ point.label }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="analytics-card">
+              <div class="analytics-card__header">
+                <h3>Forma de pagamento</h3>
+                <span>Compras aprovadas listadas</span>
+              </div>
+              <div class="payment-method-list" *ngIf="paymentMethodSummary.length">
+                <div class="payment-method-list__row" *ngFor="let item of paymentMethodSummary">
+                  <div class="payment-method-list__labels">
+                    <strong>{{ item.label }}</strong>
+                    <span>{{ item.count }} compra(s) · {{ formatCurrency(item.revenue) }}</span>
+                  </div>
+                  <div class="payment-method-list__bar">
+                    <div class="payment-method-list__fill" [style.width.%]="item.width"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="loadingSales" class="loading-container">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+
+          <div *ngIf="!loadingSales" class="usage-table-container">
+            <table class="usage-table sales-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Email</th>
+                  <th>Plano</th>
+                  <th>Créditos</th>
+                  <th>Pagamento</th>
+                  <th>Valor</th>
+                  <th>Status</th>
+                  <th>Quando</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let sale of recentSales" [class]="salesRowClass(sale.status)">
+                  <td data-label="Cliente"><strong>{{ sale.userName || sale.userId || '—' }}</strong></td>
+                  <td data-label="Email">{{ sale.userEmail || '—' }}</td>
+                  <td data-label="Plano">{{ sale.planName || sale.planId || '—' }}</td>
+                  <td data-label="Créditos">{{ sale.creditsAmount }}</td>
+                  <td data-label="Pagamento">{{ formatPaymentMethod(sale.paymentMethod) }}</td>
+                  <td data-label="Valor" class="revenue-cell">{{ formatCurrency(sale.price || 0) }}</td>
+                  <td data-label="Status">{{ formatPurchaseStatus(sale.status) }}</td>
+                  <td data-label="Quando">{{ formatDateTime(sale.createdAt) }}</td>
+                </tr>
+                <tr *ngIf="recentSales.length === 0">
+                  <td colspan="8" class="no-data">Nenhuma compra encontrada</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </mat-tab>
+
       <!-- Tab: Uso Diário -->
       <mat-tab label="Uso Diário">
         <div class="tab-content">
