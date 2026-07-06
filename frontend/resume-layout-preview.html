@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview — Layout de Currículo | CurrículoProIA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-soft: #818cf8;
+      --paper: #ffffff;
+      --ink: #1e293b;
+      --ink-muted: #64748b;
+      --line: #e2e8f0;
+      --sidebar: linear-gradient(165deg, #1e1b4b 0%, #312e81 48%, #1e3a5f 100%);
+      --chip: #eef2ff;
+      --chip-text: #4338ca;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: radial-gradient(ellipse 120% 80% at 50% -20%, #312e81 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem 3rem;
+    }
+
+    .page-header {
+      max-width: 920px;
+      margin: 0 auto 1.5rem;
+      text-align: center;
+    }
+
+    .page-header h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+    }
+
+    .page-header p {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      max-width: 920px;
+      margin: 0 auto 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .toolbar button {
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--text);
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+
+    .toolbar button:hover { background: rgba(51, 65, 85, 0.95); }
+    .toolbar button.active {
+      background: var(--accent);
+      border-color: var(--accent-soft);
+      color: #fff;
+    }
+
+    .toolbar button.print-btn {
+      background: #059669;
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    .preview-wrap {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .preview-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    .paper-shadow {
+      background: #334155;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    /* ——— Layout ATUAL (simplificado do PDF/Word hoje) ——— */
+    .resume-current {
+      display: none;
+      background: var(--paper);
+      color: var(--ink);
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 14mm 16mm;
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.35;
+      color: #424242;
+    }
+
+    .resume-current.visible { display: block; }
+
+    .resume-current .name {
+      font-size: 21pt;
+      font-weight: 600;
+      color: #1565c0;
+      margin-bottom: 4px;
+    }
+
+    .resume-current .contact {
+      font-size: 9.5pt;
+      color: #616161;
+      margin-bottom: 10px;
+    }
+
+    .resume-current hr {
+      border: none;
+      border-top: 1px solid #90caf9;
+      margin: 8px 0 12px;
+    }
+
+    .resume-current .section-title {
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      color: #1976d2;
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      margin: 10px 0 6px;
+    }
+
+    .resume-current .exp-title {
+      font-weight: 700;
+      font-size: 10.5pt;
+      margin-top: 8px;
+      margin-bottom: 2px;
+    }
+
+    .resume-current ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .resume-current li {
+      padding-left: 14px;
+      position: relative;
+      margin-bottom: 3px;
+    }
+
+    .resume-current li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #1e88e5;
+      font-weight: bold;
+    }
+
+    /* ——— Layout PROPOSTO ——— */
+    .resume-pro {
+      display: none;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: var(--paper);
+      color: var(--ink);
+      overflow: hidden;
+      border-radius: 2px;
+    }
+
+    .resume-pro.visible { display: grid; grid-template-columns: 72mm 1fr; }
+
+    .resume-pro .sidebar {
+      background: var(--sidebar);
+      color: #f8fafc;
+      padding: 22px 18px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .resume-pro .sidebar-name {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.65rem;
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 14px;
+    }
+
+    .resume-pro .sidebar-role {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #c7d2fe;
+      margin-top: 8px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .resume-pro .side-block h3 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #a5b4fc;
+      margin-bottom: 10px;
+    }
+
+    .resume-pro .contact-list {
+      list-style: none;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #e2e8f0;
+    }
+
+    .resume-pro .contact-list li {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+
+    .resume-pro .contact-list .ico {
+      flex-shrink: 0;
+      width: 16px;
+      opacity: 0.85;
+      text-align: center;
+    }
+
+    .resume-pro .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .resume-pro .skill-tags span {
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e0e7ff;
+    }
+
+    .resume-pro .side-text {
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+
+    .resume-pro .main {
+      padding: 24px 26px 28px 24px;
+    }
+
+    .resume-pro .main-section {
+      margin-bottom: 22px;
+    }
+
+    .resume-pro .main-section:last-child { margin-bottom: 0; }
+
+    .resume-pro .main-section h2 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .resume-pro .main-section h2::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, #c7d2fe, transparent);
+    }
+
+    .resume-pro .summary {
+      font-size: 0.86rem;
+      line-height: 1.65;
+      color: #475569;
+    }
+
+    .resume-pro .job {
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .resume-pro .job:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .resume-pro .job-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .resume-pro .job-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .resume-pro .job-company {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 2px;
+    }
+
+    .resume-pro .job-period {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+      white-space: nowrap;
+      background: #f1f5f9;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .resume-pro .job ul {
+      list-style: none;
+      margin-top: 6px;
+    }
+
+    .resume-pro .job li {
+      font-size: 0.8rem;
+      line-height: 1.55;
+      color: #475569;
+      padding-left: 14px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    .resume-pro .job li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .resume-pro .edu-line {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: #475569;
+    }
+
+    .resume-pro .edu-line strong {
+      display: block;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .note-bar {
+      max-width: 920px;
+      margin: 1.25rem auto 0;
+      padding: 0.85rem 1rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(129, 140, 248, 0.35);
+      border-radius: 10px;
+      font-size: 0.82rem;
+      color: #c7d2fe;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page-header, .toolbar, .preview-label, .note-bar, .paper-shadow { display: none !important; }
+      .preview-wrap { max-width: none; }
+      .resume-current, .resume-pro {
+        display: block !important;
+        box-shadow: none;
+        width: 100%;
+        min-height: auto;
+      }
+      .resume-pro { grid-template-columns: 72mm 1fr; }
+      .resume-current:not(.print-target),
+      .resume-pro:not(.print-target) { display: none !important; }
+    }
+
+    @media (max-width: 800px) {
+      .resume-pro.visible { grid-template-columns: 1fr; }
+      .resume-pro .sidebar { padding: 20px 18px; }
+      .resume-current, .resume-pro { width: 100%; min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>Preview do layout de currículo</h1>
+    <p>Compare o visual atual (PDF/Word) com a proposta nova antes de publicar na API.</p>
+  </header>
+
+  <div class="toolbar">
+    <button type="button" id="btn-current" onclick="showLayout('current')">Layout atual</button>
+    <button type="button" id="btn-pro" class="active" onclick="showLayout('pro')">Layout proposto</button>
+    <button type="button" class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+  </div>
+
+  <div class="preview-wrap">
+    <p class="preview-label" id="preview-label">Proposta — sidebar + tipografia moderna</p>
+    <div class="paper-shadow">
+      <!-- Layout ATUAL -->
+      <article class="resume-current" id="resume-current" aria-label="Layout atual">
+        <div class="name">Marcos Vinicius Oliveira Lima</div>
+        <div class="contact">Sorocaba, SP | (15) 98102-9870 | Linkedin | Github</div>
+        <hr />
+
+        <div class="section-title">Resumo profissional</div>
+        <p>Desenvolvedor Full-Stack com experiência em arquitetura de software, desenvolvimento back-end e front-end, e gestão de infraestrutura em nuvem.</p>
+
+        <div class="section-title">Experiência profissional</div>
+        <div class="exp-title">Tafner Software Solutions | Desenvolvedor Full-Stack | 10/2023 – 08/2024</div>
+        <ul>
+          <li>Desenvolvi e mantive páginas web de alto tráfego utilizando Angular, JavaScript e .Net.</li>
+          <li>Administrei bancos de dados de alta performance, otimizando consultas.</li>
+          <li>Participei de reuniões com stakeholders para alinhamento de requisitos.</li>
+        </ul>
+        <div class="exp-title">Casion - Tech Goodies | Desenvolvedor .Net Pleno | 12/2022 – 06/2023</div>
+        <ul>
+          <li>Realizei a refatoração de sistemas legados para versões mais recentes do .Net.</li>
+          <li>Desenvolvi e mantive websites utilizando Umbraco como CMS.</li>
+        </ul>
+
+        <div class="section-title">Formação acadêmica</div>
+        <p>Análise e Desenvolvimento de Sistemas | Facens | 2024 – 2026</p>
+
+        <div class="section-title">Habilidades técnicas</div>
+        <p>C#, Angular, .Net, Python, SQL, MongoDB, GCP, Scrum</p>
+      </article>
+
+      <!-- Layout PROPOSTO -->
+      <article class="resume-pro visible print-target" id="resume-pro" aria-label="Layout proposto">
+        <aside class="sidebar">
+          <div>
+            <div class="sidebar-name">Marcos Vinicius<br />Oliveira Lima</div>
+            <div class="sidebar-role">Desenvolvedor Full-Stack</div>
+          </div>
+
+          <div class="side-block">
+            <h3>Contato</h3>
+            <ul class="contact-list">
+              <li><span class="ico">📍</span><span>Sorocaba, SP</span></li>
+              <li><span class="ico">📞</span><span>(15) 98102-9870</span></li>
+              <li><span class="ico">🔗</span><span>linkedin.com/in/marcosviniciusoliveiralima</span></li>
+              <li><span class="ico">⌘</span><span>github.com/marcosvinicius</span></li>
+            </ul>
+          </div>
+
+          <div class="side-block">
+            <h3>Habilidades</h3>
+            <div class="skill-tags">
+              <span>C#</span><span>.NET</span><span>Angular</span><span>JavaScript</span>
+              <span>Python</span><span>SQL</span><span>MongoDB</span><span>Web API</span>
+              <span>Entity Framework</span><span>GCP</span><span>Scrum</span><span>WPF</span>
+            </div>
+          </div>
+
+          <div class="side-block">
+            <h3>Formação</h3>
+            <p class="side-text">
+              <strong style="color:#e0e7ff;display:block;margin-bottom:4px;">Análise e Desenvolvimento de Sistemas</strong>
+              Facens · 2024 – 2026
+            </p>
+          </div>
+
+          <div class="side-block">
+            <h3>Certificações</h3>
+            <p class="side-text">Certified ScrumMaster®</p>
+          </div>
+        </aside>
+
+        <main class="main">
+          <section class="main-section">
+            <h2>Resumo profissional</h2>
+            <p class="summary">
+              Desenvolvedor Full-Stack com 4+ anos de experiência em .NET, Angular e Google Cloud Platform.
+              Atuação em refatoração de sistemas legados, integrações (WhatsApp, Teams, Slack) e ambientes de alto tráfego.
+              Certified ScrumMaster® com histórico em liderança técnica de estagiários e entrega orientada a performance.
+            </p>
+          </section>
+
+          <section class="main-section">
+            <h2>Experiência</h2>
+
+            <article class="job">
+              <div class="job-head">
+                <div>
+                  <div class="job-title">Desenvolvedor Full-Stack</div>
+                  <div class="job-company">Tafner Software Solutions</div>
+                </div>
+                <span class="job-period">10/2023 – 08/2024</span>
+              </div>
+              <ul>
+                <li>Desenvolvi e mantive páginas web de alto tráfego com Angular, JavaScript e .NET, priorizando performance e UX.</li>
+                <li>Administrei bancos de dados de alta performance e otimizei consultas para integridade e velocidade.</li>
+                <li>Participei de reuniões com stakeholders para alinhamento de requisitos e resolução de dúvidas técnicas.</li>
+                <li>Apoiei a equipe na aplicação do Scrum com Notion, dailies e sprints.</li>
+              </ul>
+            </article>
+
+            <article class="job">
+              <div class="job-head">
+                <div>
+                  <div class="job-title">Desenvolvedor .NET Pleno</div>
+                  <div class="job-company">Casion - Tech Goodies</div>
+                </div>
+                <span class="job-period">12/2022 – 06/2023</span>
+              </div>
+              <ul>
+                <li>Refatorei sistemas legados do .NET Framework para .NET atual, melhorando manutenibilidade.</li>
+                <li>Integrei sistemas atualizados garantindo compatibilidade e fluxo de dados entre componentes.</li>
+                <li>Desenvolvi e mantive sites com Umbraco CMS e back-end em C#, Python, Java e SQL.</li>
+              </ul>
+            </article>
+
+            <article class="job">
+              <div class="job-head">
+                <div>
+                  <div class="job-title">Desenvolvedor Back-End Pleno</div>
+                  <div class="job-company">Solucionare</div>
+                </div>
+                <span class="job-period">05/2022 – 03/2023</span>
+              </div>
+              <ul>
+                <li>Criei e otimizei procedures SQL para aplicações e rotinas automatizadas do setor judiciário.</li>
+                <li>Desenvolvi sistemas com WPF e C#, com interfaces para operação em escala.</li>
+                <li>Extraí dados via queries SQL para dashboards analíticos.</li>
+              </ul>
+            </article>
+
+            <article class="job">
+              <div class="job-head">
+                <div>
+                  <div class="job-title">Analista e Desenvolvedor de Sistemas</div>
+                  <div class="job-company">Woopi</div>
+                </div>
+                <span class="job-period">05/2020 – 10/2021</span>
+              </div>
+              <ul>
+                <li>Gerenciei Google Cloud Platform: instâncias, acessos e permissões.</li>
+                <li>Integrei WhatsApp, Teams, Slack e outros canais à plataforma.</li>
+                <li>Administrei time de estagiários com delegação de tarefas e suporte técnico.</li>
+              </ul>
+            </article>
+          </section>
+        </main>
+      </article>
+    </div>
+  </div>
+
+  <p class="note-bar">
+    Este HTML é só para aprovação visual. Depois de validado, o mesmo estilo será aplicado na geração de PDF e Word pela API.
+  </p>
+
+  <script>
+    function showLayout(which) {
+      const current = document.getElementById('resume-current');
+      const pro = document.getElementById('resume-pro');
+      const btnCurrent = document.getElementById('btn-current');
+      const btnPro = document.getElementById('btn-pro');
+      const label = document.getElementById('preview-label');
+
+      if (which === 'current') {
+        current.classList.add('visible', 'print-target');
+        pro.classList.remove('visible', 'print-target');
+        btnCurrent.classList.add('active');
+        btnPro.classList.remove('active');
+        label.textContent = 'Atual — caixas azuis + Helvetica (PDF/Word hoje)';
+      } else {
+        pro.classList.add('visible', 'print-target');
+        current.classList.remove('visible', 'print-target');
+        btnPro.classList.add('active');
+        btnCurrent.classList.remove('active');
+        label.textContent = 'Proposta — sidebar + tipografia moderna';
+      }
+    }
+  </script>
+</body>
+</html>

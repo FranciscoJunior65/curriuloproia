@@ -45,6 +45,19 @@ public class PurchaseBuyerDto
     public DateTimeOffset? LastPurchaseAt { get; set; }
 }
 
+public class AdminUserListItemDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string? Cpf { get; set; }
+    public string? UserType { get; set; }
+    public int Credits { get; set; }
+    public int PurchasesCount { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
+    public DateTimeOffset? LastAnalysisAt { get; set; }
+}
+
 public class CreditUsageResultDto
 {
     public bool Success { get; set; }

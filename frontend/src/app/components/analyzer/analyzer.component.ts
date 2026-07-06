@@ -18,7 +18,7 @@ import {
   MercadoPagoCheckoutModalComponent,
   MercadoPagoCheckoutModalData
 } from '../mercadopago-checkout-modal/mercadopago-checkout-modal.component';
-import { AnalyzerService, AnalysisResult } from '../../services/analyzer.service';
+import { AnalyzerService, AnalysisResult, MIME_DOCX, MIME_PDF } from '../../services/analyzer.service';
 import { extractPaidCredits, isPaidCloseResult } from '../../models/payment-close-result';
 import { mapPersistedAnalysisToResult } from '../../utils/persisted-analysis.mapper';
 import { AuthService, User } from '../../services/auth.service';
@@ -1404,20 +1404,21 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       this.selectedSiteId || undefined,
       this.result.analysisId || undefined
     ).subscribe({
-      next: (blob: Blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `curriculo-melhorado.${format === 'pdf' ? 'pdf' : 'docx'}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        if (format === 'pdf') {
-          this.generatingPDF = false;
-        } else {
-          this.generatingWord = false;
+      next: (payload) => {
+        try {
+          const ext = format === 'pdf' ? 'pdf' : 'docx';
+          const mimeType = format === 'pdf' ? MIME_PDF : MIME_DOCX;
+          this.analyzerService.triggerBrowserDownload(
+            payload,
+            `curriculo.${ext}`,
+            mimeType
+          );
+        } finally {
+          if (format === 'pdf') {
+            this.generatingPDF = false;
+          } else {
+            this.generatingWord = false;
+          }
         }
       },
       error: (err: any) => {
@@ -1531,20 +1532,21 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         this.result.analysisId || undefined
       )
       .subscribe({
-        next: (blob: Blob) => {
-          const ext = format === 'pdf' ? 'pdf' : 'docx';
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `curriculo-ingles.${ext}`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          if (format === 'pdf') {
-            this.generatingEnglishPdf = false;
-          } else {
-            this.generatingEnglishWord = false;
+        next: (payload) => {
+          try {
+            const ext = format === 'pdf' ? 'pdf' : 'docx';
+            const mimeType = format === 'pdf' ? MIME_PDF : MIME_DOCX;
+            this.analyzerService.triggerBrowserDownload(
+              payload,
+              `curriculo-ingles.${ext}`,
+              mimeType
+            );
+          } finally {
+            if (format === 'pdf') {
+              this.generatingEnglishPdf = false;
+            } else {
+              this.generatingEnglishWord = false;
+            }
           }
           this.showPlans = false;
           this.analysisCompleted = true;

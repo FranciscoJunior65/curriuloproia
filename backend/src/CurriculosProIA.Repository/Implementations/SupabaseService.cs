@@ -975,6 +975,126 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester, IKiwify
         }
     }
 
+    public async Task<List<AdminUserListItemDto>> ListUsersAsync(
+        int limit = 300,
+        int offset = 0,
+        string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        limit = Math.Clamp(limit <= 0 ? 300 : limit, 1, 500);
+        offset = Math.Max(0, offset);
+
+        const string selectFields =
+            "id, email, nome, cpf, criado_em, ultima_analise, tipo_usuario";
+
+        try
+        {
+            List<PerfilUsuarioRow> rows;
+
+            var trimmedSearch = search?.Trim() ?? string.Empty;
+            if (trimmedSearch.Length >= 2)
+            {
+                var pattern = $"%{trimmedSearch}%";
+                var emailResponse = await _client!
+                    .From<PerfilUsuarioRow>()
+                    .Select(selectFields)
+                    .Filter("email", Operator.ILike, pattern)
+                    .Order("criado_em", Ordering.Descending)
+                    .Limit(limit)
+                    .Get(cancellationToken);
+
+                var nameResponse = await _client
+                    .From<PerfilUsuarioRow>()
+                    .Select(selectFields)
+                    .Filter("nome", Operator.ILike, pattern)
+                    .Order("criado_em", Ordering.Descending)
+                    .Limit(limit)
+                    .Get(cancellationToken);
+
+                var merged = new Dictionary<string, PerfilUsuarioRow>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in emailResponse.Models.Concat(nameResponse.Models))
+                {
+                    if (!string.IsNullOrWhiteSpace(row.Id))
+                    {
+                        merged[row.Id] = row;
+                    }
+                }
+
+                rows = merged.Values
+                    .OrderByDescending(row => row.CriadoEm ?? DateTimeOffset.MinValue)
+                    .Skip(offset)
+                    .Take(limit)
+                    .ToList();
+            }
+            else
+            {
+                var response = await _client!
+                    .From<PerfilUsuarioRow>()
+                    .Select(selectFields)
+                    .Order("criado_em", Ordering.Descending)
+                    .Range(offset, offset + limit - 1)
+                    .Get(cancellationToken);
+                rows = response.Models;
+            }
+
+            var purchaseCounts = await GetPurchaseCountsByUserAsync(cancellationToken);
+            var users = new List<AdminUserListItemDto>();
+
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Id))
+                {
+                    continue;
+                }
+
+                var profile = await MapProfileToEnglishAsync(row, cancellationToken);
+                if (profile == null)
+                {
+                    continue;
+                }
+
+                purchaseCounts.TryGetValue(profile.Id, out var purchasesCount);
+                users.Add(new AdminUserListItemDto
+                {
+                    Id = profile.Id,
+                    Email = profile.Email,
+                    Name = profile.Name,
+                    Cpf = profile.Cpf,
+                    UserType = profile.UserType,
+                    Credits = profile.Credits,
+                    PurchasesCount = purchasesCount,
+                    CreatedAt = profile.CreatedAt,
+                    LastAnalysisAt = profile.LastAnalysis
+                });
+            }
+
+            return users;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao listar usuários");
+            return new List<AdminUserListItemDto>();
+        }
+    }
+
+    private async Task<Dictionary<string, int>> GetPurchaseCountsByUserAsync(
+        CancellationToken cancellationToken)
+    {
+        var response = await _client!
+            .From<CompraRow>()
+            .Select("id_usuario")
+            .Limit(10000)
+            .Get(cancellationToken);
+
+        return response.Models
+            .Where(row => !string.IsNullOrWhiteSpace(row.IdUsuario))
+            .GroupBy(row => row.IdUsuario!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+    }
+
     public async Task<UserProfile?> GetUserProfileByEmailAsync(
         string email,
         bool includePassword = false,

@@ -9,6 +9,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
     {
         services.AddHttpClient("Gemini");
+        services.AddHttpClient("Groq");
         services.AddHttpClient("MercadoPago");
         services.AddHttpClient("Cakto");
         services.AddHttpClient("Kiwify");
@@ -28,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IKiwifyService, KiwifyService>();
         services.AddScoped<IPaymentProviderService, PaymentProviderService>();
         services.AddScoped<IJobSitesService, JobSitesService>();
+        services.AddScoped<IResumeKeywordService, ResumeKeywordService>();
         services.AddScoped<IResumeGeneratorService, ResumeGeneratorService>();
         services.AddScoped<ICoverLetterService, CoverLetterService>();
         services.AddScoped<IJobBoardScraperService, JobBoardScraperService>();

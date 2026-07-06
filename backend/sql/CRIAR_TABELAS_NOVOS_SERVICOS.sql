@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.sites_vagas (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
   nome TEXT NOT NULL UNIQUE,
   url_base TEXT NOT NULL,
+  descricao TEXT,
   ativo BOOLEAN DEFAULT TRUE,
   palavras_chave_padrao JSONB DEFAULT '[]'::JSONB,
   caracteristicas JSONB DEFAULT '{}'::JSONB,

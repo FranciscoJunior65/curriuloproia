@@ -1032,12 +1032,28 @@
   color: #991b1b;
 }
 
+.kiwify-log-detail-row {
+  background: #f8fafc;
+
+  td {
+    padding: 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+}
+
 .kiwify-log-detail {
   margin-top: 1rem;
   padding: 1rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   background: #f8fafc;
+
+  &--inline {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
 
   &__header {
     display: flex;

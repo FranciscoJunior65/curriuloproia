@@ -52,7 +52,7 @@ public class AiService : IAiService
 
         try
         {
-            return await AnalyzeResumeWithGeminiAsync(resumeText, siteId, cancellationToken);
+            return await AnalyzeResumeWithAiAsync(resumeText, siteId, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -65,27 +65,29 @@ public class AiService : IAiService
 
     private static readonly string[] DefaultGeminiFallbackModels =
     [
-        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash"
+        "gemini-2.5-flash"
     ];
 
     private static readonly IReadOnlyDictionary<string, string> DeprecatedGeminiModelMap =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["gemini-pro"] = "gemini-2.5-flash",
+            ["gemini-pro"] = "gemini-2.5-pro",
             ["gemini-1.5-flash"] = "gemini-2.5-flash",
             ["gemini-1.5-flash-latest"] = "gemini-2.5-flash",
             ["gemini-1.5-flash-8b"] = "gemini-2.5-flash-lite",
-            ["gemini-1.5-pro"] = "gemini-2.5-flash",
-            ["gemini-1.5-pro-latest"] = "gemini-2.5-flash"
+            ["gemini-1.5-pro"] = "gemini-2.5-pro",
+            ["gemini-1.5-pro-latest"] = "gemini-2.5-pro",
+            ["gemini-3-flash-preview"] = "gemini-2.5-pro"
         };
 
     private string GeminiModel
     {
         get
         {
-            var model = _configuration["GEMINI_MODEL"] ?? "gemini-2.5-flash";
+            var model = _configuration["GEMINI_MODEL"] ?? "gemini-2.5-pro";
             return NormalizeGeminiModel(model);
         }
     }
@@ -132,7 +134,7 @@ public class AiService : IAiService
             || msg.Contains("is not supported for generateContent", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task<ResumeAnalysisResult> AnalyzeResumeWithGeminiAsync(
+    private async Task<ResumeAnalysisResult> AnalyzeResumeWithAiAsync(
         string resumeText,
         string? siteId,
         CancellationToken cancellationToken)
@@ -169,7 +171,7 @@ public class AiService : IAiService
             IMPORTANTE: Responda APENAS com o JSON válido, sem texto adicional antes ou depois.
             """;
 
-        var responseContent = await GenerateGeminiTextAsync(
+        var responseContent = await GenerateAiTextAsync(
             $"{systemPrompt}\n\n{userPrompt}",
             temperature: 0.7,
             maxOutputTokens: 4000,
@@ -387,10 +389,112 @@ public class AiService : IAiService
         if (UseMockAi())
         {
             throw new InvalidOperationException(
-                "Geração em modo mock desativada para este ambiente. Defina USE_MOCK_AI=false e configure GEMINI_API_KEY.");
+                "Geração em modo mock desativada para este ambiente. Defina USE_MOCK_AI=false e configure GEMINI_API_KEY ou GROQ_API_KEY.");
         }
 
-        return GenerateGeminiTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+        return GenerateAiTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+    }
+
+    private async Task<string> GenerateAiTextAsync(
+        string prompt,
+        double temperature,
+        int maxOutputTokens,
+        CancellationToken cancellationToken)
+    {
+        var primaryProvider = AiProviderOptions.GetPrimaryProvider(_configuration);
+        if (primaryProvider == AiProviderOptions.ProviderGroq)
+        {
+            return await GenerateGroqTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+        }
+
+        try
+        {
+            return await GenerateGeminiTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+        }
+        catch (Exception ex) when (AiProviderOptions.IsGroqFallbackEnabled(_configuration))
+        {
+            _logger.LogWarning(ex, "Gemini indisponível. Tentando Groq como fallback...");
+            return await GenerateGroqTextAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+        }
+    }
+
+    private async Task<string> GenerateGroqTextAsync(
+        string prompt,
+        double temperature,
+        int maxOutputTokens,
+        CancellationToken cancellationToken)
+    {
+        var apiKey = _configuration["GROQ_API_KEY"];
+        GroqApiKeyValidator.EnsureValidOrThrow(apiKey);
+
+        Exception? lastError = null;
+        foreach (var model in AiProviderOptions.GetGroqModelChain(_configuration))
+        {
+            try
+            {
+                var text = await GenerateGroqTextWithModelAsync(
+                    apiKey!,
+                    model,
+                    prompt,
+                    temperature,
+                    maxOutputTokens,
+                    cancellationToken);
+                return CleanMarkdownFence(text);
+            }
+            catch (InvalidOperationException ex) when (GroqChatClient.IsTransientError(ex))
+            {
+                lastError = ex;
+                _logger.LogWarning(
+                    "Groq modelo {Model} indisponível ({Message}). Tentando fallback...",
+                    model,
+                    ex.Message);
+            }
+        }
+
+        throw lastError ?? new InvalidOperationException("Groq API error: falha após tentativas em todos os modelos.");
+    }
+
+    private async Task<string> GenerateGroqTextWithModelAsync(
+        string apiKey,
+        string model,
+        string prompt,
+        double temperature,
+        int maxOutputTokens,
+        CancellationToken cancellationToken)
+    {
+        var client = _httpClientFactory.CreateClient("Groq");
+
+        const int maxAttempts = 4;
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                return await GroqChatClient.SendAsync(
+                    client,
+                    apiKey,
+                    model,
+                    prompt,
+                    temperature,
+                    maxOutputTokens,
+                    cancellationToken);
+            }
+            catch (InvalidOperationException ex) when (
+                GroqChatClient.IsTransientError(ex) && attempt < maxAttempts)
+            {
+                lastError = ex;
+                var delaySeconds = Math.Min(20, (int)Math.Pow(2, attempt));
+                _logger.LogWarning(
+                    "Groq ({Model}) tentativa {Attempt}/{Max}. Aguardando {Delay}s...",
+                    model,
+                    attempt,
+                    maxAttempts,
+                    delaySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+            }
+        }
+
+        throw lastError ?? new InvalidOperationException($"Groq API error: falha após {maxAttempts} tentativas ({model}).");
     }
 
     private async Task<string> GenerateGeminiTextAsync(

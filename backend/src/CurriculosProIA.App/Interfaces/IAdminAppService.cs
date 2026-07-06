@@ -32,6 +32,7 @@ public interface IAdminAppService
     Task<IActionResult> ReconcileKiwifyOrder(AdminReconcileKiwifySignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> ProcessKiwifyWebhook(AdminProcessKiwifyWebhookSignature body, CancellationToken cancellationToken = default);
     Task<IActionResult> SearchUsers(string query, int limit, CancellationToken cancellationToken = default);
+    Task<IActionResult> ListUsers(int limit, int offset, string? search, CancellationToken cancellationToken = default);
     Task<IActionResult> ListPendingPurchases(string? userId, int limit, CancellationToken cancellationToken = default);
     Task<IActionResult> ListPurchaseBuyers(int limit, CancellationToken cancellationToken = default);
     Task<IActionResult> CreatePendingPurchase(AdminPendingPurchaseSignature body, CancellationToken cancellationToken = default);

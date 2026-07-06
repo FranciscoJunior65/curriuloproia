@@ -82,6 +82,7 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
+            .WithExposedHeaders("Content-Disposition")
             .SetPreflightMaxAge(TimeSpan.FromHours(2));
     });
 });
@@ -157,33 +158,6 @@ var enableSwagger = app.Environment.IsDevelopment()
     || string.Equals(app.Configuration["ENABLE_SWAGGER"], "1", StringComparison.OrdinalIgnoreCase);
 
 app.UseForwardedHeaders();
-
-app.Use(async (context, next) =>
-{
-    var origin = context.Request.Headers.Origin.ToString();
-    if (IsAllowedCorsOrigin(origin, allowedOrigins))
-    {
-        var normalizedOrigin = origin.TrimEnd('/');
-        var requestedHeaders = context.Request.Headers["Access-Control-Request-Headers"].ToString();
-        context.Response.Headers["Access-Control-Allow-Origin"] = normalizedOrigin;
-        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
-        context.Response.Headers["Access-Control-Allow-Headers"] =
-            string.IsNullOrWhiteSpace(requestedHeaders)
-                ? "Content-Type, Authorization, Accept, X-Requested-With, x-signalr-user-agent"
-                : requestedHeaders;
-        context.Response.Headers.Vary = "Origin";
-
-        if (HttpMethods.IsOptions(context.Request.Method))
-        {
-            context.Response.StatusCode = StatusCodes.Status204NoContent;
-            return;
-        }
-    }
-
-    await next();
-});
-
 app.UseRouting();
 app.UseCors();
 

@@ -180,6 +180,18 @@ export interface AdminUserSearchItem {
   credits: number;
 }
 
+export interface AdminUserListItem {
+  id: string;
+  email?: string;
+  name?: string;
+  cpf?: string;
+  userType?: string;
+  credits: number;
+  purchasesCount: number;
+  createdAt?: string;
+  lastAnalysisAt?: string;
+}
+
 export interface AdminPurchaseBuyerItem {
   id: string;
   email?: string;
@@ -538,6 +550,19 @@ export class AdminService {
     const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
     return this.http.get<{ success: boolean; users: AdminUserSearchItem[] }>(
       `${this.apiUrl}/admin/users/search?${params.toString()}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getUsers(params?: { limit?: number; offset?: number; q?: string }): Observable<{ success: boolean; users: AdminUserListItem[] }> {
+    const search = new URLSearchParams();
+    search.set('limit', String(params?.limit ?? 300));
+    search.set('offset', String(params?.offset ?? 0));
+    if (params?.q?.trim()) {
+      search.set('q', params.q.trim());
+    }
+    return this.http.get<{ success: boolean; users: AdminUserListItem[] }>(
+      `${this.apiUrl}/admin/users?${search.toString()}`,
       { headers: this.getAuthHeaders() }
     );
   }

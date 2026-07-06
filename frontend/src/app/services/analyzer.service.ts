@@ -4,6 +4,15 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
+export interface FileDownloadPayload {
+  blob: Blob;
+  fileName?: string;
+}
+
+export const MIME_PDF = 'application/pdf';
+export const MIME_DOCX =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 export interface AnalysisResult {
   success: boolean;
   originalText: string;
@@ -52,8 +61,83 @@ export class AnalyzerService {
     return headers;
   }
 
+  private parseContentDisposition(header: string | null): string | undefined {
+    if (!header) {
+      return undefined;
+    }
+
+    const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        // segue para os outros formatos
+      }
+    }
+
+    const quotedMatch = header.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) {
+      return quotedMatch[1];
+    }
+
+    const simpleMatch = header.match(/filename=([^;\s]+)/i);
+    return simpleMatch?.[1]?.replace(/^"|"$/g, '');
+  }
+
+  private async isErrorPayload(blob: Blob, contentType: string): Promise<boolean> {
+    if (contentType.includes('application/json') || contentType.includes('text/plain')) {
+      return true;
+    }
+
+    if (blob.size < 8) {
+      return true;
+    }
+
+    const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+    const isPdf = header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46;
+    const isZip = header[0] === 0x50 && header[1] === 0x4b;
+    if (isPdf || isZip) {
+      return false;
+    }
+
+    if (blob.size > 2048) {
+      return false;
+    }
+
+    try {
+      const text = (await blob.text()).trim();
+      return text.startsWith('{') || text.startsWith('[');
+    } catch {
+      return false;
+    }
+  }
+
+  triggerBrowserDownload(
+    payload: Blob | FileDownloadPayload,
+    fallbackFileName: string,
+    mimeType: string
+  ): void {
+    const blob = payload instanceof Blob ? payload : payload.blob;
+    const suggestedName = payload instanceof Blob ? undefined : payload.fileName;
+    const fileName = (suggestedName || fallbackFileName).trim() || fallbackFileName;
+    const typedBlob =
+      blob.type && blob.type !== 'application/octet-stream'
+        ? blob
+        : new Blob([blob], { type: mimeType });
+
+    const url = window.URL.createObjectURL(typedBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
   /** POST que retorna arquivo; se a API responder JSON de erro, propaga mensagem legível. */
-  private postFileDownload(url: string, body: unknown): Observable<Blob> {
+  private postFileDownload(url: string, body: unknown): Observable<FileDownloadPayload> {
     return this.http
       .post(url, body, {
         headers: this.getAuthHeaders(),
@@ -65,7 +149,7 @@ export class AnalyzerService {
           const blob = response.body;
           const contentType = (response.headers.get('content-type') || '').toLowerCase();
 
-          if (!blob || response.status >= 400 || contentType.includes('application/json')) {
+          if (!blob || response.status >= 400) {
             return from(blob?.text() ?? Promise.resolve('')).pipe(
               switchMap((text) => {
                 let message = 'Erro ao gerar arquivo';
@@ -85,7 +169,32 @@ export class AnalyzerService {
             );
           }
 
-          return of(blob);
+          return from(this.isErrorPayload(blob, contentType)).pipe(
+            switchMap((isError) => {
+              if (isError) {
+                return from(blob.text()).pipe(
+                  switchMap((text) => {
+                    let message = 'Erro ao gerar arquivo';
+                    try {
+                      const json = JSON.parse(text);
+                      message = json.message || json.error || message;
+                    } catch {
+                      if (text?.trim()) {
+                        message = text.trim();
+                      }
+                    }
+                    return throwError(() => ({
+                      status: response.status,
+                      error: { message }
+                    }));
+                  })
+                );
+              }
+
+              const fileName = this.parseContentDisposition(response.headers.get('content-disposition'));
+              return of({ blob, fileName });
+            })
+          );
         })
       );
   }
@@ -97,7 +206,7 @@ export class AnalyzerService {
     format: 'pdf' | 'word' = 'pdf',
     siteId?: string,
     analysisId?: string
-  ): Observable<Blob> {
+  ): Observable<FileDownloadPayload> {
     const body: any = { originalText, format };
     if (analysis) {
       body.analysis = analysis;
@@ -118,7 +227,7 @@ export class AnalyzerService {
     format: 'pdf' | 'word' = 'pdf',
     siteId?: string,
     analysisId?: string
-  ): Observable<Blob> {
+  ): Observable<FileDownloadPayload> {
     const body: any = { originalText, analysis, format };
     if (siteId) {
       body.siteId = siteId;

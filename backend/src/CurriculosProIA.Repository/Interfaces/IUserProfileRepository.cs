@@ -14,6 +14,7 @@ public interface IUserProfileRepository
     Task<UserProfile?> GetUserProfileAsync(string userId, CancellationToken cancellationToken = default);
     Task<UserProfile?> GetUserProfileByEmailAsync(string email, bool includePassword = false, CancellationToken cancellationToken = default);
     Task<List<UserProfile>> SearchUsersAsync(string query, int limit = 20, CancellationToken cancellationToken = default);
+    Task<List<AdminUserListItemDto>> ListUsersAsync(int limit = 300, int offset = 0, string? search = null, CancellationToken cancellationToken = default);
     Task<bool> VerifyUserPasswordAsync(string email, string password, CancellationToken cancellationToken = default);
     Task<UserProfile> UpdateUserProfileAsync(string userId, Dictionary<string, object?> updates, CancellationToken cancellationToken = default);
     Task<UserProfile> UpdateVerificationCodeAsync(string userId, string code, int expiresInMinutes = 15, CancellationToken cancellationToken = default);

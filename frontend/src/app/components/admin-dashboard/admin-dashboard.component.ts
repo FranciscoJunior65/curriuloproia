@@ -19,7 +19,8 @@ import {
   KiwifyWebhookLogItem,
   AdminPurchaseBuyerItem,
   SalesListItem,
-  SalesStatsSummary
+  SalesStatsSummary,
+  AdminUserListItem
 } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { PricingPlansService } from '../../services/pricing-plans.service';
@@ -53,6 +54,16 @@ import { formatBrlDisplay, maskBrlInput } from '../../utils/currency.utils';
   styleUrl: './admin-dashboard.component.scss'
 })
 export class AdminDashboardComponent implements OnInit {
+  readonly settingsTabPayment = 0;
+  readonly settingsTabPricing = 1;
+  readonly settingsTabInterview = 2;
+  readonly settingsTabCredits = 3;
+  readonly settingsTabUsers = 4;
+  readonly settingsTabCoupons = 5;
+  readonly settingsTabLogs = 6;
+
+  settingsTabIndex = 0;
+
   stats: DashboardStats | null = null;
   recentSales: SalesListItem[] = [];
   salesStats: SalesStatsSummary | null = null;
@@ -190,6 +201,11 @@ export class AdminDashboardComponent implements OnInit {
   creditsPanelError = '';
   testingPaymentHub = false;
 
+  allUsers: AdminUserListItem[] = [];
+  loadingAllUsers = false;
+  allUsersError = '';
+  allUsersSearch = '';
+
   constructor(
     private adminService: AdminService,
     private authService: AuthService,
@@ -259,6 +275,7 @@ export class AdminDashboardComponent implements OnInit {
     this.loadCouponsData();
     this.loadPendingPurchases();
     this.loadManualGrantBuyers();
+    this.loadAllUsers();
     this.loadKiwifyWebhookLogs();
     this.loadSales();
     this.loadSalesStatistics();
@@ -399,6 +416,8 @@ export class AdminDashboardComponent implements OnInit {
     this.loadDailyUsage();
     this.loadMonthlyUsage();
     this.loadPendingPurchases();
+    this.loadAllUsers();
+    this.loadKiwifyWebhookLogs();
   }
 
   loadSales(): void {
@@ -1040,6 +1059,27 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
+  loadAllUsers(): void {
+    this.loadingAllUsers = true;
+    this.allUsersError = '';
+    this.adminService.getUsers({
+      limit: 500,
+      q: this.allUsersSearch.trim() || undefined
+    }).subscribe({
+      next: (res) => {
+        this.loadingAllUsers = false;
+        if (res.success) {
+          this.allUsers = res.users || [];
+        }
+      },
+      error: (err) => {
+        this.loadingAllUsers = false;
+        this.allUsers = [];
+        this.allUsersError = err.error?.error || err.error?.message || 'Erro ao carregar usuários';
+      }
+    });
+  }
+
   formatManualGrantBuyerLabel(buyer: AdminPurchaseBuyerItem): string {
     const identity = buyer.email || buyer.name || buyer.id;
     const namePart = buyer.name && buyer.email ? ` · ${buyer.name}` : '';
@@ -1073,6 +1113,18 @@ export class AdminDashboardComponent implements OnInit {
         ...buyer,
         credits,
         purchasesCount: incrementPurchases ? buyer.purchasesCount + 1 : buyer.purchasesCount
+      };
+    });
+
+    this.allUsers = this.allUsers.map((user) => {
+      if (user.id !== userId) {
+        return user;
+      }
+
+      return {
+        ...user,
+        credits,
+        purchasesCount: incrementPurchases ? user.purchasesCount + 1 : user.purchasesCount
       };
     });
 
@@ -1147,6 +1199,15 @@ export class AdminDashboardComponent implements OnInit {
     }
     if (log.payloadRecebido?.trim()) {
       this.kiwifyWebhookJson = log.payloadRecebido;
+      this.onKiwifyWebhookJsonChange();
+    }
+    this.selectedKiwifyLog = log;
+    this.creditsPanelError = '';
+    this.creditsPanelMessage = `Dados do log ${log.orderRef || log.orderId || ''} carregados na aba Créditos.`;
+    this.settingsTabIndex = this.settingsTabCredits;
+
+    if (this.kiwifyOrderId.trim()) {
+      this.consultKiwifySale();
     }
   }
 
@@ -1274,6 +1335,7 @@ export class AdminDashboardComponent implements OnInit {
           if (userId) {
             this.syncBuyerCreditsLocally(userId, res.credits, !res.alreadyFulfilled);
           }
+          this.loadAllUsers();
         }
       },
       error: (err) => {
@@ -1284,6 +1346,8 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   selectPendingForReconcile(purchase: PendingPurchaseItem): void {
+    this.settingsTabIndex = this.settingsTabCredits;
+    this.creditsPanelMessage = `Pendência de ${purchase.userEmail || purchase.userName || purchase.userId} carregada.`;
     this.selectedPendingPurchaseId = purchase.id;
     if (purchase.paymentId && !purchase.paymentId.startsWith('kiwify_pending_')) {
       this.kiwifyOrderId = purchase.paymentId;

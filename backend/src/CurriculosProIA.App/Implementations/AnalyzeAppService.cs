@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Service.Interfaces;
+using CurriculosProIA.Service.Implementations;
 using CurriculosProIA.Domain.Entities;
 using CurriculosProIA.Domain.Dtos;
 using CurriculosProIA.Domain.Helpers;
@@ -317,36 +318,38 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
-            var candidateName = await ResolveCandidateNameAsync(cancellationToken);
+            var identity = ResumeIdentityHelper.Extract(ctx.ResumeText!);
 
             var improvedResume = await _resumeGenerator.GenerateImprovedResumeAsync(
                 ctx.ResumeText!,
                 ctx.Analysis,
                 ctx.SiteId ?? body.SiteId,
-                candidateName,
+                identity.Name,
                 cancellationToken);
 
-            if (format == "word")
+            if (format is "word" or "docx")
             {
-                var docxBuffer = _resumeGenerator.GenerateResumeDocx(improvedResume, candidateName);
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(improvedResume, identity.Name);
                 await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
 
                 var wordTime = (DateTime.UtcNow - startTime).TotalSeconds;
                 _logger.LogInformation("Currículo melhorado (Word) gerado em {Seconds:F2}s", wordTime);
 
+                var wordFileName = BuildCandidateResumeFileName(identity.Name, "curriculo", "docx");
                 return File(
                     docxBuffer,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "curriculo-melhorado.docx");
+                    wordFileName);
             }
 
-            var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume, candidateName);
+            var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume, identity.Name);
             await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
             _logger.LogInformation("Currículo melhorado gerado em {Seconds:F2}s", processingTime);
 
-            return File(pdfBuffer, "application/pdf", "curriculo-melhorado.pdf");
+            var pdfFileName = BuildCandidateResumeFileName(identity.Name, "curriculo", "pdf");
+            return File(pdfBuffer, "application/pdf", pdfFileName);
         }
         catch (Exception ex)
         {
@@ -398,36 +401,38 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
-            var candidateName = await ResolveCandidateNameAsync(cancellationToken);
+            var identity = ResumeIdentityHelper.Extract(ctx.ResumeText!);
 
             var englishResume = await _resumeGenerator.GenerateEnglishResumeAsync(
                 ctx.ResumeText!,
                 ctx.Analysis,
                 ctx.SiteId ?? body.SiteId,
-                candidateName,
+                identity.Name,
                 cancellationToken);
 
-            var formatKey = format == "word"
+            var formatKey = format is "word" or "docx"
                 ? AnalysisBundledServiceKeys.CurriculoInglesWord
                 : AnalysisBundledServiceKeys.CurriculoInglesPdf;
 
-            if (format == "word")
+            if (format is "word" or "docx")
             {
-                var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume, candidateName);
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume, identity.Name);
                 await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
+                var englishWordFileName = BuildCandidateResumeFileName(identity.Name, "curriculo-ingles", "docx");
                 return File(
                     docxBuffer,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "curriculo-ingles.docx");
+                    englishWordFileName);
             }
 
-            var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume, candidateName);
+            var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume, identity.Name);
             await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
             _logger.LogInformation("Currículo em inglês (PDF) gerado em {Seconds:F2}s", processingTime);
 
-            return File(pdfBuffer, "application/pdf", "curriculo-ingles.pdf");
+            var englishPdfFileName = BuildCandidateResumeFileName(identity.Name, "curriculo-ingles", "pdf");
+            return File(pdfBuffer, "application/pdf", englishPdfFileName);
         }
         catch (Exception ex)
         {
@@ -2382,6 +2387,32 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 message = ex.Message
             });
         }
+    }
+
+    private static string BuildCandidateResumeFileName(string? candidateName, string suffix, string extension)
+    {
+        var slug = SlugifyPersonName(candidateName);
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            slug = "curriculo";
+        }
+
+        return $"{slug}-{suffix}.{extension}";
+    }
+
+    private static string SlugifyPersonName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var normalized = new string(name.Normalize(NormalizationForm.FormD)
+            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            .ToArray())
+            .ToLowerInvariant();
+        normalized = Regex.Replace(normalized, @"[^a-z0-9\s]", "");
+        return Regex.Replace(normalized, @"\s+", "-").Trim('-');
     }
 
     private async Task<string> BuildCoverLetterFileNameAsync(CancellationToken cancellationToken)

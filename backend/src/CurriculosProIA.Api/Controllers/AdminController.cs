@@ -114,6 +114,10 @@ public class AdminController : ControllerBase
     public Task<IActionResult> SearchUsers([FromQuery] string q, [FromQuery] int limit = 20, CancellationToken ct = default) =>
         _admin.SearchUsers(q, limit, ct);
 
+    [HttpGet("users")]
+    public Task<IActionResult> ListUsers([FromQuery] int limit = 300, [FromQuery] int offset = 0, [FromQuery] string? q = null, CancellationToken ct = default) =>
+        _admin.ListUsers(limit, offset, q, ct);
+
     [HttpGet("purchases/pending")]
     public Task<IActionResult> ListPendingPurchases([FromQuery] string? userId, [FromQuery] int limit = 50, CancellationToken ct = default) =>
         _admin.ListPendingPurchases(userId, limit, ct);

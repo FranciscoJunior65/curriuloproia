@@ -967,6 +967,33 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         });
     }
 
+    public async Task<IActionResult> ListUsers(
+        int limit,
+        int offset,
+        string? search,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        var users = await _data.ListUsersAsync(limit, offset, search, cancellationToken);
+        return Ok(new
+        {
+            success = true,
+            users = users.Select(u => new
+            {
+                id = u.Id,
+                email = u.Email,
+                name = u.Name,
+                cpf = u.Cpf,
+                userType = u.UserType,
+                credits = u.Credits,
+                purchasesCount = u.PurchasesCount,
+                createdAt = u.CreatedAt,
+                lastAnalysisAt = u.LastAnalysisAt
+            })
+        });
+    }
+
     public async Task<IActionResult> ProcessKiwifyWebhook(
         AdminProcessKiwifyWebhookSignature body,
         CancellationToken cancellationToken)

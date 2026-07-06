@@ -108,7 +108,7 @@
 
   <!-- Configurações -->
   <div *ngIf="!loading && stats" class="settings-section">
-    <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" class="admin-tabs">
+    <mat-tab-group [(selectedIndex)]="settingsTabIndex" mat-stretch-tabs="false" mat-align-tabs="start" class="admin-tabs">
       <mat-tab>
         <ng-template mat-tab-label>
           <mat-icon class="settings-tab-icon">payments</mat-icon>
@@ -575,46 +575,6 @@
                 </button>
               </div>
 
-              <div class="coupon-section" *ngIf="manualGrantBuyers.length || loadingManualGrantBuyers">
-                <div class="coupon-section__header">
-                  <h3 class="coupon-section__title">Saldo de créditos por cliente</h3>
-                  <button mat-button type="button" (click)="loadManualGrantBuyers()" [disabled]="loadingManualGrantBuyers">
-                    <mat-icon>refresh</mat-icon>
-                  </button>
-                </div>
-                <div *ngIf="loadingManualGrantBuyers" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
-                <div *ngIf="!loadingManualGrantBuyers && manualGrantBuyers.length" class="usage-table-container">
-                  <table class="usage-table buyers-credits-table">
-                    <thead>
-                      <tr>
-                        <th>Cliente</th>
-                        <th>E-mail</th>
-                        <th>Compras</th>
-                        <th>Créditos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr
-                        *ngFor="let buyer of manualGrantBuyers"
-                        class="buyers-credits-row"
-                        [class.buyers-credits-row--selected]="buyer.id === manualGrantBuyerId"
-                        (click)="selectManualGrantBuyer(buyer)"
-                      >
-                        <td>{{ buyer.name || '—' }}</td>
-                        <td>{{ buyer.email || buyer.id }}</td>
-                        <td>{{ buyer.purchasesCount }}</td>
-                        <td>
-                          <span class="buyers-credits-badge">{{ buyer.credits }}</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p *ngIf="!loadingManualGrantBuyers && !manualGrantBuyers.length" class="settings-description">
-                  Nenhum cliente com compra registrada.
-                </p>
-              </div>
-
               <div class="coupon-section">
                 <div class="coupon-section__header">
                   <h3 class="coupon-section__title">Compras pendentes</h3>
@@ -664,6 +624,83 @@
                 </table>
                 <p *ngIf="!loadingPendingPurchases && !pendingPurchases.length" class="settings-description">Nenhuma compra pendente.</p>
               </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="settings-tab-icon">people</mat-icon>
+          Usuários
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="settings-card settings-card--tab">
+            <mat-card-content>
+              <p class="settings-description">
+                Todos os usuários cadastrados na plataforma, com saldo de créditos e histórico de compras.
+              </p>
+
+              <div class="coupon-form-grid" style="margin-bottom: 1rem;">
+                <div class="pricing-field">
+                  <label>Buscar por nome ou e-mail</label>
+                  <input
+                    [(ngModel)]="allUsersSearch"
+                    type="text"
+                    class="period-select"
+                    placeholder="ex.: cliente@email.com"
+                    (keyup.enter)="loadAllUsers()"
+                  />
+                </div>
+              </div>
+
+              <div class="header-actions" style="margin-bottom: 1rem;">
+                <button mat-stroked-button type="button" (click)="loadAllUsers()" [disabled]="loadingAllUsers">
+                  <mat-icon>refresh</mat-icon> Atualizar
+                </button>
+                <button mat-button type="button" (click)="allUsersSearch = ''; loadAllUsers()" [disabled]="loadingAllUsers">
+                  Limpar busca
+                </button>
+              </div>
+
+              <p *ngIf="allUsersError" class="settings-error">{{ allUsersError }}</p>
+
+              <div *ngIf="loadingAllUsers" class="loading-inline">
+                <mat-spinner diameter="28"></mat-spinner>
+              </div>
+
+              <div *ngIf="!loadingAllUsers && allUsers.length" class="usage-table-container">
+                <table class="usage-table buyers-credits-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>E-mail</th>
+                      <th>CPF</th>
+                      <th>Tipo</th>
+                      <th>Compras</th>
+                      <th>Créditos</th>
+                      <th>Cadastro</th>
+                      <th>Última análise</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let user of allUsers">
+                      <td>{{ user.name || '—' }}</td>
+                      <td>{{ user.email || user.id }}</td>
+                      <td>{{ formatDocument(user.cpf) }}</td>
+                      <td>{{ user.userType || 'cliente' }}</td>
+                      <td>{{ user.purchasesCount }}</td>
+                      <td><span class="buyers-credits-badge">{{ user.credits }}</span></td>
+                      <td>{{ formatDateTime(user.createdAt) }}</td>
+                      <td>{{ user.lastAnalysisAt ? formatDateTime(user.lastAnalysisAt) : '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p *ngIf="!loadingAllUsers && !allUsers.length" class="settings-description">
+                Nenhum usuário encontrado{{ allUsersSearch.trim() ? ' para esta busca' : '' }}.
+              </p>
             </mat-card-content>
           </mat-card>
         </div>
@@ -989,72 +1026,76 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    *ngFor="let log of kiwifyWebhookLogs"
-                    [class.kiwify-log-row--selected]="selectedKiwifyLog?.id === log.id"
-                    (click)="selectKiwifyLog(log)"
-                  >
-                    <td data-label="Data">{{ formatDateTime(log.createdAt) }}</td>
-                    <td data-label="Order ref">
-                      <strong>{{ log.orderRef || log.orderId || '—' }}</strong>
-                    </td>
-                    <td data-label="Evento">{{ log.eventType || '—' }}</td>
-                    <td data-label="Status">{{ log.paymentStatus || '—' }}</td>
-                    <td data-label="Resultado">
-                      <span
-                        class="kiwify-log-badge"
-                        [class.kiwify-log-badge--ok]="log.processed"
-                        [class.kiwify-log-badge--warn]="log.alreadyFulfilled && !log.processed"
-                        [class.kiwify-log-badge--err]="!!log.failureStage && !log.processed"
-                      >
-                        {{ kiwifyLogStatusLabel(log) }}
-                      </span>
-                    </td>
-                    <td data-label="Créditos">{{ log.credits ?? '—' }}</td>
-                    <td data-label="HTTP">{{ log.httpStatus }}</td>
-                    <td data-label="Ações">
-                      <button
-                        mat-button
-                        type="button"
-                        (click)="useKiwifyLogInCreditsPanel(log); $event.stopPropagation()"
-                      >
-                        Usar na aba Créditos
-                      </button>
-                    </td>
-                  </tr>
+                  <ng-container *ngFor="let log of kiwifyWebhookLogs">
+                    <tr
+                      [class.kiwify-log-row--selected]="selectedKiwifyLog?.id === log.id"
+                      (click)="selectKiwifyLog(log)"
+                    >
+                      <td data-label="Data">{{ formatDateTime(log.createdAt) }}</td>
+                      <td data-label="Order ref">
+                        <strong>{{ log.orderRef || log.orderId || '—' }}</strong>
+                      </td>
+                      <td data-label="Evento">{{ log.eventType || '—' }}</td>
+                      <td data-label="Status">{{ log.paymentStatus || '—' }}</td>
+                      <td data-label="Resultado">
+                        <span
+                          class="kiwify-log-badge"
+                          [class.kiwify-log-badge--ok]="log.processed"
+                          [class.kiwify-log-badge--warn]="log.alreadyFulfilled && !log.processed"
+                          [class.kiwify-log-badge--err]="!!log.failureStage && !log.processed"
+                        >
+                          {{ kiwifyLogStatusLabel(log) }}
+                        </span>
+                      </td>
+                      <td data-label="Créditos">{{ log.credits ?? '—' }}</td>
+                      <td data-label="HTTP">{{ log.httpStatus }}</td>
+                      <td data-label="Ações">
+                        <button
+                          mat-button
+                          type="button"
+                          (click)="useKiwifyLogInCreditsPanel(log); $event.stopPropagation()"
+                        >
+                          Usar na aba Créditos
+                        </button>
+                      </td>
+                    </tr>
+                    <tr *ngIf="selectedKiwifyLog?.id === log.id" class="kiwify-log-detail-row">
+                      <td colspan="8">
+                        <div class="kiwify-log-detail kiwify-log-detail--inline">
+                          <div class="kiwify-log-detail__header">
+                            <h3>Detalhe do log</h3>
+                            <button mat-icon-button type="button" (click)="selectedKiwifyLog = null; $event.stopPropagation()" aria-label="Fechar detalhe">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </div>
+                          <p><strong>Mensagem:</strong> {{ log.message || '—' }}</p>
+                          <p *ngIf="log.failureStage">
+                            <strong>Falha:</strong> {{ log.failureStage }}
+                            <span *ngIf="log.erro"> — {{ log.erro }}</span>
+                          </p>
+                          <p *ngIf="log.userId"><strong>Usuário:</strong> {{ log.userId }}</p>
+                          <div *ngIf="log.payloadRecebido" class="kiwify-log-detail__block">
+                            <label>Payload recebido</label>
+                            <pre>{{ log.payloadRecebido }}</pre>
+                          </div>
+                          <div *ngIf="log.respostaJson" class="kiwify-log-detail__block">
+                            <label>Resposta da API</label>
+                            <pre>{{ log.respostaJson }}</pre>
+                          </div>
+                          <div *ngIf="log.processingDetails" class="kiwify-log-detail__block">
+                            <label>Detalhes do processamento</label>
+                            <pre>{{ log.processingDetails }}</pre>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </ng-container>
                 </tbody>
               </table>
 
               <p *ngIf="!loadingKiwifyWebhookLogs && !kiwifyWebhookLogs.length" class="settings-description">
                 Nenhum log encontrado{{ kiwifyLogsFilterOrder.trim() ? ' para este filtro' : '' }}.
               </p>
-
-              <div *ngIf="selectedKiwifyLog" class="kiwify-log-detail">
-                <div class="kiwify-log-detail__header">
-                  <h3>Detalhe do log</h3>
-                  <button mat-icon-button type="button" (click)="selectedKiwifyLog = null" aria-label="Fechar detalhe">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </div>
-                <p><strong>Mensagem:</strong> {{ selectedKiwifyLog.message || '—' }}</p>
-                <p *ngIf="selectedKiwifyLog.failureStage">
-                  <strong>Falha:</strong> {{ selectedKiwifyLog.failureStage }}
-                  <span *ngIf="selectedKiwifyLog.erro"> — {{ selectedKiwifyLog.erro }}</span>
-                </p>
-                <p *ngIf="selectedKiwifyLog.userId"><strong>Usuário:</strong> {{ selectedKiwifyLog.userId }}</p>
-                <div *ngIf="selectedKiwifyLog.payloadRecebido" class="kiwify-log-detail__block">
-                  <label>Payload recebido</label>
-                  <pre>{{ selectedKiwifyLog.payloadRecebido }}</pre>
-                </div>
-                <div *ngIf="selectedKiwifyLog.respostaJson" class="kiwify-log-detail__block">
-                  <label>Resposta da API</label>
-                  <pre>{{ selectedKiwifyLog.respostaJson }}</pre>
-                </div>
-                <div *ngIf="selectedKiwifyLog.processingDetails" class="kiwify-log-detail__block">
-                  <label>Detalhes do processamento</label>
-                  <pre>{{ selectedKiwifyLog.processingDetails }}</pre>
-                </div>
-              </div>
             </mat-card-content>
           </mat-card>
         </div>
