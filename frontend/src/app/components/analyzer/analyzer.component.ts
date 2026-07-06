@@ -30,6 +30,8 @@ import {
 } from '../../services/pricing-plans.service';
 import { SiteHeaderComponent } from '../site-header/site-header.component';
 import { VoiceInterviewComponent } from '../voice-interview/voice-interview.component';
+import { PaymentSuccessDialogComponent } from '../payment-success-dialog/payment-success-dialog.component';
+import { CreditsHighlightService } from '../../services/credits-highlight.service';
 
 @Component({
   selector: 'app-analyzer',
@@ -212,7 +214,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private pricingPlansService: PricingPlansService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private creditsHighlight: CreditsHighlightService
   ) {}
 
   copyApplyLink(link: string | undefined): void {
@@ -970,8 +973,7 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.checkCredits();
-      this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', { duration: 5000 });
+      this.showPaymentSuccessFeedback();
       return;
     });
   }
@@ -1012,9 +1014,44 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.checkCredits();
-    this.snackBar.open('Pagamento confirmado! Créditos atualizados.', 'OK', {
-      duration: 5000
+    this.showPaymentSuccessFeedback();
+  }
+
+  private showPaymentSuccessFeedback(): void {
+    const previousCredits =
+      this.authService.getCurrentUser()?.credits ?? this.userCredits ?? 0;
+
+    this.analyzerService.getCredits(this.userId).subscribe({
+      next: (response: { success?: boolean; credits?: number }) => {
+        if (!response?.success || typeof response.credits !== 'number') {
+          this.checkCredits();
+          return;
+        }
+
+        const newCredits = response.credits;
+        const delta = newCredits > previousCredits ? newCredits - previousCredits : 0;
+
+        this.userCredits = newCredits;
+        this.syncUserCredits();
+        this.updateShowPlans();
+
+        if (delta <= 0) {
+          return;
+        }
+
+        this.creditsHighlight.notify(delta, newCredits);
+        this.dialog.open(PaymentSuccessDialogComponent, {
+          data: { credits: newCredits, delta },
+          width: '100%',
+          maxWidth: '420px',
+          panelClass: 'payment-success-dialog-panel',
+          autoFocus: true,
+          disableClose: false
+        });
+      },
+      error: () => {
+        this.checkCredits();
+      }
     });
   }
 

@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { filter, Subject, takeUntil } from 'rxjs';
 import { AuthService, User } from '../../services/auth.service';
 import { AnalyzerService } from '../../services/analyzer.service';
+import { CreditsHighlightService } from '../../services/credits-highlight.service';
 
 @Component({
   selector: 'app-site-header',
@@ -21,13 +22,17 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   englishCredits = 0;
   pendingServicesCount = 0;
   userMenuOpen = false;
+  creditsHighlightActive = false;
+  creditsHighlightDelta = 0;
 
   private readonly destroy$ = new Subject<void>();
+  private creditsHighlightTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     public authService: AuthService,
     private router: Router,
-    private analyzerService: AnalyzerService
+    private analyzerService: AnalyzerService,
+    private creditsHighlight: CreditsHighlightService
   ) {}
 
   ngOnInit(): void {
@@ -65,6 +70,25 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
           this.loadAccountSummary();
         }
       });
+
+    this.creditsHighlight
+      .watch()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(({ delta, total }) => {
+        this.userCredits = total;
+        this.creditsHighlightDelta = delta;
+        this.creditsHighlightActive = true;
+
+        if (this.creditsHighlightTimer) {
+          clearTimeout(this.creditsHighlightTimer);
+        }
+
+        this.creditsHighlightTimer = setTimeout(() => {
+          this.creditsHighlightActive = false;
+          this.creditsHighlightDelta = 0;
+          this.creditsHighlightTimer = null;
+        }, 12000);
+      });
   }
 
   loadAccountSummary(): void {
@@ -91,6 +115,9 @@ export class SiteHeaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.creditsHighlightTimer) {
+      clearTimeout(this.creditsHighlightTimer);
+    }
     this.setBodyScrollLocked(false);
     this.destroy$.next();
     this.destroy$.complete();

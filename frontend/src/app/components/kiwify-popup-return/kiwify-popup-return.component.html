@@ -1,14 +1,12 @@
 <main class="kiwify-popup-return">
-  <div class="kiwify-popup-return__backdrop" *ngIf="showSuccessOverlay"></div>
-
-  <div class="kiwify-popup-return__card" [class.kiwify-popup-return__card--dimmed]="showSuccessOverlay">
+  <div class="kiwify-popup-return__card">
     <ng-container [ngSwitch]="status">
       <ng-container *ngSwitchCase="'confirming'">
         <mat-spinner diameter="44"></mat-spinner>
         <h1>Confirmando pagamento…</h1>
         <p>
-          A Kiwify aprovou sua compra. Estamos validando com o CurriculosProIA
-          (mesmo fluxo do webhook) antes de liberar os créditos.
+          A Kiwify aprovou sua compra. Estamos validando com a janela principal do CurriculosProIA
+          (onde você iniciou o pagamento).
         </p>
       </ng-container>
 
@@ -16,28 +14,29 @@
         <mat-icon class="kiwify-popup-return__icon kiwify-popup-return__icon--pending">schedule</mat-icon>
         <h1>Quase lá!</h1>
         <p>
-          Seu pagamento foi aprovado na Kiwify, mas a liberação dos créditos ainda está em processamento.
-          Volte ao site principal — eles aparecem automaticamente em instantes.
+          Seu pagamento foi aprovado na Kiwify. Mantenha aberta a janela principal do site
+          — os créditos aparecem lá em instantes.
         </p>
         <button *ngIf="!inIframe" mat-flat-button color="primary" type="button" (click)="closeNow()">
           Fechar e voltar ao site
         </button>
       </ng-container>
-    </ng-container>
-  </div>
 
-  <div class="kiwify-popup-return__success-modal" *ngIf="showSuccessOverlay" role="dialog" aria-modal="true">
-    <mat-icon class="kiwify-popup-return__success-icon">check_circle</mat-icon>
-    <h2>Compra realizada com sucesso!</h2>
-    <p>Seus créditos foram liberados e já estão na sua conta.</p>
-    <p *ngIf="userCredits > 0" class="kiwify-popup-return__credits">
-      Saldo atual: <strong>{{ userCredits }}</strong> crédito(s)
-    </p>
-    <p *ngIf="!inIframe" class="kiwify-popup-return__hint">
-      Esta janela fecha em {{ closeCountdown }}s
-    </p>
-    <button *ngIf="!inIframe" mat-flat-button color="primary" type="button" (click)="closeNow()">
-      Entrar no site
-    </button>
+      <ng-container *ngSwitchCase="'success'">
+        <mat-icon class="kiwify-popup-return__icon kiwify-popup-return__icon--success">check_circle</mat-icon>
+        <h1>Compra realizada com sucesso!</h1>
+        <p>Seus créditos foram liberados e já estão na sua conta.</p>
+        <p *ngIf="userCredits > 0" class="kiwify-popup-return__credits">
+          Saldo atual: <strong>{{ userCredits }}</strong>
+          {{ userCredits === 1 ? 'análise' : 'análises' }}
+        </p>
+        <p *ngIf="!inIframe" class="kiwify-popup-return__hint">
+          Esta janela fecha em {{ closeCountdown }}s
+        </p>
+        <button *ngIf="!inIframe" mat-flat-button color="primary" type="button" (click)="closeNow()">
+          Entrar no site
+        </button>
+      </ng-container>
+    </ng-container>
   </div>
 </main>

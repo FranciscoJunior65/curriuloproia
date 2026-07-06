@@ -926,6 +926,79 @@
   color: #334155;
 }
 
+.manual-grant-buyer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.manual-grant-balance-card {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+}
+
+.manual-grant-balance-card__label {
+  font-size: 0.85rem;
+  color: #166534;
+}
+
+.manual-grant-balance-card__value {
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #059669;
+}
+
+.manual-grant-balance-card__suffix {
+  font-size: 0.9rem;
+  color: #166534;
+  font-weight: 600;
+}
+
+.buyers-credits-table {
+  margin-top: 0.5rem;
+}
+
+.buyers-credits-row {
+  cursor: pointer;
+
+  &:hover {
+    background: #f8fafc;
+  }
+}
+
+.buyers-credits-row--selected {
+  background: #ecfdf5;
+}
+
+.buyers-credits-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.buyers-credits-row--selected .buyers-credits-badge {
+  background: #059669;
+  color: #fff;
+}
+
 .kiwify-logs-table tbody tr {
   cursor: pointer;
 }

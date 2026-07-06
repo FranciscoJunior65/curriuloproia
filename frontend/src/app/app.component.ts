@@ -6,6 +6,8 @@ import { AuthService } from './services/auth.service';
 import { AnalyzerService } from './services/analyzer.service';
 import { CpfEnforcementService } from './services/cpf-enforcement.service';
 import { PaymentRealtimeService } from './services/payment-realtime.service';
+import { PaymentPopupBridgeService } from './services/payment-popup-bridge.service';
+import { CreditsHighlightService } from './services/credits-highlight.service';
 
 @Component({
   selector: 'app-root',
@@ -24,7 +26,9 @@ export class AppComponent implements OnInit, OnDestroy {
     private analyzerService: AnalyzerService,
     private cpfEnforcement: CpfEnforcementService,
     private paymentRealtime: PaymentRealtimeService,
-    private router: Router
+    private router: Router,
+    private paymentPopupBridge: PaymentPopupBridgeService,
+    private creditsHighlight: CreditsHighlightService
   ) {}
 
   ngOnInit(): void {
@@ -98,8 +102,17 @@ export class AppComponent implements OnInit, OnDestroy {
         }
 
         const currentUser = this.authService.getCurrentUser();
-        if (!currentUser || currentUser.credits === res.credits) {
+        if (!currentUser) {
           return;
+        }
+
+        const previousCredits = currentUser.credits ?? 0;
+        if (currentUser.credits === res.credits) {
+          return;
+        }
+
+        if (res.credits > previousCredits) {
+          this.creditsHighlight.notify(res.credits - previousCredits, res.credits);
         }
 
         this.authService.updateCurrentUser({ credits: res.credits });
@@ -126,7 +139,9 @@ export class AppComponent implements OnInit, OnDestroy {
       path.startsWith('/login') ||
       path.startsWith('/parceiro') ||
       path.startsWith('/politica-de-privacidade') ||
-      path.startsWith('/termos-de-uso')
+      path.startsWith('/termos-de-uso') ||
+      path.startsWith('/compra/kiwify-popup-retorno') ||
+      path.startsWith('/compra/cakto-popup-retorno')
     );
   }
 }

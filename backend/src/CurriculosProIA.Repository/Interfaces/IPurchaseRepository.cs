@@ -47,6 +47,7 @@ public interface IPurchaseRepository
         CancellationToken cancellationToken = default);
     Task<List<PurchaseWithCredits>> GetUserPurchasesAsync(string userId, int limit = 50, CancellationToken cancellationToken = default);
     Task<List<Purchase>> GetAllPurchasesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
+    Task<List<PurchaseBuyerDto>> GetDistinctPurchaseBuyersAsync(int limit = 300, CancellationToken cancellationToken = default);
     Task<SalesStatsDto> GetSalesStatsAsync(string? startDate = null, string? endDate = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DailyUsageDto>> GetDailyUsageAsync(int days, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MonthlyUsageDto>> GetMonthlyUsageAsync(int months, CancellationToken cancellationToken = default);

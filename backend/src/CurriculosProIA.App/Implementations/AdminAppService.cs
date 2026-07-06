@@ -775,6 +775,30 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         return Ok(new { success = true, purchases = items });
     }
 
+    public async Task<IActionResult> ListPurchaseBuyers(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (!await EnsureAdminAsync(cancellationToken)) return AdminDenied();
+
+        limit = Math.Clamp(limit <= 0 ? 300 : limit, 1, 500);
+        var buyers = await _data.GetDistinctPurchaseBuyersAsync(limit, cancellationToken);
+
+        return Ok(new
+        {
+            success = true,
+            buyers = buyers.Select(b => new
+            {
+                id = b.Id,
+                email = b.Email,
+                name = b.Name,
+                credits = b.Credits,
+                purchasesCount = b.PurchasesCount,
+                lastPurchaseAt = b.LastPurchaseAt
+            })
+        });
+    }
+
     public async Task<IActionResult> CreatePendingPurchase(
         AdminPendingPurchaseSignature body,
         CancellationToken cancellationToken)

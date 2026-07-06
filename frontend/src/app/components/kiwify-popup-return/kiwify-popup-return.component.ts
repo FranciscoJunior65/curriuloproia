@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Subscription } from 'rxjs';
-import { AnalyzerService } from '../../services/analyzer.service';
-import { PaymentRealtimeService } from '../../services/payment-realtime.service';
 import { CAKTO_POPUP_MESSAGE_TYPE } from '../../utils/cakto-popup-message';
-
-type KiwifyReturnStatus = 'confirming' | 'success' | 'pending';
+import {
+  buildPaymentReturnReadyMessage,
+  isPaymentReturnStatusMessage,
+  PaymentReturnStatus
+} from '../../utils/payment-return-message';
 
 @Component({
   selector: 'app-kiwify-popup-return',
@@ -18,44 +18,49 @@ type KiwifyReturnStatus = 'confirming' | 'success' | 'pending';
   styleUrl: './kiwify-popup-return.component.scss'
 })
 export class KiwifyPopupReturnComponent implements OnInit, OnDestroy {
-  status: KiwifyReturnStatus = 'confirming';
+  status: PaymentReturnStatus = 'confirming';
   userCredits = 0;
   closeCountdown = 5;
-  showSuccessOverlay = false;
 
   private closeTimer: ReturnType<typeof setInterval> | null = null;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private initialCredits: number | null = null;
-  private pollAttempts = 0;
+  private readyRetryTimer: ReturnType<typeof setInterval> | null = null;
+  private readyAttempts = 0;
   private confirmed = false;
-  private paymentRealtimeSub: Subscription | null = null;
 
-  private readonly maxPollAttempts = 24;
-  private readonly pollIntervalMs = 2500;
+  private readonly onStatusMessage = (event: MessageEvent): void => {
+    if (event.origin !== window.location.origin || !isPaymentReturnStatusMessage(event.data)) {
+      return;
+    }
 
-  constructor(
-    private analyzerService: AnalyzerService,
-    private paymentRealtime: PaymentRealtimeService
-  ) {}
+    const { status, credits } = event.data;
+    if (status === 'confirming') {
+      this.status = 'confirming';
+      if (credits != null) {
+        this.userCredits = credits;
+      }
+      return;
+    }
+
+    if (status === 'success') {
+      this.markSuccess(credits ?? this.userCredits);
+      return;
+    }
+
+    if (status === 'pending') {
+      this.markPending();
+    }
+  };
 
   ngOnInit(): void {
-    this.paymentRealtimeSub = this.paymentRealtime.connect().subscribe((event) => {
-      if (this.confirmed) {
-        return;
-      }
-
-      if (event.provider === 'kiwify') {
-        void this.confirmFromWebhook(event.credits);
-      }
-    });
-
-    void this.startConfirmation();
+    window.addEventListener('message', this.onStatusMessage);
+    this.notifyOpenerReady();
+    this.startReadyRetry();
   }
 
   ngOnDestroy(): void {
-    this.paymentRealtimeSub?.unsubscribe();
-    this.paymentRealtime.disconnect();
-    this.stopTimers();
+    window.removeEventListener('message', this.onStatusMessage);
+    this.stopReadyRetry();
+    this.stopCloseCountdown();
   }
 
   get inIframe(): boolean {
@@ -69,69 +74,15 @@ export class KiwifyPopupReturnComponent implements OnInit, OnDestroy {
     window.close();
   }
 
-  private async startConfirmation(): Promise<void> {
-    this.status = 'confirming';
-    this.initialCredits = await this.fetchCredits();
-    if (this.initialCredits != null) {
-      this.userCredits = this.initialCredits;
-    }
-    this.startCreditsPolling();
-  }
-
-  private fetchCredits(): Promise<number | null> {
-    return new Promise((resolve) => {
-      this.analyzerService.getCredits().subscribe({
-        next: (res) => resolve(res?.success && res.credits != null ? res.credits : null),
-        error: () => resolve(null)
-      });
-    });
-  }
-
-  private async confirmFromWebhook(creditsFromHub?: number): Promise<void> {
-    if (this.confirmed) {
-      return;
-    }
-
-    const credits = await this.fetchCredits();
-    const resolvedCredits = credits ?? creditsFromHub ?? this.userCredits;
-    this.markSuccess(resolvedCredits);
-  }
-
-  private markSuccess(credits: number): void {
-    if (this.confirmed) {
-      return;
-    }
-
-    this.confirmed = true;
-    this.userCredits = credits;
-    this.status = 'success';
-    this.showSuccessOverlay = true;
-    this.stopCreditsPolling();
-    this.notifyOpener(credits);
-
-    if (window.parent === window) {
-      this.startCloseCountdown();
-    }
-  }
-
-  private markPending(): void {
-    if (this.confirmed) {
-      return;
-    }
-
-    this.status = 'pending';
-    this.stopCreditsPolling();
-  }
-
-  private notifyOpener(credits: number): void {
-    const message = { type: CAKTO_POPUP_MESSAGE_TYPE, credits };
+  private notifyOpenerReady(): void {
+    const message = buildPaymentReturnReadyMessage('kiwify');
     const origin = window.location.origin;
 
     if (window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(message, origin);
       } catch {
-        // Popup pode ter perdido referência com a janela principal.
+        // Janela principal pode ter perdido referência.
       }
     }
 
@@ -144,33 +95,74 @@ export class KiwifyPopupReturnComponent implements OnInit, OnDestroy {
     }
   }
 
-  private startCreditsPolling(): void {
-    this.pollTimer = setInterval(() => {
-      this.pollAttempts += 1;
+  private startReadyRetry(): void {
+    this.readyRetryTimer = setInterval(() => {
+      if (this.confirmed || this.status === 'pending') {
+        this.stopReadyRetry();
+        return;
+      }
 
-      this.analyzerService.getCredits().subscribe({
-        next: (res) => {
-          if (!res?.success || res.credits == null) {
-            return;
-          }
+      this.readyAttempts += 1;
+      this.notifyOpenerReady();
 
-          this.userCredits = res.credits;
-          const increased =
-            this.initialCredits != null ? res.credits > this.initialCredits : res.credits > 0;
+      if (this.readyAttempts >= 12 && this.status === 'confirming') {
+        this.markPending();
+        this.stopReadyRetry();
+      }
+    }, 2000);
+  }
 
-          if (increased) {
-            this.markSuccess(res.credits);
-          } else if (this.pollAttempts >= this.maxPollAttempts) {
-            this.markPending();
-          }
-        },
-        error: () => {
-          if (this.pollAttempts >= this.maxPollAttempts) {
-            this.markPending();
-          }
-        }
-      });
-    }, this.pollIntervalMs);
+  private stopReadyRetry(): void {
+    if (this.readyRetryTimer) {
+      clearInterval(this.readyRetryTimer);
+      this.readyRetryTimer = null;
+    }
+  }
+
+  private markSuccess(credits: number): void {
+    if (this.confirmed) {
+      return;
+    }
+
+    this.confirmed = true;
+    this.userCredits = credits;
+    this.status = 'success';
+    this.stopReadyRetry();
+    this.notifyOpenerPaid(credits);
+
+    if (window.parent === window) {
+      this.startCloseCountdown();
+    }
+  }
+
+  private markPending(): void {
+    if (this.confirmed) {
+      return;
+    }
+
+    this.status = 'pending';
+    this.stopReadyRetry();
+  }
+
+  private notifyOpenerPaid(credits: number): void {
+    const message = { type: CAKTO_POPUP_MESSAGE_TYPE, credits };
+    const origin = window.location.origin;
+
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage(message, origin);
+      } catch {
+        // Popup externa pode ter perdido referência.
+      }
+    }
+
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage(message, origin);
+      } catch {
+        // Modal com iframe.
+      }
+    }
   }
 
   private startCloseCountdown(): void {
@@ -182,18 +174,6 @@ export class KiwifyPopupReturnComponent implements OnInit, OnDestroy {
         window.close();
       }
     }, 1000);
-  }
-
-  private stopTimers(): void {
-    this.stopCreditsPolling();
-    this.stopCloseCountdown();
-  }
-
-  private stopCreditsPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
   }
 
   private stopCloseCountdown(): void {

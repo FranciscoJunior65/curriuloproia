@@ -9,12 +9,15 @@ public sealed record ResumeLayout(string Name, string Contact, List<ResumeSectio
 /// <summary>Parser compartilhado entre exportação PDF e Word (PT/EN).</summary>
 public static class ResumeLayoutHelper
 {
-    public static ResumeLayout Parse(string resumeText)
+    public static ResumeLayout Parse(string resumeText, string? candidateName = null)
     {
         var lines = NormalizeResumeLines(resumeText);
         var profile = ExtractProfile(lines);
-        var sections = BuildSections(lines, profile);
-        return new ResumeLayout(profile.Name, profile.Contact, sections);
+        var name = !string.IsNullOrWhiteSpace(candidateName)
+            ? candidateName.Trim()
+            : profile.Name;
+        var sections = BuildSections(lines, (name, profile.Contact));
+        return new ResumeLayout(name, profile.Contact, sections);
     }
 
     public static bool IsBulletLine(string line)
@@ -36,24 +39,156 @@ public static class ResumeLayoutHelper
             .ToList();
     }
 
+    private static readonly string[] ProfileSectionMarkers =
+    [
+        "DADOS PESSOAIS",
+        "INFORMAÇÕES PESSOAIS",
+        "INFORMACOES PESSOAIS",
+        "CONTACT",
+        "CONTATO"
+    ];
+
+    private static readonly string[] HeadlineKeywords =
+    [
+        "técnico", "tecnico", "engenheiro", "encarregado", "analista", "coordenador",
+        "gerente", "supervisor", "sistemas", "industrial", "manutenção", "manutencao",
+        "eletro", "hidráulico", "hidraulico", "especialista", "consultor", "desenvolvedor",
+        "programador", "assistant", "manager", "engineer", "technician", "maintenance",
+        "electrical", "mechanical", "operador", "assistente", "profissional de"
+    ];
+
     private static (string Name, string Contact) ExtractProfile(List<string> lines)
     {
-        var name = lines
-            .Select(StripMarkdown)
-            .FirstOrDefault(l =>
-                !string.IsNullOrWhiteSpace(l) &&
-                !IsLikelySectionTitle(l) &&
-                l.Length <= 70 &&
-                Regex.IsMatch(l, @"^[\p{L}\s\.'\-]+$", RegexOptions.CultureInvariant)) ?? "Currículo Profissional";
+        var cleanedLines = lines.Select(StripMarkdown).ToList();
 
-        var contact = lines
-            .Select(StripMarkdown)
+        var name =
+            FindNameAfterProfileSection(cleanedLines) ??
+            cleanedLines.FirstOrDefault(IsLikelyPersonName) ??
+            cleanedLines
+                .Where(IsLikelyPersonName)
+                .OrderByDescending(ScorePersonName)
+                .FirstOrDefault() ??
+            "Currículo Profissional";
+
+        var contact = cleanedLines
             .FirstOrDefault(l =>
                 l.Contains("@", StringComparison.OrdinalIgnoreCase) ||
                 l.Contains("|", StringComparison.OrdinalIgnoreCase) ||
                 Regex.IsMatch(l, @"\(\d{2}\)|\d{8,}", RegexOptions.CultureInvariant)) ?? string.Empty;
 
         return (name, contact);
+    }
+
+    private static string? FindNameAfterProfileSection(IReadOnlyList<string> lines)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (!IsProfileSectionTitle(lines[i]))
+            {
+                continue;
+            }
+
+            for (var j = i + 1; j < Math.Min(i + 4, lines.Count); j++)
+            {
+                if (IsLikelySectionTitle(lines[j]))
+                {
+                    break;
+                }
+
+                if (IsLikelyPersonName(lines[j]))
+                {
+                    return lines[j];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsProfileSectionTitle(string line)
+    {
+        var normalized = StripMarkdown(line).Trim(':', ' ', '-').ToUpperInvariant();
+        return ProfileSectionMarkers.Any(marker => normalized.Contains(marker, StringComparison.Ordinal));
+    }
+
+    private static bool IsLikelyPersonName(string line)
+    {
+        var candidate = StripMarkdown(line).Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        if (ContainsSectionKeyword(candidate))
+        {
+            return false;
+        }
+
+        if (IsBulletLine(candidate) || candidate.StartsWith('-'))
+        {
+            return false;
+        }
+
+        if (candidate.Contains('@', StringComparison.Ordinal) ||
+            candidate.Contains('|', StringComparison.Ordinal) ||
+            candidate.Contains("http", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(candidate, @"\d{8,}", RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (candidate.Length > 50 || IsLikelyProfessionalHeadline(candidate))
+        {
+            return false;
+        }
+
+        var words = candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 2 || words.Length > 6)
+        {
+            return false;
+        }
+
+        return words.All(word =>
+        {
+            var clean = word.Trim('.', ',', '-', '(', ')');
+            return clean.Length == 0 ||
+                   Regex.IsMatch(clean, @"^[\p{L}\-'\.]+$", RegexOptions.CultureInvariant);
+        });
+    }
+
+    private static bool IsLikelyProfessionalHeadline(string line)
+    {
+        var normalized = StripMarkdown(line).ToLowerInvariant();
+        return HeadlineKeywords.Any(keyword => normalized.Contains(keyword, StringComparison.Ordinal));
+    }
+
+    private static int ScorePersonName(string line)
+    {
+        var candidate = StripMarkdown(line).Trim();
+        var words = candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var score = 0;
+
+        if (words.Length is >= 2 and <= 4)
+        {
+            score += 4;
+        }
+
+        if (candidate == candidate.ToUpperInvariant())
+        {
+            score += 3;
+        }
+
+        if (words.All(w => char.IsUpper(w[0])))
+        {
+            score += 2;
+        }
+
+        if (IsLikelyProfessionalHeadline(candidate))
+        {
+            score -= 10;
+        }
+
+        return score;
     }
 
     internal static string StripMarkdown(string text)
@@ -81,9 +216,18 @@ public static class ResumeLayoutHelper
             return false;
         }
 
-        var normalized = candidate.ToUpperInvariant();
-        return candidate == normalized ||
-               normalized.Contains("RESUMO") ||
+        if (IsLikelyPersonName(candidate))
+        {
+            return false;
+        }
+
+        return ContainsSectionKeyword(candidate);
+    }
+
+    private static bool ContainsSectionKeyword(string line)
+    {
+        var normalized = StripMarkdown(line).Trim(':', ' ', '-').ToUpperInvariant();
+        return normalized.Contains("RESUMO") ||
                normalized.Contains("EXPERI") ||
                normalized.Contains("FORMA") ||
                normalized.Contains("HABIL") ||
@@ -98,6 +242,7 @@ public static class ResumeLayoutHelper
                normalized.Contains("EDUCATION") ||
                normalized.Contains("SKILLS") ||
                normalized.Contains("CONTACT") ||
+               normalized.Contains("CONTATO") ||
                normalized.Contains("PROFILE") ||
                normalized.Contains("LANGUAGE");
     }

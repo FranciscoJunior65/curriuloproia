@@ -1,0 +1,18 @@
+<div class="payment-success-dialog" role="dialog" aria-labelledby="payment-success-title">
+  <mat-icon class="payment-success-dialog__icon" aria-hidden="true">check_circle</mat-icon>
+  <h2 id="payment-success-title">Pagamento confirmado!</h2>
+  <p class="payment-success-dialog__lead">Seus créditos já estão disponíveis na conta.</p>
+
+  <div class="payment-success-dialog__badge" *ngIf="data.delta > 0">
+    +{{ data.delta }} {{ data.delta === 1 ? 'crédito novo' : 'créditos novos' }}
+  </div>
+
+  <p class="payment-success-dialog__balance">
+    Saldo atual: <strong>{{ data.credits }}</strong>
+    {{ data.credits === 1 ? 'análise' : 'análises' }}
+  </p>
+
+  <button mat-flat-button color="primary" type="button" (click)="close()">
+    Continuar
+  </button>
+</div>

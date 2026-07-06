@@ -180,6 +180,15 @@ export interface AdminUserSearchItem {
   credits: number;
 }
 
+export interface AdminPurchaseBuyerItem {
+  id: string;
+  email?: string;
+  name?: string;
+  credits: number;
+  purchasesCount: number;
+  lastPurchaseAt?: string;
+}
+
 export interface KiwifyWebhookLogItem {
   id: string;
   orderId?: string;
@@ -472,6 +481,13 @@ export class AdminService {
     const qs = params.toString();
     return this.http.get<{ success: boolean; purchases: PendingPurchaseItem[] }>(
       `${this.apiUrl}/admin/purchases/pending${qs ? `?${qs}` : ''}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  getPurchaseBuyers(limit = 300): Observable<{ success: boolean; buyers: AdminPurchaseBuyerItem[] }> {
+    return this.http.get<{ success: boolean; buyers: AdminPurchaseBuyerItem[] }>(
+      `${this.apiUrl}/admin/purchases/buyers?limit=${limit}`,
       { headers: this.getAuthHeaders() }
     );
   }

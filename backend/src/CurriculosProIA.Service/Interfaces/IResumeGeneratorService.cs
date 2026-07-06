@@ -10,16 +10,18 @@ public interface IResumeGeneratorService
         string originalText,
         AnalysisInput analysis,
         string? siteId = null,
+        string? candidateName = null,
         CancellationToken cancellationToken = default);
 
-    byte[] GenerateResumePdf(string resumeText);
+    byte[] GenerateResumePdf(string resumeText, string? candidateName = null);
 
-    byte[] GenerateResumeDocx(string resumeText);
+    byte[] GenerateResumeDocx(string resumeText, string? candidateName = null);
 
     Task<string> GenerateEnglishResumeAsync(
         string originalText,
         AnalysisInput? analysis,
         string? siteId = null,
+        string? candidateName = null,
         CancellationToken cancellationToken = default);
 
     byte[] GenerateResumeExcel(string resumeText);

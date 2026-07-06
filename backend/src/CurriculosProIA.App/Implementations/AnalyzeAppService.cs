@@ -317,15 +317,18 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
+            var candidateName = await ResolveCandidateNameAsync(cancellationToken);
+
             var improvedResume = await _resumeGenerator.GenerateImprovedResumeAsync(
                 ctx.ResumeText!,
                 ctx.Analysis,
                 ctx.SiteId ?? body.SiteId,
+                candidateName,
                 cancellationToken);
 
             if (format == "word")
             {
-                var docxBuffer = _resumeGenerator.GenerateResumeDocx(improvedResume);
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(improvedResume, candidateName);
                 await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
 
                 var wordTime = (DateTime.UtcNow - startTime).TotalSeconds;
@@ -337,7 +340,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                     "curriculo-melhorado.docx");
             }
 
-            var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume);
+            var pdfBuffer = _resumeGenerator.GenerateResumePdf(improvedResume, candidateName);
             await TryMarkServiceUsedAsync(body.AnalysisId, AnalysisBundledServiceKeys.CurriculoMelhorado, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
@@ -395,10 +398,13 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 });
             }
 
+            var candidateName = await ResolveCandidateNameAsync(cancellationToken);
+
             var englishResume = await _resumeGenerator.GenerateEnglishResumeAsync(
                 ctx.ResumeText!,
                 ctx.Analysis,
                 ctx.SiteId ?? body.SiteId,
+                candidateName,
                 cancellationToken);
 
             var formatKey = format == "word"
@@ -407,7 +413,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
 
             if (format == "word")
             {
-                var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume);
+                var docxBuffer = _resumeGenerator.GenerateResumeDocx(englishResume, candidateName);
                 await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
                 return File(
                     docxBuffer,
@@ -415,7 +421,7 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                     "curriculo-ingles.docx");
             }
 
-            var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume);
+            var pdfBuffer = _resumeGenerator.GenerateResumePdf(englishResume, candidateName);
             await TryMarkEnglishFormatUsedAsync(body.AnalysisId, formatKey, cancellationToken);
 
             var processingTime = (DateTime.UtcNow - startTime).TotalSeconds;
@@ -2879,6 +2885,19 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return string.Empty;
+    }
+
+    private async Task<string?> ResolveCandidateNameAsync(CancellationToken cancellationToken)
+    {
+        var userId = JwtAuthHelper.TryGetUserId(_http.HttpContext!.Request.Headers, _configuration);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+
+        var user = await _data.GetUserProfileAsync(userId, cancellationToken);
+        var name = user?.Name?.Trim();
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 
     private async Task<string> ResolveCustomerNameAsync(

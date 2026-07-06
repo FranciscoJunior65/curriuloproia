@@ -34,8 +34,16 @@
           {{ currentUser?.name || currentUser?.email }}
         </p>
         <p class="site-header__user-meta">
-          <mat-icon aria-hidden="true">stars</mat-icon>
-          <span>{{ userCredits }} análise(s)</span>
+          <span
+            class="site-header__credits"
+            [class.site-header__credits--updated]="creditsHighlightActive"
+          >
+            <mat-icon aria-hidden="true">stars</mat-icon>
+            <span>{{ userCredits }} análise(s)</span>
+            <span *ngIf="creditsHighlightActive" class="site-header__credits-new">
+              +{{ creditsHighlightDelta }} {{ creditsHighlightDelta === 1 ? 'novo' : 'novos' }}
+            </span>
+          </span>
           <span class="site-header__user-english">
             · <mat-icon aria-hidden="true">language</mat-icon>
             {{ englishCredits }} inglês
@@ -47,9 +55,16 @@
       </div>
 
       <div class="site-header__mobile-badges" aria-label="Resumo da conta">
-        <span class="site-header__badge site-header__badge--credits" title="Créditos de análise">
+        <span
+          class="site-header__badge site-header__badge--credits"
+          [class.site-header__badge--credits-updated]="creditsHighlightActive"
+          title="Créditos de análise"
+        >
           <mat-icon aria-hidden="true">stars</mat-icon>
           {{ userCredits }}
+          <span *ngIf="creditsHighlightActive" class="site-header__badge-new">
+            +{{ creditsHighlightDelta }}
+          </span>
         </span>
         <span
           class="site-header__badge site-header__badge--english"
@@ -107,9 +122,15 @@
       <div class="site-header__profile-body">
         <p class="site-header__profile-name">{{ currentUser?.name || currentUser?.email }}</p>
         <div class="site-header__profile-chips">
-          <span class="site-header__chip site-header__chip--credit">
+          <span
+            class="site-header__chip site-header__chip--credit"
+            [class.site-header__chip--credit-updated]="creditsHighlightActive"
+          >
             <mat-icon aria-hidden="true">stars</mat-icon>
             {{ userCredits }} análise{{ userCredits === 1 ? '' : 's' }}
+            <span *ngIf="creditsHighlightActive" class="site-header__chip-new">
+              +{{ creditsHighlightDelta }} {{ creditsHighlightDelta === 1 ? 'novo' : 'novos' }}
+            </span>
           </span>
           <span
             class="site-header__chip site-header__chip--english"

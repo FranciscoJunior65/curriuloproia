@@ -35,6 +35,16 @@ public class SalesStatsDto
     public int UniqueBuyers { get; set; }
 }
 
+public class PurchaseBuyerDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public int Credits { get; set; }
+    public int PurchasesCount { get; set; }
+    public DateTimeOffset? LastPurchaseAt { get; set; }
+}
+
 public class CreditUsageResultDto
 {
     public bool Success { get; set; }

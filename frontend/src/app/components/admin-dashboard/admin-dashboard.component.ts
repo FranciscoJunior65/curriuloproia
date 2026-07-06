@@ -17,7 +17,7 @@ import {
   PendingPurchaseItem,
   KiwifySaleDetails,
   KiwifyWebhookLogItem,
-  AdminUserSearchItem,
+  AdminPurchaseBuyerItem,
   SalesListItem,
   SalesStatsSummary
 } from '../../services/admin.service';
@@ -167,12 +167,10 @@ export class AdminDashboardComponent implements OnInit {
 
   manualGrantEmail = '';
   manualGrantUserId = '';
-  manualGrantUserSearch = '';
-  manualGrantUserResults: AdminUserSearchItem[] = [];
-  manualGrantSelectedUser: AdminUserSearchItem | null = null;
-  showManualGrantUserDropdown = false;
-  loadingManualGrantUserSearch = false;
-  private manualGrantUserSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  manualGrantBuyerId = '';
+  manualGrantBuyers: AdminPurchaseBuyerItem[] = [];
+  loadingManualGrantBuyers = false;
+  manualGrantSelectedUser: AdminPurchaseBuyerItem | null = null;
   manualGrantPlanId = 'single';
   manualGrantCredits: number | null = null;
   manualGrantReason = '';
@@ -260,6 +258,7 @@ export class AdminDashboardComponent implements OnInit {
     this.loadInterviewConfigSettings();
     this.loadCouponsData();
     this.loadPendingPurchases();
+    this.loadManualGrantBuyers();
     this.loadKiwifyWebhookLogs();
     this.loadSales();
     this.loadSalesStatistics();
@@ -607,11 +606,11 @@ export class AdminDashboardComponent implements OnInit {
         this.grantingManualCredits = false;
         if (res.success) {
           this.creditsPanelMessage = res.message || 'Créditos liberados manualmente.';
-          this.loadPendingPurchases();
-          this.loadKiwifyWebhookLogs();
-          this.loadSales();
-          this.loadSalesStatistics();
-          this.loadDashboard();
+          const userId = res.userId || purchase.userId;
+          if (userId) {
+            this.syncBuyerCreditsLocally(userId, res.credits, !res.alreadyFulfilled);
+          }
+          this.removePendingPurchaseLocally(purchase.id);
         }
       },
       error: (err) => {
@@ -1021,6 +1020,80 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
+  loadManualGrantBuyers(): void {
+    this.loadingManualGrantBuyers = true;
+    this.adminService.getPurchaseBuyers(300).subscribe({
+      next: (res) => {
+        this.loadingManualGrantBuyers = false;
+        this.manualGrantBuyers = res.buyers || [];
+        if (this.manualGrantBuyerId && !this.manualGrantBuyers.some((buyer) => buyer.id === this.manualGrantBuyerId)) {
+          this.manualGrantBuyerId = '';
+          this.manualGrantSelectedUser = null;
+          this.manualGrantEmail = '';
+          this.manualGrantUserId = '';
+        }
+      },
+      error: () => {
+        this.loadingManualGrantBuyers = false;
+        this.manualGrantBuyers = [];
+      }
+    });
+  }
+
+  formatManualGrantBuyerLabel(buyer: AdminPurchaseBuyerItem): string {
+    const identity = buyer.email || buyer.name || buyer.id;
+    const namePart = buyer.name && buyer.email ? ` · ${buyer.name}` : '';
+    const purchasesLabel = buyer.purchasesCount === 1 ? '1 compra' : `${buyer.purchasesCount} compras`;
+    return `${identity}${namePart} · ${purchasesLabel} · ${buyer.credits} crédito(s)`;
+  }
+
+  onManualGrantBuyerChange(): void {
+    const buyer = this.manualGrantBuyers.find((item) => item.id === this.manualGrantBuyerId) || null;
+    this.manualGrantSelectedUser = buyer ? { ...buyer } : null;
+    this.manualGrantUserId = buyer?.id || '';
+    this.manualGrantEmail = buyer?.email || '';
+  }
+
+  selectManualGrantBuyer(buyer: AdminPurchaseBuyerItem): void {
+    this.manualGrantBuyerId = buyer.id;
+    this.onManualGrantBuyerChange();
+  }
+
+  private syncBuyerCreditsLocally(userId: string, credits: number | undefined, incrementPurchases = false): void {
+    if (!userId || typeof credits !== 'number') {
+      return;
+    }
+
+    this.manualGrantBuyers = this.manualGrantBuyers.map((buyer) => {
+      if (buyer.id !== userId) {
+        return buyer;
+      }
+
+      return {
+        ...buyer,
+        credits,
+        purchasesCount: incrementPurchases ? buyer.purchasesCount + 1 : buyer.purchasesCount
+      };
+    });
+
+    if (this.manualGrantSelectedUser?.id === userId) {
+      this.manualGrantSelectedUser = {
+        ...this.manualGrantSelectedUser,
+        credits,
+        purchasesCount: incrementPurchases
+          ? this.manualGrantSelectedUser.purchasesCount + 1
+          : this.manualGrantSelectedUser.purchasesCount
+      };
+    }
+  }
+
+  private removePendingPurchaseLocally(purchaseId: string): void {
+    this.pendingPurchases = this.pendingPurchases.filter((purchase) => purchase.id !== purchaseId);
+    if (this.selectedPendingPurchaseId === purchaseId) {
+      this.selectedPendingPurchaseId = '';
+    }
+  }
+
   loadPendingPurchases(): void {
     this.loadingPendingPurchases = true;
     this.creditsPanelError = '';
@@ -1173,7 +1246,7 @@ export class AdminDashboardComponent implements OnInit {
 
   grantManualCredits(): void {
     if (!this.manualGrantSelectedUser && !this.manualGrantEmail.trim() && !this.manualGrantUserId.trim()) {
-      this.creditsPanelError = 'Selecione um cliente na busca';
+      this.creditsPanelError = 'Selecione um cliente na lista';
       return;
     }
 
@@ -1197,11 +1270,10 @@ export class AdminDashboardComponent implements OnInit {
         if (res.success) {
           this.creditsPanelMessage = res.message || 'Créditos incluídos.';
           this.manualGrantReason = '';
-          this.loadPendingPurchases();
-          this.loadKiwifyWebhookLogs();
-          this.loadSales();
-          this.loadSalesStatistics();
-          this.loadDashboard();
+          const userId = res.userId || this.manualGrantUserId;
+          if (userId) {
+            this.syncBuyerCreditsLocally(userId, res.credits, !res.alreadyFulfilled);
+          }
         }
       },
       error: (err) => {
@@ -1211,55 +1283,28 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  onManualGrantUserSearchInput(): void {
-    this.manualGrantSelectedUser = null;
-    this.manualGrantEmail = '';
-    this.manualGrantUserId = '';
-
-    if (this.manualGrantUserSearchTimer) {
-      clearTimeout(this.manualGrantUserSearchTimer);
+  selectPendingForReconcile(purchase: PendingPurchaseItem): void {
+    this.selectedPendingPurchaseId = purchase.id;
+    if (purchase.paymentId && !purchase.paymentId.startsWith('kiwify_pending_')) {
+      this.kiwifyOrderId = purchase.paymentId;
     }
-
-    const query = this.manualGrantUserSearch.trim();
-    if (query.length < 2) {
-      this.manualGrantUserResults = [];
-      this.showManualGrantUserDropdown = false;
-      return;
+    this.manualGrantPlanId = purchase.planId || 'single';
+    this.manualGrantCredits = null;
+    if (purchase.userId) {
+      this.manualGrantBuyerId = purchase.userId;
+      this.onManualGrantBuyerChange();
+      if (!this.manualGrantSelectedUser && (purchase.userEmail || purchase.userName)) {
+        this.manualGrantSelectedUser = {
+          id: purchase.userId,
+          email: purchase.userEmail,
+          name: purchase.userName,
+          credits: purchase.creditsAmount,
+          purchasesCount: 1
+        };
+        this.manualGrantEmail = purchase.userEmail || '';
+        this.manualGrantUserId = purchase.userId;
+      }
     }
-
-    this.manualGrantUserSearchTimer = setTimeout(() => {
-      this.loadingManualGrantUserSearch = true;
-      this.adminService.searchUsers(query).subscribe({
-        next: (res) => {
-          this.loadingManualGrantUserSearch = false;
-          this.manualGrantUserResults = res.users || [];
-          this.showManualGrantUserDropdown = this.manualGrantUserResults.length > 0;
-        },
-        error: () => {
-          this.loadingManualGrantUserSearch = false;
-          this.manualGrantUserResults = [];
-          this.showManualGrantUserDropdown = false;
-        }
-      });
-    }, 300);
-  }
-
-  selectManualGrantUser(user: AdminUserSearchItem): void {
-    this.manualGrantSelectedUser = user;
-    this.manualGrantUserId = user.id;
-    this.manualGrantEmail = user.email || '';
-    this.manualGrantUserSearch = user.email || user.name || user.id;
-    this.showManualGrantUserDropdown = false;
-    this.manualGrantUserResults = [];
-  }
-
-  clearManualGrantUserSelection(): void {
-    this.manualGrantSelectedUser = null;
-    this.manualGrantUserId = '';
-    this.manualGrantEmail = '';
-    this.manualGrantUserSearch = '';
-    this.manualGrantUserResults = [];
-    this.showManualGrantUserDropdown = false;
   }
 
   onKiwifyWebhookJsonChange(): void {
@@ -1348,25 +1393,4 @@ export class AdminDashboardComponent implements OnInit {
       }
     });
   }
-
-  selectPendingForReconcile(purchase: PendingPurchaseItem): void {
-    this.selectedPendingPurchaseId = purchase.id;
-    if (purchase.paymentId && !purchase.paymentId.startsWith('kiwify_pending_')) {
-      this.kiwifyOrderId = purchase.paymentId;
-    }
-    this.manualGrantPlanId = purchase.planId || 'single';
-    this.manualGrantCredits = null;
-    if (purchase.userEmail || purchase.userId) {
-      this.manualGrantSelectedUser = {
-        id: purchase.userId || '',
-        email: purchase.userEmail,
-        name: purchase.userName,
-        credits: purchase.creditsAmount
-      };
-      this.manualGrantUserSearch = purchase.userEmail || purchase.userName || purchase.userId || '';
-      this.manualGrantEmail = purchase.userEmail || '';
-      this.manualGrantUserId = purchase.userId || '';
-    }
-  }
 }
-

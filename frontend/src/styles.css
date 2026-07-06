@@ -230,3 +230,17 @@ a[mat-flat-button] .mat-icon {
   border-radius: 16px !important;
 }
 
+.payment-success-dialog-panel.cdk-overlay-pane {
+  width: min(420px, calc(100vw - 2rem)) !important;
+  max-width: calc(100vw - 2rem) !important;
+}
+
+.payment-success-dialog-panel .mat-mdc-dialog-container,
+.payment-success-dialog-panel .mat-mdc-dialog-surface {
+  border-radius: 18px !important;
+  overflow: hidden;
+}
+
+.payment-success-dialog-panel + .cdk-overlay-backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}

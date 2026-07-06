@@ -18,9 +18,9 @@ public static class ResumeDocxBuilder
     private const string ColorSectionBorder = "90CAF9"; // Blue.Lighten3
     private const string FontFamily = "Arial";
 
-    public static byte[] BuildFromText(string resumeText)
+    public static byte[] BuildFromText(string resumeText, string? candidateName = null)
     {
-        var layout = ResumeLayoutHelper.Parse(resumeText);
+        var layout = ResumeLayoutHelper.Parse(resumeText, candidateName);
 
         using var stream = new MemoryStream();
         using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, true))

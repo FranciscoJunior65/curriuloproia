@@ -4,7 +4,7 @@
     <mat-icon *ngIf="!loading" class="cakto-popup-return__icon">check_circle</mat-icon>
 
     <h1>{{ loading ? 'Confirmando pagamento…' : 'Pagamento aprovado!' }}</h1>
-    <p *ngIf="loading">Aguarde enquanto validamos sua compra com a Cakto.</p>
+    <p *ngIf="loading">Aguarde enquanto validamos sua compra com a janela principal do site.</p>
     <p *ngIf="!loading && verified">
       Seus créditos já estão disponíveis na janela principal.
       <span *ngIf="userCredits > 0">Saldo atual: <strong>{{ userCredits }}</strong>.</span>

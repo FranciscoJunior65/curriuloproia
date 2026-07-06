@@ -511,47 +511,41 @@
               <div class="coupon-section">
                 <h3 class="coupon-section__title">3. Inclusão avulsa (sem Kiwify)</h3>
                 <div class="coupon-form-grid">
-                  <div class="pricing-field pricing-field--full user-search-field">
-                    <label>Cliente</label>
-                    <div class="user-search-wrap">
-                      <input
-                        [(ngModel)]="manualGrantUserSearch"
-                        (ngModelChange)="onManualGrantUserSearchInput()"
-                        (focus)="showManualGrantUserDropdown = manualGrantUserResults.length > 0"
-                        type="text"
+                  <div class="pricing-field pricing-field--full">
+                    <label>Cliente que comprou</label>
+                    <div class="manual-grant-buyer-row">
+                      <select
+                        [(ngModel)]="manualGrantBuyerId"
+                        (ngModelChange)="onManualGrantBuyerChange()"
                         class="period-select"
-                        placeholder="Digite e-mail ou nome (mín. 2 caracteres)"
-                        autocomplete="off"
-                      />
+                        [disabled]="loadingManualGrantBuyers"
+                      >
+                        <option value="">Selecione um cliente...</option>
+                        <option *ngFor="let buyer of manualGrantBuyers" [value]="buyer.id">
+                          {{ formatManualGrantBuyerLabel(buyer) }}
+                        </option>
+                      </select>
                       <button
-                        *ngIf="manualGrantSelectedUser"
                         mat-icon-button
                         type="button"
-                        class="user-search-clear"
-                        (click)="clearManualGrantUserSelection()"
-                        aria-label="Limpar cliente"
+                        aria-label="Atualizar lista de clientes"
+                        (click)="loadManualGrantBuyers()"
+                        [disabled]="loadingManualGrantBuyers"
                       >
-                        <mat-icon>close</mat-icon>
+                        <mat-icon>refresh</mat-icon>
                       </button>
-                      <div *ngIf="loadingManualGrantUserSearch" class="user-search-loading">
-                        <mat-spinner diameter="20"></mat-spinner>
-                      </div>
-                      <ul *ngIf="showManualGrantUserDropdown" class="user-search-dropdown">
-                        <li
-                          *ngFor="let user of manualGrantUserResults"
-                          (mousedown)="selectManualGrantUser(user)"
-                        >
-                          <strong>{{ user.email || '—' }}</strong>
-                          <span *ngIf="user.name"> · {{ user.name }}</span>
-                          <span class="user-search-meta"> · {{ user.credits }} crédito(s)</span>
-                        </li>
-                      </ul>
                     </div>
-                    <p *ngIf="manualGrantSelectedUser" class="user-search-selected">
-                      Selecionado: <strong>{{ manualGrantSelectedUser.email }}</strong>
-                      <span *ngIf="manualGrantSelectedUser.name"> ({{ manualGrantSelectedUser.name }})</span>
-                      · saldo {{ manualGrantSelectedUser.credits }} crédito(s)
+                    <p *ngIf="loadingManualGrantBuyers" class="settings-description">Carregando clientes...</p>
+                    <p *ngIf="!loadingManualGrantBuyers && !manualGrantBuyers.length" class="settings-description">
+                      Nenhum cliente com compra registrada.
                     </p>
+                    <div *ngIf="manualGrantSelectedUser" class="manual-grant-balance-card">
+                      <span class="manual-grant-balance-card__label">Saldo atual do cliente</span>
+                      <strong class="manual-grant-balance-card__value">{{ manualGrantSelectedUser.credits }}</strong>
+                      <span class="manual-grant-balance-card__suffix">
+                        {{ manualGrantSelectedUser.credits === 1 ? 'crédito' : 'créditos' }}
+                      </span>
+                    </div>
                   </div>
                   <div class="pricing-field">
                     <label>Plano</label>
@@ -575,10 +569,50 @@
                   type="button"
                   class="coupon-create-btn"
                   (click)="grantManualCredits()"
-                  [disabled]="grantingManualCredits || !manualGrantSelectedUser"
+                  [disabled]="grantingManualCredits || !manualGrantBuyerId"
                 >
                   {{ grantingManualCredits ? 'Incluindo...' : 'Incluir crédito grátis' }}
                 </button>
+              </div>
+
+              <div class="coupon-section" *ngIf="manualGrantBuyers.length || loadingManualGrantBuyers">
+                <div class="coupon-section__header">
+                  <h3 class="coupon-section__title">Saldo de créditos por cliente</h3>
+                  <button mat-button type="button" (click)="loadManualGrantBuyers()" [disabled]="loadingManualGrantBuyers">
+                    <mat-icon>refresh</mat-icon>
+                  </button>
+                </div>
+                <div *ngIf="loadingManualGrantBuyers" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
+                <div *ngIf="!loadingManualGrantBuyers && manualGrantBuyers.length" class="usage-table-container">
+                  <table class="usage-table buyers-credits-table">
+                    <thead>
+                      <tr>
+                        <th>Cliente</th>
+                        <th>E-mail</th>
+                        <th>Compras</th>
+                        <th>Créditos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        *ngFor="let buyer of manualGrantBuyers"
+                        class="buyers-credits-row"
+                        [class.buyers-credits-row--selected]="buyer.id === manualGrantBuyerId"
+                        (click)="selectManualGrantBuyer(buyer)"
+                      >
+                        <td>{{ buyer.name || '—' }}</td>
+                        <td>{{ buyer.email || buyer.id }}</td>
+                        <td>{{ buyer.purchasesCount }}</td>
+                        <td>
+                          <span class="buyers-credits-badge">{{ buyer.credits }}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p *ngIf="!loadingManualGrantBuyers && !manualGrantBuyers.length" class="settings-description">
+                  Nenhum cliente com compra registrada.
+                </p>
               </div>
 
               <div class="coupon-section">

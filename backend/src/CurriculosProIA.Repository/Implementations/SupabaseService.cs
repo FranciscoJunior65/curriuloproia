@@ -1685,6 +1685,58 @@ public class SupabaseService : IAppDataStore, ISupabaseConnectionTester, IKiwify
             .ToList();
     }
 
+    public async Task<List<PurchaseBuyerDto>> GetDistinctPurchaseBuyersAsync(
+        int limit = 300,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        await EnsureInitializedAsync(cancellationToken);
+
+        limit = Math.Clamp(limit, 1, 500);
+
+        var response = await _client!
+            .From<CompraRow>()
+            .Select("id_usuario, criado_em")
+            .Order("criado_em", Ordering.Descending)
+            .Limit(5000)
+            .Get();
+
+        var grouped = response.Models
+            .Where(row => !string.IsNullOrWhiteSpace(row.IdUsuario))
+            .GroupBy(row => row.IdUsuario!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                UserId = group.Key,
+                PurchasesCount = group.Count(),
+                LastPurchaseAt = group
+                    .Select(row => row.CriadoEm)
+                    .Where(date => date.HasValue)
+                    .Max()
+            })
+            .OrderByDescending(item => item.LastPurchaseAt ?? DateTimeOffset.MinValue)
+            .Take(limit)
+            .ToList();
+
+        var buyers = new List<PurchaseBuyerDto>();
+        foreach (var item in grouped)
+        {
+            var profile = await GetUserProfileAsync(item.UserId, cancellationToken);
+            buyers.Add(new PurchaseBuyerDto
+            {
+                Id = item.UserId,
+                Email = profile?.Email,
+                Name = profile?.Name,
+                Credits = profile?.Credits ?? 0,
+                PurchasesCount = item.PurchasesCount,
+                LastPurchaseAt = item.LastPurchaseAt
+            });
+        }
+
+        return buyers
+            .OrderBy(buyer => buyer.Name ?? buyer.Email ?? buyer.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public async Task<SalesStatsDto> GetSalesStatsAsync(
         string? startDate = null,
         string? endDate = null,

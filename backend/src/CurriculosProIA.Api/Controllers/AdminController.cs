@@ -118,6 +118,10 @@ public class AdminController : ControllerBase
     public Task<IActionResult> ListPendingPurchases([FromQuery] string? userId, [FromQuery] int limit = 50, CancellationToken ct = default) =>
         _admin.ListPendingPurchases(userId, limit, ct);
 
+    [HttpGet("purchases/buyers")]
+    public Task<IActionResult> ListPurchaseBuyers([FromQuery] int limit = 300, CancellationToken ct = default) =>
+        _admin.ListPurchaseBuyers(limit, ct);
+
     [HttpPost("purchases/pending")]
     public Task<IActionResult> CreatePendingPurchase([FromBody] AdminPendingPurchaseSignature body, CancellationToken ct) =>
         _admin.CreatePendingPurchase(body, ct);

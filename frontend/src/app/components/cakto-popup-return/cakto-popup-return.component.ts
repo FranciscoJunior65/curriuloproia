@@ -2,8 +2,12 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AnalyzerService } from '../../services/analyzer.service';
 import { CAKTO_POPUP_MESSAGE_TYPE } from '../../utils/cakto-popup-message';
+import {
+  buildPaymentReturnReadyMessage,
+  isPaymentReturnStatusMessage,
+  PaymentReturnStatus
+} from '../../utils/payment-return-message';
 
 @Component({
   selector: 'app-cakto-popup-return',
@@ -17,19 +21,47 @@ export class CaktoPopupReturnComponent implements OnInit, OnDestroy {
   verified = false;
   userCredits = 0;
   closeCountdown = 4;
-  private closeTimer: ReturnType<typeof setInterval> | null = null;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private initialCredits: number | null = null;
-  private pollAttempts = 0;
 
-  constructor(private analyzerService: AnalyzerService) {}
+  private closeTimer: ReturnType<typeof setInterval> | null = null;
+  private readyRetryTimer: ReturnType<typeof setInterval> | null = null;
+  private readyAttempts = 0;
+  private confirmed = false;
+
+  private readonly onStatusMessage = (event: MessageEvent): void => {
+    if (event.origin !== window.location.origin || !isPaymentReturnStatusMessage(event.data)) {
+      return;
+    }
+
+    const { status, credits } = event.data;
+    if (status === 'confirming') {
+      this.loading = true;
+      this.verified = false;
+      if (credits != null) {
+        this.userCredits = credits;
+      }
+      return;
+    }
+
+    if (status === 'success') {
+      this.applySuccess(credits ?? this.userCredits);
+      return;
+    }
+
+    if (status === 'pending') {
+      this.applyPending();
+    }
+  };
 
   ngOnInit(): void {
-    void this.confirmAndNotifyOpener();
+    window.addEventListener('message', this.onStatusMessage);
+    this.notifyOpenerReady();
+    this.startReadyRetry();
   }
 
   ngOnDestroy(): void {
-    this.stopTimers();
+    window.removeEventListener('message', this.onStatusMessage);
+    this.stopReadyRetry();
+    this.stopCloseCountdown();
   }
 
   closeNow(): void {
@@ -43,28 +75,79 @@ export class CaktoPopupReturnComponent implements OnInit, OnDestroy {
     return window.parent !== window;
   }
 
-  private async confirmAndNotifyOpener(): Promise<void> {
-    this.initialCredits = await this.fetchCredits();
-    if (this.initialCredits != null) {
-      this.userCredits = this.initialCredits;
+  private notifyOpenerReady(): void {
+    const message = buildPaymentReturnReadyMessage('cakto');
+    const origin = window.location.origin;
+
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage(message, origin);
+      } catch {
+        // Janela principal pode ter perdido referência.
+      }
     }
-    this.notifyOpener(this.initialCredits ?? undefined);
-    this.startCreditsPolling();
+
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage(message, origin);
+      } catch {
+        // Modal com iframe.
+      }
+    }
+  }
+
+  private startReadyRetry(): void {
+    this.readyRetryTimer = setInterval(() => {
+      if (this.confirmed) {
+        this.stopReadyRetry();
+        return;
+      }
+
+      this.readyAttempts += 1;
+      this.notifyOpenerReady();
+
+      if (this.readyAttempts >= 12 && this.loading) {
+        this.applyPending();
+        this.stopReadyRetry();
+      }
+    }, 2000);
+  }
+
+  private stopReadyRetry(): void {
+    if (this.readyRetryTimer) {
+      clearInterval(this.readyRetryTimer);
+      this.readyRetryTimer = null;
+    }
+  }
+
+  private applySuccess(credits: number): void {
+    if (this.confirmed) {
+      return;
+    }
+
+    this.confirmed = true;
+    this.loading = false;
+    this.verified = true;
+    this.userCredits = credits;
+    this.stopReadyRetry();
+    this.notifyOpenerPaid(credits);
+
     if (window.parent === window) {
       this.startCloseCountdown();
     }
   }
 
-  private fetchCredits(): Promise<number | null> {
-    return new Promise((resolve) => {
-      this.analyzerService.getCredits().subscribe({
-        next: (res) => resolve(res?.success && res.credits != null ? res.credits : null),
-        error: () => resolve(null)
-      });
-    });
+  private applyPending(): void {
+    if (this.confirmed) {
+      return;
+    }
+
+    this.loading = false;
+    this.verified = true;
+    this.stopReadyRetry();
   }
 
-  private notifyOpener(credits?: number): void {
+  private notifyOpenerPaid(credits: number): void {
     const message = { type: CAKTO_POPUP_MESSAGE_TYPE, credits };
     const origin = window.location.origin;
 
@@ -85,46 +168,8 @@ export class CaktoPopupReturnComponent implements OnInit, OnDestroy {
     }
   }
 
-  private startCreditsPolling(): void {
-    this.pollTimer = setInterval(() => {
-      this.pollAttempts += 1;
-      if (this.pollAttempts > 10) {
-        this.loading = false;
-        this.verified = true;
-        this.stopCreditsPolling();
-        return;
-      }
-
-      this.analyzerService.getCredits().subscribe({
-        next: (res) => {
-          if (!res?.success || res.credits == null) {
-            return;
-          }
-
-          this.userCredits = res.credits;
-          if (this.initialCredits != null && res.credits > this.initialCredits) {
-            this.loading = false;
-            this.verified = true;
-            this.notifyOpener(res.credits);
-            this.stopCreditsPolling();
-          } else if (this.pollAttempts >= 6) {
-            this.loading = false;
-            this.verified = true;
-            this.stopCreditsPolling();
-          }
-        },
-        error: () => {
-          if (this.pollAttempts >= 6) {
-            this.loading = false;
-            this.verified = true;
-            this.stopCreditsPolling();
-          }
-        }
-      });
-    }, 2500);
-  }
-
   private startCloseCountdown(): void {
+    this.stopCloseCountdown();
     this.closeTimer = setInterval(() => {
       this.closeCountdown -= 1;
       if (this.closeCountdown <= 0) {
@@ -132,18 +177,6 @@ export class CaktoPopupReturnComponent implements OnInit, OnDestroy {
         window.close();
       }
     }, 1000);
-  }
-
-  private stopTimers(): void {
-    this.stopCreditsPolling();
-    this.stopCloseCountdown();
-  }
-
-  private stopCreditsPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
   }
 
   private stopCloseCountdown(): void {
