@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CurriculosProIA.Service.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b3e97fe2de673a1274af9890367960654aa4bacb")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+03d3582d44c1642fec6e17945e815d3ee8f23d56")]
 [assembly: System.Reflection.AssemblyProductAttribute("CurriculosProIA.Service.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CurriculosProIA.Service.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

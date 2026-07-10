@@ -71,6 +71,24 @@ export interface PricingConfig {
   pack5PriceBRL?: number;
 }
 
+export interface KiwifyProductMapItem {
+  label: string;
+  envKey: string;
+  planId: string;
+  includeEnglish: boolean;
+  basePriceBRL: number;
+  displayPriceBRL: number;
+  transactionFeeBRL: number;
+  checkoutCode?: string | null;
+  configured: boolean;
+}
+
+export interface PricingSettingsResponse {
+  success: boolean;
+  config: PricingConfig;
+  kiwifyProducts?: KiwifyProductMapItem[];
+}
+
 export interface InterviewConfig {
   introductionPrompt: string;
   questionsPrompt: string;
@@ -389,15 +407,15 @@ export class AdminService {
     );
   }
 
-  getPricingSettings(): Observable<{ success: boolean; config: PricingConfig }> {
-    return this.http.get<{ success: boolean; config: PricingConfig }>(
+  getPricingSettings(): Observable<PricingSettingsResponse> {
+    return this.http.get<PricingSettingsResponse>(
       `${this.apiUrl}/admin/settings/pricing`,
       { headers: this.getAuthHeaders() }
     );
   }
 
-  updatePricingSettings(config: PricingConfig): Observable<{ success: boolean; message?: string; config: PricingConfig }> {
-    return this.http.put<{ success: boolean; message?: string; config: PricingConfig }>(
+  updatePricingSettings(config: PricingConfig): Observable<PricingSettingsResponse & { message?: string }> {
+    return this.http.put<PricingSettingsResponse & { message?: string }>(
       `${this.apiUrl}/admin/settings/pricing`,
       {
         creditUnitPriceBRL: config.creditUnitPriceBRL,

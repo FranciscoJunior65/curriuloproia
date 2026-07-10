@@ -9,6 +9,7 @@ import {
   PaymentProvider,
   MercadoPagoMode,
   PricingConfig,
+  KiwifyProductMapItem,
   InterviewConfig,
   AdminPartner,
   AdminCoupon,
@@ -124,6 +125,8 @@ export class AdminDashboardComponent implements OnInit {
   savingPricingSettings = false;
   pricingSettingsMessage = '';
   pricingSettingsError = '';
+  kiwifyProducts: KiwifyProductMapItem[] = [];
+  private kiwifyCheckoutCodes: Record<string, string | null> = {};
 
   interviewConfig: InterviewConfig = {
     introductionPrompt: '',
@@ -715,6 +718,7 @@ export class AdminDashboardComponent implements OnInit {
             transactionFeeBRL: response.config.transactionFeeBRL ?? 0
           };
           this.syncPricingDisplayTexts();
+          this.applyKiwifyProductsFromApi(response.kiwifyProducts);
         }
         this.loadingPricingSettings = false;
       },
@@ -735,6 +739,7 @@ export class AdminDashboardComponent implements OnInit {
         if (response.success) {
           this.pricingConfig = { ...response.config };
           this.syncPricingDisplayTexts();
+          this.applyKiwifyProductsFromApi(response.kiwifyProducts);
           this.pricingSettingsMessage = response.message || 'Preços atualizados.';
           this.pricingPlansService.clearCache();
         }
@@ -793,6 +798,82 @@ export class AdminDashboardComponent implements OnInit {
     return Math.round((this.previewPlanPrice(analyses, discountPercent) + fee) * 100) / 100;
   }
 
+  previewEnglishDisplayPrice(basePriceBRL: number): number {
+    const fee = this.pricingConfig.transactionFeeBRL ?? 0;
+    return Math.round((Math.max(0, basePriceBRL) + fee) * 100) / 100;
+  }
+
+  previewPlanWithEnglishBase(analyses: number, discountPercent: number): number {
+    return Math.round(
+      (this.previewPlanPrice(analyses, discountPercent) + (this.pricingConfig.englishBundlePriceBRL || 0)) * 100
+    ) / 100;
+  }
+
+  previewPlanWithEnglishDisplayPrice(analyses: number, discountPercent: number): number {
+    const fee = this.pricingConfig.transactionFeeBRL ?? 0;
+    return Math.round((this.previewPlanWithEnglishBase(analyses, discountPercent) + fee) * 100) / 100;
+  }
+
+  englishBundleSavingsAmount(): number {
+    return Math.max(
+      0,
+      (this.pricingConfig.englishPriceBRL || 0) - (this.pricingConfig.englishBundlePriceBRL || 0)
+    );
+  }
+
+  get kiwifyBundleProducts(): KiwifyProductMapItem[] {
+    return this.kiwifyProducts.filter((item) => item.includeEnglish);
+  }
+
+  private applyKiwifyProductsFromApi(products?: KiwifyProductMapItem[]): void {
+    if (products?.length) {
+      this.kiwifyCheckoutCodes = Object.fromEntries(
+        products.map((item) => [item.envKey, item.checkoutCode ?? null])
+      );
+    }
+    this.rebuildKiwifyProducts();
+  }
+
+  private rebuildKiwifyProducts(): void {
+    const config = this.pricingConfig;
+    const fee = config.transactionFeeBRL ?? 0;
+    const singleBase = this.previewPlanPrice(1, config.singleDiscountPercent);
+    const pack3Base = this.previewPlanPrice(3, config.pack3DiscountPercent);
+    const pack5Base = this.previewPlanPrice(5, config.pack5DiscountPercent);
+    const englishBundle = config.englishBundlePriceBRL || 0;
+
+    const row = (
+      label: string,
+      envKey: string,
+      planId: string,
+      includeEnglish: boolean,
+      basePriceBRL: number
+    ): KiwifyProductMapItem => {
+      const checkoutCode = this.kiwifyCheckoutCodes[envKey] ?? null;
+      return {
+        label,
+        envKey,
+        planId,
+        includeEnglish,
+        basePriceBRL: Math.round(basePriceBRL * 100) / 100,
+        displayPriceBRL: Math.round((basePriceBRL + fee) * 100) / 100,
+        transactionFeeBRL: fee,
+        checkoutCode,
+        configured: !!checkoutCode?.trim()
+      };
+    };
+
+    this.kiwifyProducts = [
+      row('Análise única', 'KIWIFY_CHECKOUT_SINGLE', 'single', false, singleBase),
+      row('Análise única + Inglês', 'KIWIFY_CHECKOUT_SINGLE_ENGLISH', 'single', true, singleBase + englishBundle),
+      row('Pacote 3', 'KIWIFY_CHECKOUT_PACK3', 'pack3', false, pack3Base),
+      row('Pacote 3 + Inglês', 'KIWIFY_CHECKOUT_PACK3_ENGLISH', 'pack3', true, pack3Base + englishBundle),
+      row('Pacote 5', 'KIWIFY_CHECKOUT_PACK5', 'pack5', false, pack5Base),
+      row('Pacote 5 + Inglês', 'KIWIFY_CHECKOUT_PACK5_ENGLISH', 'pack5', true, pack5Base + englishBundle),
+      row('Currículo em Inglês (avulso)', 'KIWIFY_CHECKOUT_ENGLISH', 'english', false, config.englishPriceBRL || 0)
+    ];
+  }
+
   get creditUnitTotalBRL(): number {
     return Math.round(
       ((this.pricingConfig.creditUnitPriceBRL || 0) + (this.pricingConfig.transactionFeeBRL ?? 0)) * 100
@@ -818,6 +899,7 @@ export class AdminDashboardComponent implements OnInit {
     const masked = maskBrlInput(input.value);
     this[textProp] = masked.text;
     this.pricingConfig[field] = masked.value;
+    this.rebuildKiwifyProducts();
   }
 
   onPricingPercentInput(
@@ -829,6 +911,7 @@ export class AdminDashboardComponent implements OnInit {
     const masked = maskPercentInput(input.value);
     this[textProp] = masked.text;
     this.pricingConfig[field] = masked.value;
+    this.rebuildKiwifyProducts();
   }
 
   loadCouponsData(): void {

@@ -204,7 +204,10 @@
         <div class="tab-content">
           <mat-card class="settings-card settings-card--tab">
             <mat-card-content>
-              <p class="settings-description">Valor por crédito, taxa exibida ao cliente, desconto de cada pacote e preços do inglês.</p>
+              <p class="settings-description">
+                Valor por crédito, taxa exibida ao cliente, desconto de cada pacote e preços do inglês.
+                Na Kiwify, configure cada produto com o <strong>preço final</strong> da tabela abaixo (base + taxa).
+              </p>
       <div *ngIf="loadingPricingSettings" class="loading-inline"><mat-spinner diameter="28"></mat-spinner></div>
       <div *ngIf="!loadingPricingSettings" class="pricing-config-form">
         <div class="pricing-base-row">
@@ -231,7 +234,7 @@
               [ngModel]="transactionFeeText"
               (input)="onPricingBrlInput('transactionFeeBRL', 'transactionFeeText', $event)"
               [disabled]="savingPricingSettings" />
-            <p class="pricing-hint">Fixa na vitrine — mesma taxa para todos os pacotes.</p>
+            <p class="pricing-hint">Fixa na vitrine — uma taxa por checkout (pacote, pacote+inglês ou inglês avulso).</p>
           </div>
           <div class="pricing-field">
             <label>Valor total (R$)</label>
@@ -255,8 +258,12 @@
                 [disabled]="savingPricingSettings" />
             </div>
             <p class="pricing-preview">
-              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
-              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
+              Base: <strong>{{ formatCurrency(previewPlanPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanDisplayPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
+            </p>
+            <p class="pricing-preview pricing-preview--english">
+              Com inglês · Base: <strong>{{ formatCurrency(previewPlanWithEnglishBase(1, pricingConfig.singleDiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanWithEnglishDisplayPrice(1, pricingConfig.singleDiscountPercent)) }}</strong>
             </p>
           </div>
           <div class="pricing-plan-box">
@@ -274,8 +281,12 @@
                 [disabled]="savingPricingSettings" />
             </div>
             <p class="pricing-preview">
-              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
-              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+              Base: <strong>{{ formatCurrency(previewPlanPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanDisplayPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+            </p>
+            <p class="pricing-preview pricing-preview--english">
+              Com inglês · Base: <strong>{{ formatCurrency(previewPlanWithEnglishBase(3, pricingConfig.pack3DiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanWithEnglishDisplayPrice(3, pricingConfig.pack3DiscountPercent)) }}</strong>
             </p>
           </div>
           <div class="pricing-plan-box">
@@ -293,35 +304,99 @@
                 [disabled]="savingPricingSettings" />
             </div>
             <p class="pricing-preview">
-              Base Cakto: <strong>{{ formatCurrency(previewPlanPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
-              · Cliente vê: <strong>{{ formatCurrency(previewPlanDisplayPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+              Base: <strong>{{ formatCurrency(previewPlanPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanDisplayPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+            </p>
+            <p class="pricing-preview pricing-preview--english">
+              Com inglês · Base: <strong>{{ formatCurrency(previewPlanWithEnglishBase(5, pricingConfig.pack5DiscountPercent)) }}</strong>
+              · Preço final: <strong>{{ formatCurrency(previewPlanWithEnglishDisplayPrice(5, pricingConfig.pack5DiscountPercent)) }}</strong>
             </p>
           </div>
         </div>
-        <div class="pricing-english-row">
-          <div class="pricing-field">
-            <label for="english-price">Inglês avulso (R$)</label>
-            <input
-              id="english-price"
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              class="period-select"
-              [ngModel]="englishPriceText"
-              (input)="onPricingBrlInput('englishPriceBRL', 'englishPriceText', $event)"
-              [disabled]="savingPricingSettings" />
+        <div class="pricing-plans-grid pricing-plans-grid--english">
+          <div class="pricing-plan-box">
+            <h3>Inglês avulso</h3>
+            <div class="pricing-field">
+              <label for="english-price">Valor base (R$)</label>
+              <input
+                id="english-price"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="period-select"
+                [ngModel]="englishPriceText"
+                (input)="onPricingBrlInput('englishPriceBRL', 'englishPriceText', $event)"
+                [disabled]="savingPricingSettings" />
+              <p class="pricing-hint">Checkout separado — taxa somada ao valor base.</p>
+            </div>
+            <p class="pricing-preview">
+              Base: <strong>{{ formatCurrency(pricingConfig.englishPriceBRL) }}</strong>
+            </p>
+            <div class="pricing-readonly-value pricing-readonly-value--kiwify" aria-live="polite">
+              Preço final Kiwify: {{ formatCurrency(previewEnglishDisplayPrice(pricingConfig.englishPriceBRL)) }}
+            </div>
           </div>
-          <div class="pricing-field">
-            <label for="english-bundle">Inglês no bundle (R$)</label>
-            <input
-              id="english-bundle"
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              class="period-select"
-              [ngModel]="englishBundlePriceText"
-              (input)="onPricingBrlInput('englishBundlePriceBRL', 'englishBundlePriceText', $event)"
-              [disabled]="savingPricingSettings" />
+          <div class="pricing-plan-box">
+            <h3>Inglês no bundle</h3>
+            <div class="pricing-field">
+              <label for="english-bundle">Acréscimo base (R$)</label>
+              <input
+                id="english-bundle"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="period-select"
+                [ngModel]="englishBundlePriceText"
+                (input)="onPricingBrlInput('englishBundlePriceBRL', 'englishBundlePriceText', $event)"
+                [disabled]="savingPricingSettings" />
+              <p class="pricing-hint">Somado ao pacote na mesma cobrança — a taxa entra uma vez no total do pacote+inglês.</p>
+            </div>
+            <p class="pricing-preview">
+              Acréscimo base: <strong>{{ formatCurrency(pricingConfig.englishBundlePriceBRL) }}</strong>
+              · Economia vs avulso: <strong>{{ formatCurrency(englishBundleSavingsAmount()) }}</strong>
+            </p>
+            <div *ngIf="kiwifyBundleProducts.length" class="pricing-bundle-finals">
+              <p class="pricing-bundle-finals__title">Preço final Kiwify (pacote + inglês):</p>
+              <ul class="pricing-bundle-finals__list">
+                <li *ngFor="let item of kiwifyBundleProducts">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ formatCurrency(item.displayPriceBRL) }}</strong>
+                  <span class="pricing-bundle-finals__base">base {{ formatCurrency(item.basePriceBRL) }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="kiwifyProducts.length" class="pricing-kiwify-map">
+          <h3 class="pricing-kiwify-map__title">Produtos Kiwify — preço a cadastrar no painel</h3>
+          <p class="pricing-hint pricing-kiwify-map__hint">
+            Cada linha é um link <code>pay.kiwify.com.br</code>. Cole o código do link em <code>backend/.env</code> e reinicie a API.
+          </p>
+          <div class="pricing-kiwify-map__table-wrap">
+            <table class="pricing-kiwify-map__table">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Variável .env</th>
+                  <th>Base (R$)</th>
+                  <th>Preço final (R$)</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of kiwifyProducts" [class.pricing-kiwify-map__row--missing]="!item.configured">
+                  <td>{{ item.label }}</td>
+                  <td><code>{{ item.envKey }}</code></td>
+                  <td>{{ formatCurrency(item.basePriceBRL) }}</td>
+                  <td><strong>{{ formatCurrency(item.displayPriceBRL) }}</strong></td>
+                  <td>
+                    <span *ngIf="item.configured" class="pricing-kiwify-map__code">{{ item.checkoutCode }}</span>
+                    <span *ngIf="!item.configured" class="pricing-kiwify-map__pending">não configurado</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
         <button mat-raised-button color="primary" (click)="savePricingSettings()" [disabled]="savingPricingSettings">{{ savingPricingSettings ? 'Salvando...' : 'Salvar preços' }}</button>

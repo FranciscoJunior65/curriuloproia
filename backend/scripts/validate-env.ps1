@@ -87,6 +87,16 @@ if ($paymentProvider -eq "kiwify") {
     if ([string]::IsNullOrWhiteSpace($kiwifyCheckoutSingle)) {
         $warnings += "KIWIFY_CHECKOUT_SINGLE vazio — configure links pay.kiwify.com.br para cada plano."
     }
+    foreach ($envKey in @(
+        "KIWIFY_CHECKOUT_ENGLISH",
+        "KIWIFY_CHECKOUT_SINGLE_ENGLISH",
+        "KIWIFY_CHECKOUT_PACK3_ENGLISH",
+        "KIWIFY_CHECKOUT_PACK5_ENGLISH"
+    )) {
+        if ([string]::IsNullOrWhiteSpace((Read-EnvValue $content $envKey))) {
+            $warnings += "$envKey vazio — checkout de currículo em inglês indisponível até configurar."
+        }
+    }
     if ([string]::IsNullOrWhiteSpace($kiwifyWebhookToken)) {
         $warnings += "KIWIFY_WEBHOOK_TOKEN vazio — webhook compra_aprovada será aceito sem validar token."
     }

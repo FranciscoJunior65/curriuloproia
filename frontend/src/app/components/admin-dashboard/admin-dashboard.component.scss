@@ -257,16 +257,128 @@
   }
 }
 
-.pricing-english-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.25rem;
-  max-width: 560px;
+.pricing-plans-grid--english {
+  margin-top: 0.25rem;
+}
 
-  .period-select {
+.pricing-preview--english {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  color: #0369a1;
+
+  strong {
+    color: #0c4a6e;
+  }
+}
+
+.pricing-readonly-value--kiwify {
+  margin-top: 0.5rem;
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+  font-weight: 700;
+}
+
+.pricing-bundle-finals {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.5rem;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+
+  &__title {
+    margin: 0 0 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #065f46;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    font-size: 0.84rem;
+    color: #064e3b;
+
+    strong {
+      color: #065f46;
+      font-size: 0.95rem;
+    }
+  }
+
+  &__base {
+    font-size: 0.78rem;
+    color: #047857;
+  }
+}
+
+.pricing-kiwify-map {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e8f0;
+
+  &__title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    color: #0f172a;
+  }
+
+  &__hint {
+    margin: 0 0 0.75rem;
+  }
+
+  &__table-wrap {
+    overflow-x: auto;
+  }
+
+  &__table {
     width: 100%;
-    box-sizing: border-box;
-    cursor: text;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+
+    th,
+    td {
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #475569;
+      font-weight: 600;
+      background: #f8fafc;
+    }
+
+    code {
+      font-size: 0.78rem;
+      color: #4338ca;
+    }
+  }
+
+  &__row--missing td {
+    background: #fffbeb;
+  }
+
+  &__code {
+    font-family: ui-monospace, monospace;
+    color: #047857;
+    font-weight: 600;
+  }
+
+  &__pending {
+    color: #b45309;
+    font-weight: 600;
   }
 }
 

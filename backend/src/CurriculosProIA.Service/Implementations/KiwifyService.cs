@@ -61,13 +61,6 @@ public class KiwifyService : IKiwifyService
         var ctx = await _checkout.BuildCheckoutContextAsync(
             planId, userId, couponCode, cpf, includeEnglish, analysisId, cancellationToken);
 
-        // Inglês desativado na Kiwify: cada link pay.kiwify tem preço fixo (sem bundle/sync).
-        if (string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase) || includeEnglish)
-        {
-            throw new InvalidOperationException(
-                "Currículo em inglês temporariamente indisponível na Kiwify. Use os planos single, pack3 ou pack5.");
-        }
-
         if (ctx.FreeCheckout)
         {
             return new CheckoutSessionResult
@@ -487,15 +480,18 @@ public class KiwifyService : IKiwifyService
             var checkoutCodes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
             {
                 ["single"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "single", false),
+                ["single_english"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "single", true),
                 ["pack3"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack3", false),
+                ["pack3_english"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack3", true),
                 ["pack5"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack5", false),
+                ["pack5_english"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "pack5", true),
                 ["english"] = KiwifyConfigHelper.GetCheckoutCode(_configuration, "english", false)
             };
 
             var configuredCount = checkoutCodes.Count(kv => !string.IsNullOrWhiteSpace(kv.Value));
             var message = configuredCount > 0
                 ? $"Conexão com Kiwify OK (OAuth válido). {configuredCount} link(s) de checkout configurado(s)."
-                : "Conexão com Kiwify OK (OAuth válido). Configure KIWIFY_CHECKOUT_SINGLE, PACK3, PACK5 e ENGLISH no .env.";
+                : "Conexão com Kiwify OK (OAuth válido). Configure KIWIFY_CHECKOUT_* (planos, planos+inglês e inglês avulso) no .env.";
 
             return new PaymentProviderTestResult
             {

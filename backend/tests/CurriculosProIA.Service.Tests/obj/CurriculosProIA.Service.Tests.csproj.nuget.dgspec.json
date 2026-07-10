@@ -1,29 +1,36 @@
 {
   "format": 1,
   "restore": {
-    "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj": {}
+    "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj": {}
   },
   "projects": {
-    "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj": {
+    "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj",
+        "projectUniqueName": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj",
         "projectName": "CurriculosProIA.Domain",
-        "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj",
-        "packagesPath": "/Users/juniorbx/.nuget/packages/",
-        "outputPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/obj/",
+        "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj",
+        "packagesPath": "C:\\Users\\junior\\.nuget\\packages\\",
+        "outputPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/Users/juniorbx/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\junior\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
+            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {}
           }
@@ -38,10 +45,11 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "imports": [
             "net461",
@@ -59,34 +67,41 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.202/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj": {
+    "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\CurriculosProIA.Repository.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj",
+        "projectUniqueName": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\CurriculosProIA.Repository.csproj",
         "projectName": "CurriculosProIA.Repository",
-        "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj",
-        "packagesPath": "/Users/juniorbx/.nuget/packages/",
-        "outputPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/obj/",
+        "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\CurriculosProIA.Repository.csproj",
+        "packagesPath": "C:\\Users\\junior\\.nuget\\packages\\",
+        "outputPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/Users/juniorbx/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\junior\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
+            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {
-              "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj": {
-                "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj"
+              "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj": {
+                "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj"
               }
             }
           }
@@ -101,10 +116,11 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "BCrypt.Net-Next": {
@@ -148,37 +164,44 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.202/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj": {
+    "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj",
+        "projectUniqueName": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj",
         "projectName": "CurriculosProIA.Service",
-        "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj",
-        "packagesPath": "/Users/juniorbx/.nuget/packages/",
-        "outputPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/obj/",
+        "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj",
+        "packagesPath": "C:\\Users\\junior\\.nuget\\packages\\",
+        "outputPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/Users/juniorbx/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\junior\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
+            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {
-              "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj": {
-                "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Domain/CurriculosProIA.Domain.csproj"
+              "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj": {
+                "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Domain\\CurriculosProIA.Domain.csproj"
               },
-              "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj": {
-                "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Repository/CurriculosProIA.Repository.csproj"
+              "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\CurriculosProIA.Repository.csproj": {
+                "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Repository\\CurriculosProIA.Repository.csproj"
               }
             }
           }
@@ -193,10 +216,11 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "DocumentFormat.OpenXml": {
@@ -263,34 +287,41 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.202/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj": {
+    "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj",
+        "projectUniqueName": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj",
         "projectName": "CurriculosProIA.Service.Tests",
-        "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj",
-        "packagesPath": "/Users/juniorbx/.nuget/packages/",
-        "outputPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/tests/CurriculosProIA.Service.Tests/obj/",
+        "projectPath": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj",
+        "packagesPath": "C:\\Users\\junior\\.nuget\\packages\\",
+        "outputPath": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/Users/juniorbx/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\junior\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj": {
-                "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj"
+              "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj": {
+                "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj"
               }
             }
           }
@@ -305,10 +336,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "Microsoft.NET.Test.Sdk": {
@@ -344,7 +376,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.202/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

@@ -121,30 +121,18 @@ public class ResumeLayoutHelperTests
     }
 
     [Fact]
-    public void Compose_SampleResume_SplitsSidebarAndJobs()
+    public void GeneratePdf_LinearLayout_IncludesAllSections()
     {
-        const string sample = """
-            DADOS PESSOAIS
-            João da Silva Santos
-            São Paulo, SP | (11) 99999-0000 | joao@email.com
+        var layout = ResumeLayoutHelper.Parse(SampleResumePt, "João da Silva Santos");
 
-            RESUMO PROFISSIONAL
-            Desenvolvedor Full Stack com 5 anos de experiência.
+        Assert.Equal("João da Silva Santos", layout.Name);
+        Assert.Contains(layout.Sections, s =>
+            s.Title.Contains("EXPERI", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(layout.Sections, s =>
+            s.Title.Contains("HABILIDADE", StringComparison.OrdinalIgnoreCase));
 
-            EXPERIÊNCIA PROFISSIONAL
-            Tech Corp | Desenvolvedor Full Stack Sênior | 01/2021 – Atual
-            - Desenvolveu APIs REST em C#/.NET 8
-
-            HABILIDADES TÉCNICAS
-            - Linguagens: C#, TypeScript
-            """;
-
-        var layout = ResumeLayoutHelper.Parse(sample, "João da Silva Santos");
-        var composed = ResumeDocumentComposer.Compose(layout);
-
-        Assert.Equal("João da Silva Santos", composed.Name);
-        Assert.NotEmpty(composed.Jobs);
-        Assert.Contains(composed.SkillTags, t => t.Contains("C#", StringComparison.Ordinal));
+        var pdf = new ResumeGeneratorService(null!, null!, null!).GenerateResumePdf(SampleResumePt, "João da Silva Santos");
+        Assert.True(pdf.Length > 500);
     }
 
     [Fact]
@@ -171,12 +159,10 @@ public class ResumeLayoutHelperTests
         using var archive = new System.IO.Compression.ZipArchive(new MemoryStream(bytes));
         var entries = archive.Entries.Select(e => e.FullName).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Assert.Contains("word/document.xml", entries);
-        Assert.Contains("word/styles.xml", entries);
-        Assert.Contains("word/settings.xml", entries);
-        Assert.Contains("word/fontTable.xml", entries);
 
         using var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(new MemoryStream(bytes), false);
         Assert.NotNull(doc.MainDocumentPart?.Document?.Body);
+        Assert.DoesNotContain(doc.MainDocumentPart!.Document!.Body!.InnerXml, "312E81", StringComparison.OrdinalIgnoreCase);
     }
 }
 

@@ -237,14 +237,17 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
 
   englishBundleSavingsText(): string {
     return this.pricingPlansService.englishBundleSavings(
-      this.englishStandaloneDisplayPriceBRL,
-      this.englishBundleDisplayPriceBRL
+      this.englishStandalonePriceBRL,
+      this.englishBundlePriceBRL
     );
   }
 
-  /** Inglês desativado na Kiwify: checkout com preço fixo por link (sem bundle por enquanto). */
+  planDisplayPriceWithEnglish(plan: PublicPlan): number {
+    return Math.round((this.planDisplayPrice(plan) + this.englishBundlePriceBRL) * 100) / 100;
+  }
+
   isEnglishPurchaseEnabled(): boolean {
-    return this.paymentProvider !== 'kiwify';
+    return true;
   }
 
   hasEnglishPaid(): boolean {
@@ -1097,14 +1100,8 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
             this.paymentProvider = this.normalizePaymentProvider(providerRes.provider);
           }
 
-          if (plan.id === 'english' && !this.isEnglishPurchaseEnabled()) {
-            throw new Error('Compra de currículo em inglês indisponível com Kiwify no momento.');
-          }
-
           const includeEnglish =
-            this.isEnglishPurchaseEnabled() &&
-            plan.id !== 'english' &&
-            !!this.includeEnglishResume[plan.id];
+            plan.id !== 'english' && !!this.includeEnglishResume[plan.id];
 
           console.log(`💳 Iniciando pagamento via ${this.paymentProviderLabel}...`, {
             planId: plan.id,
@@ -1433,10 +1430,6 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   purchaseEnglishForAnalysis(): void {
-    if (!this.isEnglishPurchaseEnabled()) {
-      this.error = 'Compra de currículo em inglês indisponível com Kiwify no momento.';
-      return;
-    }
     if (!this.result?.analysisId) {
       this.error = 'É necessário ter uma análise salva para comprar o currículo em inglês.';
       return;

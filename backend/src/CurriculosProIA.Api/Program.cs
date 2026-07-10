@@ -39,6 +39,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var allowedOrigins = new List<string>
 {
     "http://localhost:4200",
+    "http://localhost:4300",
     "http://127.0.0.1:4200",
     "http://localhost:58438",
     "https://curriculoproia.com.br",
@@ -48,12 +49,29 @@ var allowedOrigins = new List<string>
     "https://curriculosproia.getpushtecnologia.com.br",
     "https://www.curriculosproia.getpushtecnologia.com.br"
 };
-var frontendUrl = builder.Configuration["FRONTEND_URL"]?.TrimEnd('/');
-if (!string.IsNullOrEmpty(frontendUrl) && !allowedOrigins.Contains(frontendUrl))
-    allowedOrigins.Add(frontendUrl);
-var landingPageUrl = builder.Configuration["LANDING_PAGE_URL"]?.TrimEnd('/');
-if (!string.IsNullOrEmpty(landingPageUrl) && !allowedOrigins.Contains(landingPageUrl))
-    allowedOrigins.Add(landingPageUrl);
+
+static void AddOriginIfMissing(List<string> origins, string? url)
+{
+    var normalized = url?.Trim().TrimEnd('/');
+    if (string.IsNullOrEmpty(normalized))
+    {
+        return;
+    }
+
+    if (!origins.Any(o => string.Equals(o.TrimEnd('/'), normalized, StringComparison.OrdinalIgnoreCase)))
+    {
+        origins.Add(normalized);
+    }
+}
+
+AddOriginIfMissing(allowedOrigins, builder.Configuration["FRONTEND_URL"]);
+AddOriginIfMissing(allowedOrigins, builder.Configuration["LANDING_PAGE_URL"]);
+
+foreach (var extra in (builder.Configuration["CORS_ALLOWED_ORIGINS"] ?? string.Empty)
+             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+{
+    AddOriginIfMissing(allowedOrigins, extra);
+}
 
 static bool IsAllowedCorsOrigin(string? origin, IReadOnlyList<string> origins)
 {
@@ -73,6 +91,26 @@ static bool IsAllowedCorsOrigin(string? origin, IReadOnlyList<string> origins)
                @"^https://([a-z0-9-]+\.)*getpushtecnologia\.com\.br$",
                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 }
+
+static void ApplyCorsResponseHeaders(HttpContext context, string? origin, IReadOnlyList<string> origins)
+{
+    if (string.IsNullOrWhiteSpace(origin) || !IsAllowedCorsOrigin(origin, origins))
+    {
+        return;
+    }
+
+    if (context.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
+    {
+        return;
+    }
+
+    var normalizedOrigin = origin.TrimEnd('/');
+    context.Response.Headers["Access-Control-Allow-Origin"] = normalizedOrigin;
+    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+    context.Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition";
+}
+
+Console.WriteLine($"[CORS] Origens explícitas: {string.Join(", ", allowedOrigins)}");
 
 builder.Services.AddCors(options =>
 {
@@ -158,8 +196,52 @@ var enableSwagger = app.Environment.IsDevelopment()
     || string.Equals(app.Configuration["ENABLE_SWAGGER"], "1", StringComparison.OrdinalIgnoreCase);
 
 app.UseForwardedHeaders();
+
+// IIS/Plesk: responde OPTIONS e garante headers CORS mesmo quando a API retorna erro (500).
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers.Origin.FirstOrDefault();
+
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        if (IsAllowedCorsOrigin(origin, allowedOrigins))
+        {
+            ApplyCorsResponseHeaders(context, origin, allowedOrigins);
+            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+            var requestedHeaders = context.Request.Headers["Access-Control-Request-Headers"].ToString();
+            context.Response.Headers["Access-Control-Allow-Headers"] = string.IsNullOrWhiteSpace(requestedHeaders)
+                ? "Authorization, Content-Type, Accept, X-Requested-With"
+                : requestedHeaders;
+            context.Response.Headers["Access-Control-Max-Age"] = "7200";
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+    }
+
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        ApplyCorsResponseHeaders(context, origin, allowedOrigins);
+    }
+});
+
 app.UseRouting();
 app.UseCors();
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/analyze/payment/webhook", StringComparison.OrdinalIgnoreCase)
+        || context.Request.Path.StartsWithSegments("/api/analyze/payment/mercadopago/webhook", StringComparison.OrdinalIgnoreCase))
+        context.Request.EnableBuffering();
+
+    await next();
+});
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (enableSwagger)
 {
@@ -175,17 +257,6 @@ app.MapGet("/", () => enableSwagger
     ? Results.Redirect("/swagger")
     : Results.Json(new { status = "ok", docs = "/api/health" }));
 
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/api/analyze/payment/webhook", StringComparison.OrdinalIgnoreCase)
-        || context.Request.Path.StartsWithSegments("/api/analyze/payment/mercadopago/webhook", StringComparison.OrdinalIgnoreCase))
-        context.Request.EnableBuffering();
-
-    await next();
-});
-
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 app.MapHub<PaymentHub>("/hubs/payment");
 

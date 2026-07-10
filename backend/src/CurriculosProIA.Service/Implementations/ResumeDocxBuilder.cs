@@ -5,338 +5,141 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CurriculosProIA.Service.Implementations;
 
-/// <summary>Word com layout sidebar + conteúdo principal (alinhado ao PDF).</summary>
+/// <summary>Word com o mesmo layout linear do PDF (uma coluna, ATS-friendly).</summary>
 public static class ResumeDocxBuilder
 {
-    private const string SidebarBg = "312E81";
-    private const string SidebarTitle = "A5B4FC";
-    private const string SidebarText = "E2E8F0";
-    private const string SidebarMuted = "C7D2FE";
-    private const string Accent = "6366F1";
-    private const string Ink = "1E293B";
-    private const string InkMuted = "64748B";
-    private const string Body = "475569";
+    private const string ColorName = "1565C0";
+    private const string ColorContact = "616161";
+    private const string ColorBody = "424242";
+    private const string ColorSectionText = "1976D2";
+    private const string ColorBullet = "1E88E5";
+    private const string ColorSectionBg = "E3F2FD";
+    private const string ColorSectionBorder = "90CAF9";
     private const string FontFamily = "Arial";
 
     public static byte[] BuildFromText(string resumeText, string? candidateName = null)
     {
         var layout = ResumeLayoutHelper.Parse(resumeText, candidateName);
-        var doc = ResumeDocumentComposer.Compose(layout);
 
         using var stream = new MemoryStream();
-        using (var wordDoc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, true))
         {
-            var mainPart = wordDoc.AddMainDocumentPart();
-            EnsureWordprocessingDefaults(mainPart);
+            var mainPart = doc.AddMainDocumentPart();
+            mainPart.Document = new Document(new Body());
+            var body = mainPart.Document.Body!;
 
-            mainPart.Document ??= new Document();
-            var body = mainPart.Document.Body ?? mainPart.Document.AppendChild(new Body());
-            body.RemoveAllChildren();
+            AppendName(body, layout.Name);
+            if (!string.IsNullOrWhiteSpace(layout.Contact))
+            {
+                AppendContact(body, layout.Contact);
+            }
 
-            var table = new Table();
-            table.AppendChild(new TableProperties(
-                new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
-                new TableLayout { Type = TableLayoutValues.Fixed },
-                new TableBorders(
-                    new TopBorder { Val = BorderValues.None },
-                    new LeftBorder { Val = BorderValues.None },
-                    new RightBorder { Val = BorderValues.None },
-                    new BottomBorder { Val = BorderValues.None },
-                    new InsideHorizontalBorder { Val = BorderValues.None },
-                    new InsideVerticalBorder { Val = BorderValues.None })));
+            AppendHorizontalRule(body);
 
-            var grid = new TableGrid();
-            grid.Append(new GridColumn { Width = "3200" });
-            grid.Append(new GridColumn { Width = "6800" });
-            table.AppendChild(grid);
-
-            var row = new TableRow(new TableRowProperties(new CantSplit()));
-            row.Append(CreateSidebarCell(doc));
-            row.Append(CreateMainCell(doc));
-            table.Append(row);
-            body.Append(table);
-
-            body.Append(new SectionProperties(
-                new PageSize { Width = 11906U, Height = 16838U },
-                new PageMargin
+            foreach (var section in layout.Sections)
+            {
+                if (!string.IsNullOrWhiteSpace(section.Title))
                 {
-                    Top = 360,
-                    Right = 360,
-                    Bottom = 360,
-                    Left = 360,
-                    Header = 0U,
-                    Footer = 0U,
-                    Gutter = 0U
-                }));
+                    AppendSectionHeader(body, section.Title);
+                }
+
+                foreach (var line in section.Lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    if (ResumeLayoutHelper.IsBulletLine(line))
+                    {
+                        AppendBulletLine(body, ResumeLayoutHelper.StripBulletPrefix(line));
+                    }
+                    else
+                    {
+                        AppendBodyLine(body, line);
+                    }
+                }
+            }
 
             mainPart.Document.Save();
-            wordDoc.Save();
         }
 
-        stream.Position = 0;
         return stream.ToArray();
     }
 
-    private static void EnsureWordprocessingDefaults(MainDocumentPart mainPart)
+    private static void AppendName(Body body, string name)
     {
-        if (mainPart.StyleDefinitionsPart == null)
-        {
-            var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
-            stylesPart.Styles = CreateDefaultStyles();
-        }
+        var paragraph = new Paragraph(
+            new ParagraphProperties(new SpacingBetweenLines { After = "60" }),
+            CreateRun(name, 42, bold: true, color: ColorName));
+        body.Append(paragraph);
+    }
 
-        if (mainPart.DocumentSettingsPart == null)
-        {
-            var settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
-            settingsPart.Settings = new Settings(
-                new Compatibility(
-                    new CompatibilitySetting
+    private static void AppendContact(Body body, string contact)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(new SpacingBetweenLines { After = "120" }),
+            CreateRun(contact, 19, color: ColorContact));
+        body.Append(paragraph);
+    }
+
+    private static void AppendHorizontalRule(Body body)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new ParagraphBorders(
+                    new BottomBorder
                     {
-                        Name = new EnumValue<CompatSettingNameValues>(CompatSettingNameValues.CompatibilityMode),
-                        Uri = "http://schemas.microsoft.com/office/word",
-                        Val = "15"
-                    }));
-        }
-
-        if (mainPart.FontTablePart == null)
-        {
-            var fontPart = mainPart.AddNewPart<FontTablePart>();
-            fontPart.Fonts = CreateFontTable();
-        }
+                        Val = BorderValues.Single,
+                        Size = 6,
+                        Color = ColorSectionBorder,
+                        Space = 1
+                    }),
+                new SpacingBetweenLines { Before = "120", After = "120" }));
+        body.Append(paragraph);
     }
 
-    private static Styles CreateDefaultStyles()
+    private static void AppendSectionHeader(Body body, string title)
     {
-        var styles = new Styles();
-
-        styles.Append(new DocDefaults(
-            new RunPropertiesDefault(
-                new RunPropertiesBaseStyle(
-                    new RunFonts { Ascii = FontFamily, HighAnsi = FontFamily },
-                    new FontSize { Val = "22" },
-                    new Languages { Val = "pt-BR", EastAsia = "pt-BR", Bidi = "ar-SA" })),
-            new ParagraphPropertiesDefault(
-                new ParagraphPropertiesBaseStyle(
-                    new SpacingBetweenLines { After = "0", Line = "276", LineRule = LineSpacingRuleValues.Auto }))));
-
-        styles.Append(new Style(
-            new StyleName { Val = "Normal" },
-            new PrimaryStyle(),
-            new StyleRunProperties(
-                new RunFonts { Ascii = FontFamily, HighAnsi = FontFamily },
-                new FontSize { Val = "22" }))
-        {
-            Type = StyleValues.Paragraph,
-            StyleId = "Normal",
-            Default = true
-        });
-
-        return styles;
-    }
-
-    private static Fonts CreateFontTable() =>
-        new(
-            new Font(
-                new Name { Val = FontFamily },
-                new Panose1Number { Val = "020B0604030504040204" },
-                new FontCharSet { Val = "00" },
-                new FontFamily { Val = FontFamilyValues.Swiss },
-                new Pitch { Val = FontPitchValues.Variable }),
-            new Font(
-                new Name { Val = "Calibri" },
-                new Panose1Number { Val = "020F0502020204030204" },
-                new FontCharSet { Val = "00" },
-                new FontFamily { Val = FontFamilyValues.Swiss },
-                new Pitch { Val = FontPitchValues.Variable }));
-
-    private static TableCell CreateSidebarCell(ComposedResumeDocument doc)
-    {
-        var cell = new TableCell();
-        cell.AppendChild(new TableCellProperties(
-            new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = "3200" },
-            new Shading { Val = ShadingPatternValues.Clear, Fill = SidebarBg, Color = "auto" },
-            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top },
-            new TableCellMargin(
-                new TopMargin { Width = "280", Type = TableWidthUnitValues.Dxa },
-                new BottomMargin { Width = "280", Type = TableWidthUnitValues.Dxa },
-                new LeftMargin { Width = "220", Type = TableWidthUnitValues.Dxa },
-                new RightMargin { Width = "180", Type = TableWidthUnitValues.Dxa })));
-
-        AppendSidebarParagraph(cell, doc.Name, 36, bold: true, color: "FFFFFF", after: "80");
-        if (!string.IsNullOrWhiteSpace(doc.TargetRole))
-        {
-            AppendSidebarParagraph(cell, doc.TargetRole, 14, color: SidebarMuted, after: "120");
-        }
-
-        AppendSidebarRule(cell);
-
-        if (doc.ContactItems.Count > 0)
-        {
-            AppendSidebarHeading(cell, "CONTATO");
-            foreach (var item in doc.ContactItems)
-            {
-                AppendSidebarParagraph(cell, item, 16, color: SidebarText, after: "40");
-            }
-        }
-
-        if (doc.SkillTags.Count > 0)
-        {
-            AppendSidebarHeading(cell, "HABILIDADES");
-            AppendSidebarParagraph(cell, string.Join("  ·  ", doc.SkillTags), 15, color: SidebarText, after: "80");
-        }
-
-        foreach (var section in doc.SidebarSections.Where(s =>
-            !s.Title.Contains("HABILIDADE", StringComparison.OrdinalIgnoreCase) &&
-            !s.Title.Contains("SKILL", StringComparison.OrdinalIgnoreCase) &&
-            !s.Title.Contains("COMPET", StringComparison.OrdinalIgnoreCase)))
-        {
-            AppendSidebarHeading(cell, section.Title.ToUpperInvariant());
-            foreach (var line in section.Lines)
-            {
-                var text = ResumeLayoutHelper.IsBulletLine(line)
-                    ? ResumeLayoutHelper.StripBulletPrefix(line)
-                    : line;
-                AppendSidebarParagraph(cell, text, 16, color: SidebarText, after: "40");
-            }
-        }
-
-        return cell;
-    }
-
-    private static TableCell CreateMainCell(ComposedResumeDocument doc)
-    {
-        var cell = new TableCell();
-        cell.AppendChild(new TableCellProperties(
-            new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = "6800" },
-            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top },
-            new TableCellMargin(
-                new TopMargin { Width = "260", Type = TableWidthUnitValues.Dxa },
-                new BottomMargin { Width = "260", Type = TableWidthUnitValues.Dxa },
-                new LeftMargin { Width = "280", Type = TableWidthUnitValues.Dxa },
-                new RightMargin { Width = "240", Type = TableWidthUnitValues.Dxa })));
-
-        foreach (var section in doc.MainSections)
-        {
-            if (IsExperienceSectionTitle(section.Title) && doc.Jobs.Count > 0)
-            {
-                continue;
-            }
-
-            AppendMainHeading(cell, section.Title);
-            foreach (var line in section.Lines)
-            {
-                AppendMainBody(cell, line, after: "50");
-            }
-        }
-
-        if (doc.Jobs.Count > 0)
-        {
-            AppendMainHeading(cell, "EXPERIÊNCIA");
-            foreach (var job in doc.Jobs)
-            {
-                AppendJobHeader(cell, job);
-                foreach (var bullet in job.Bullets)
-                {
-                    AppendMainBullet(cell, bullet);
-                }
-
-                AppendMainSpacer(cell, "60");
-            }
-        }
-
-        return cell;
-    }
-
-    private static void AppendSidebarRule(TableCell cell)
-    {
-        cell.Append(new Paragraph(
+        var paragraph = new Paragraph(
             new ParagraphProperties(
-                new ParagraphBorders(new BottomBorder
+                new Shading
                 {
-                    Val = BorderValues.Single,
-                    Size = 4,
-                    Color = "4F46E5",
-                    Space = 1
-                }),
-                new SpacingBetweenLines { Before = "60", After = "120" })));
+                    Val = ShadingPatternValues.Clear,
+                    Color = "auto",
+                    Fill = ColorSectionBg
+                },
+                new ParagraphBorders(
+                    new TopBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new LeftBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new RightBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder },
+                    new BottomBorder { Val = BorderValues.Single, Size = 4, Color = ColorSectionBorder }),
+                new Indentation { Left = "80", Right = "80" },
+                new SpacingBetweenLines { Before = "140", After = "80" }),
+            CreateRun(title.ToUpperInvariant(), 20, bold: true, color: ColorSectionText));
+
+        body.Append(paragraph);
     }
 
-    private static void AppendSidebarHeading(TableCell cell, string text)
+    private static void AppendBodyLine(Body body, string text)
     {
-        AppendSidebarParagraph(cell, text, 14, bold: true, color: SidebarTitle, after: "60", caps: true);
-    }
-
-    private static void AppendSidebarParagraph(
-        TableCell cell,
-        string text,
-        int halfPoints,
-        bool bold = false,
-        string color = SidebarText,
-        string after = "40",
-        bool caps = false)
-    {
-        var props = new ParagraphProperties(new SpacingBetweenLines { After = after });
-        var run = CreateRun(text, halfPoints, bold, color);
-        if (caps)
-        {
-            run.RunProperties ??= new RunProperties();
-            run.RunProperties.Append(new Caps());
-        }
-
-        cell.Append(new Paragraph(props, run));
-    }
-
-    private static void AppendMainHeading(TableCell cell, string title)
-    {
-        cell.Append(new Paragraph(
-            new ParagraphProperties(new SpacingBetweenLines { Before = "80", After = "60" }),
-            CreateRun(title.ToUpperInvariant(), 15, bold: true, color: Accent)));
-    }
-
-    private static void AppendMainBody(TableCell cell, string text, string after = "40")
-    {
-        cell.Append(new Paragraph(
-            new ParagraphProperties(new SpacingBetweenLines { After = after, Line = "276", LineRule = LineSpacingRuleValues.Auto }),
-            CreateRun(text, 19, color: Body)));
-    }
-
-    private static void AppendJobHeader(TableCell cell, ComposedJob job)
-    {
-        var title = new List<string>();
-        if (!string.IsNullOrWhiteSpace(job.Title))
-        {
-            title.Add(job.Title);
-        }
-
-        if (!string.IsNullOrWhiteSpace(job.Company))
-        {
-            title.Add(job.Company);
-        }
-
-        var header = string.Join(" — ", title);
-        if (!string.IsNullOrWhiteSpace(job.Period))
-        {
-            header = string.IsNullOrWhiteSpace(header) ? job.Period : $"{header}    {job.Period}";
-        }
-
-        cell.Append(new Paragraph(
-            new ParagraphProperties(new SpacingBetweenLines { Before = "80", After = "30", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
-            CreateRun(header, 20, bold: true, color: Ink)));
-    }
-
-    private static void AppendMainBullet(TableCell cell, string text)
-    {
-        cell.Append(new Paragraph(
+        var paragraph = new Paragraph(
             new ParagraphProperties(
-                new Indentation { Left = "320", Hanging = "200" },
-                new SpacingBetweenLines { After = "30", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
-            CreateRun("•", 20, color: Accent),
-            CreateRun(" " + SanitizeXmlText(text), 19, color: Body)));
+                new SpacingBetweenLines { After = "40", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
+            CreateRun(text, 21, color: ColorBody));
+        body.Append(paragraph);
     }
 
-    private static void AppendMainSpacer(TableCell cell, string after)
+    private static void AppendBulletLine(Body body, string text)
     {
-        cell.Append(new Paragraph(new ParagraphProperties(new SpacingBetweenLines { After = after })));
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Indentation { Left = "360", Hanging = "180" },
+                new SpacingBetweenLines { After = "40", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
+            CreateRun("•", 22, color: ColorBullet),
+            CreateRun(" " + SanitizeXmlText(text), 21, color: ColorBody));
+
+        body.Append(paragraph);
     }
 
     private static Run CreateRun(string text, int halfPoints, bool bold = false, string? color = null)
@@ -380,12 +183,5 @@ public static class ResumeDocxBuilder
         }
 
         return sb.ToString();
-    }
-
-    private static bool IsExperienceSectionTitle(string title)
-    {
-        var upper = title.ToUpperInvariant();
-        return upper.Contains("EXPERI", StringComparison.Ordinal) ||
-               upper.Contains("EXPERIENCE", StringComparison.Ordinal);
     }
 }

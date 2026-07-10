@@ -10,6 +10,7 @@ using CurriculosProIA.Domain.Signatures.Analyze;
 using CurriculosProIA.Domain.Signatures.Admin;
 using CurriculosProIA.Domain.Signatures.Purchase;
 using CurriculosProIA.App.Helpers;
+using CurriculosProIA.Service.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -192,7 +193,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                 singlePriceBRL = config.SinglePriceBRL,
                 pack3PriceBRL = config.Pack3PriceBRL,
                 pack5PriceBRL = config.Pack5PriceBRL
-            }
+            },
+            kiwifyProducts = BuildKiwifyProductMap(config)
         });
     }
 
@@ -235,7 +237,8 @@ public class AdminAppService : AppControllerBase, IAdminAppService
                     singlePriceBRL = saved.SinglePriceBRL,
                     pack3PriceBRL = saved.Pack3PriceBRL,
                     pack5PriceBRL = saved.Pack5PriceBRL
-                }
+                },
+                kiwifyProducts = BuildKiwifyProductMap(saved)
             });
         }
         catch (Exception ex)
@@ -1150,6 +1153,49 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         }
 
         return JsonSerializer.Deserialize<KiwifyWebhookSignature>(rawBody, options);
+    }
+
+    private IReadOnlyList<object> BuildKiwifyProductMap(PricingConfigDto config)
+    {
+        return
+        [
+            BuildKiwifyProductRow("Análise única", "single", false, config.SinglePriceBRL, config),
+            BuildKiwifyProductRow("Análise única + Inglês", "single", true, config.SinglePriceBRL + config.EnglishBundlePriceBRL, config),
+            BuildKiwifyProductRow("Pacote 3", "pack3", false, config.Pack3PriceBRL, config),
+            BuildKiwifyProductRow("Pacote 3 + Inglês", "pack3", true, config.Pack3PriceBRL + config.EnglishBundlePriceBRL, config),
+            BuildKiwifyProductRow("Pacote 5", "pack5", false, config.Pack5PriceBRL, config),
+            BuildKiwifyProductRow("Pacote 5 + Inglês", "pack5", true, config.Pack5PriceBRL + config.EnglishBundlePriceBRL, config),
+            BuildKiwifyProductRow("Currículo em Inglês (avulso)", "english", false, config.EnglishPriceBRL, config)
+        ];
+    }
+
+    private object BuildKiwifyProductRow(
+        string label,
+        string planId,
+        bool includeEnglish,
+        decimal basePriceBRL,
+        PricingConfigDto config)
+    {
+        var envKey = string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase)
+            ? "KIWIFY_CHECKOUT_ENGLISH"
+            : includeEnglish
+                ? $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH"
+                : $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";
+
+        var checkoutCode = KiwifyConfigHelper.GetCheckoutCode(_configuration, planId, includeEnglish);
+
+        return new
+        {
+            label,
+            envKey,
+            planId,
+            includeEnglish,
+            basePriceBRL = Math.Round(basePriceBRL, 2),
+            displayPriceBRL = config.GetDisplayPrice(basePriceBRL),
+            transactionFeeBRL = config.TransactionFeeBRL,
+            checkoutCode,
+            configured = !string.IsNullOrWhiteSpace(checkoutCode)
+        };
     }
 
     private sealed class KiwifyExternalReferenceLite

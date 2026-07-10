@@ -29,11 +29,7 @@ public static class KiwifyConfigHelper
         if (includeEnglish)
         {
             var bundleKey = $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH";
-            var bundle = configuration[bundleKey]?.Trim();
-            if (!string.IsNullOrWhiteSpace(bundle))
-            {
-                return bundle;
-            }
+            return configuration[bundleKey]?.Trim();
         }
 
         var planKey = $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";

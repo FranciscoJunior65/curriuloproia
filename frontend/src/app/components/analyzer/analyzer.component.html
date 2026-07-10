@@ -360,7 +360,7 @@
               </li>
             </ul>
 
-            <!-- Opção de Currículo em Inglês (desativada na Kiwify — preço fixo por link) -->
+            <!-- Opção de Currículo em Inglês -->
             <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled()" class="mb-4">
               <label class="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
                 <input
@@ -373,7 +373,7 @@
                 <div class="flex-1">
                   <span class="text-sm font-medium text-gray-700">Adicionar Currículo em Inglês</span>
                   <p class="text-xs text-gray-500">
-                    + R$ {{ englishBundleDisplayPriceBRL.toFixed(2).replace('.', ',') }}
+                    + R$ {{ englishBundlePriceBRL.toFixed(2).replace('.', ',') }}
                     <span *ngIf="englishBundleSavingsText()">(economia de R$ {{ englishBundleSavingsText() }})</span>
                     · PDF e Word inclusos nesta análise
                   </p>
@@ -423,12 +423,12 @@
               </span>
             </button>
             
-            <!-- Total com inglês (desativado na Kiwify) -->
+            <!-- Total com inglês -->
             <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled() && includeEnglishResume[plan.id]" class="mt-2 text-center">
               <p class="text-xs text-gray-600">
                 Total:
                 <span class="font-semibold text-indigo-600">
-                  R$ {{ formatPriceParts(planDisplayPrice(plan) + englishBundleDisplayPriceBRL).reais }},{{ formatPriceParts(planDisplayPrice(plan) + englishBundleDisplayPriceBRL).cents }}
+                  R$ {{ formatPriceParts(planDisplayPriceWithEnglish(plan)).reais }},{{ formatPriceParts(planDisplayPriceWithEnglish(plan)).cents }}
                 </span>
               </p>
             </div>
@@ -897,7 +897,7 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Currículo em inglês (compra desativada na Kiwify; download mantido se já pago) -->
+        <!-- Currículo em inglês -->
         <mat-card *ngIf="result.analysisId && (isEnglishPurchaseEnabled() || hasEnglishPaid())" class="shadow-2xl bg-gradient-to-r from-slate-700 via-blue-800 to-indigo-800 text-white">
           <mat-card-content class="p-8">
             <div class="text-center mb-6">
