@@ -1,0 +1,105 @@
+.cookie-banner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10000;
+  padding: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
+.cookie-banner__panel {
+  pointer-events: auto;
+  max-width: 56rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(180deg, #121212 0%, #0a0a0a 100%);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 0.75rem;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 768px) {
+  .cookie-banner__panel {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 1.5rem;
+  }
+}
+
+.cookie-banner__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.cookie-banner__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fafafa;
+}
+
+.cookie-banner__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: #a3a3a3;
+}
+
+.cookie-banner__links {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #737373;
+}
+
+.cookie-banner__link {
+  color: #e6b85c;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cookie-banner__link:hover {
+  color: #f5d78e;
+}
+
+.cookie-banner__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cookie-banner__btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.cookie-banner__btn--ghost {
+  background: transparent;
+  color: #d4d4d4;
+  border: 1px solid #404040;
+}
+
+.cookie-banner__btn--ghost:hover {
+  border-color: #737373;
+  color: #fff;
+}
+
+.cookie-banner__btn--primary {
+  background: linear-gradient(135deg, #e6b85c 0%, #c9a227 100%);
+  color: #0a0a0a;
+}
+
+.cookie-banner__btn--primary:hover {
+  filter: brightness(1.05);
+}

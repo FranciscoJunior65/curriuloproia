@@ -8,18 +8,27 @@ import { CpfEnforcementService } from './services/cpf-enforcement.service';
 import { PaymentRealtimeService } from './services/payment-realtime.service';
 import { PaymentPopupBridgeService } from './services/payment-popup-bridge.service';
 import { CreditsHighlightService } from './services/credits-highlight.service';
+import { CookieConsentService } from './services/cookie-consent.service';
+import { MetaPixelService } from './services/meta-pixel.service';
+import { CookieConsentBannerComponent } from './components/cookie-consent-banner/cookie-consent-banner.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
-  template: '<router-outlet></router-outlet>'
+  imports: [RouterOutlet, CookieConsentBannerComponent],
+  template: `
+    <router-outlet></router-outlet>
+    <app-cookie-consent-banner></app-cookie-consent-banner>
+  `
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'CurriculosPro IA';
   private authSub: Subscription | null = null;
   private paymentSub: Subscription | null = null;
   private creditsPollSub: Subscription | null = null;
+  private consentSub: Subscription | null = null;
+  private routerSub: Subscription | null = null;
+  private pixelReady = false;
 
   constructor(
     private authService: AuthService,
@@ -28,7 +37,9 @@ export class AppComponent implements OnInit, OnDestroy {
     private paymentRealtime: PaymentRealtimeService,
     private router: Router,
     private paymentPopupBridge: PaymentPopupBridgeService,
-    private creditsHighlight: CreditsHighlightService
+    private creditsHighlight: CreditsHighlightService,
+    private cookieConsent: CookieConsentService,
+    private metaPixel: MetaPixelService
   ) {}
 
   ngOnInit(): void {
@@ -56,11 +67,24 @@ export class AppComponent implements OnInit, OnDestroy {
       this.refreshCreditsFromApi();
     });
 
-    this.router.events
+    this.routerSub = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
         this.promptCpfIfNeeded(event.urlAfterRedirects || event.url);
+        if (this.pixelReady) {
+          this.metaPixel.trackPageView(event.urlAfterRedirects || event.url);
+        }
       });
+
+    this.consentSub = this.cookieConsent.status$.subscribe((status) => {
+      if (status === 'accepted') {
+        this.metaPixel.init();
+        this.pixelReady = true;
+        this.metaPixel.trackPageView(this.router.url);
+      } else {
+        this.pixelReady = false;
+      }
+    });
 
     if (this.authService.isAuthenticated()) {
       this.promptCpfIfNeeded(this.router.url);
@@ -70,6 +94,8 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.authSub?.unsubscribe();
     this.paymentSub?.unsubscribe();
+    this.consentSub?.unsubscribe();
+    this.routerSub?.unsubscribe();
     this.stopCreditsPolling();
     this.paymentRealtime.endSession();
   }

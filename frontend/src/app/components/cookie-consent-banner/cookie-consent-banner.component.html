@@ -1,0 +1,29 @@
+@if (visible) {
+  <aside class="cookie-banner" role="dialog" aria-labelledby="cookie-banner-title" aria-describedby="cookie-banner-desc">
+    <div class="cookie-banner__panel">
+      <div class="cookie-banner__content">
+        <h2 id="cookie-banner-title" class="cookie-banner__title">Cookies e privacidade (LGPD)</h2>
+        <p id="cookie-banner-desc" class="cookie-banner__text">
+          Usamos cookies essenciais para o funcionamento do site e, com o seu consentimento,
+          cookies de medição (Meta Pixel) para entender visitas e melhorar campanhas.
+          Seus dados são tratados conforme a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).
+          Você pode aceitar ou recusar os cookies de medição. Cookies essenciais continuam ativos.
+        </p>
+        <p class="cookie-banner__links">
+          Saiba mais na
+          <a routerLink="/politica-de-privacidade" class="cookie-banner__link">Política de Privacidade</a>
+          e nos
+          <a routerLink="/termos-de-uso" class="cookie-banner__link">Termos de Uso</a>.
+        </p>
+      </div>
+      <div class="cookie-banner__actions">
+        <button type="button" class="cookie-banner__btn cookie-banner__btn--ghost" (click)="reject()">
+          Recusar
+        </button>
+        <button type="button" class="cookie-banner__btn cookie-banner__btn--primary" (click)="accept()">
+          Aceitar cookies
+        </button>
+      </div>
+    </div>
+  </aside>
+}
