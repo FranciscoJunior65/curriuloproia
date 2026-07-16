@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  HostListener,
   OnDestroy,
   ViewChild,
   signal
@@ -129,9 +130,51 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    video.muted = false;
-    video.volume = this.fixedVolume;
+    this.enforceHeroVideoAudio(video);
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
     void video.play().catch(() => undefined);
+  }
+
+  onHeroVideoPause(): void {
+    const video = this.heroVideoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    this.enforceHeroVideoAudio(video);
+    void video.play().catch(() => undefined);
+  }
+
+  onHeroVideoVolumeChange(): void {
+    const video = this.heroVideoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    this.enforceHeroVideoAudio(video);
+  }
+
+  @HostListener('document:pointerdown')
+  onDocumentPointerDown(): void {
+    this.startVideoWithSound();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.visibilityState === 'visible') {
+      this.startVideoWithSound();
+    }
+  }
+
+  private enforceHeroVideoAudio(video: HTMLVideoElement): void {
+    video.muted = false;
+    video.defaultMuted = false;
+    if (video.volume < this.fixedVolume) {
+      video.volume = this.fixedVolume;
+    }
   }
 
   ngOnDestroy(): void {

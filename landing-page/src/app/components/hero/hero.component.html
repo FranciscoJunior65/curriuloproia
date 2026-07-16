@@ -28,7 +28,10 @@
             loop
             playsinline
             preload="metadata"
+            disablePictureInPicture
             aria-label="Demonstração do CurriculosPro IA"
+            (pause)="onHeroVideoPause()"
+            (volumechange)="onHeroVideoVolumeChange()"
           >
             <source src="assets/video/video-venda.mp4" type="video/mp4" />
           </video>

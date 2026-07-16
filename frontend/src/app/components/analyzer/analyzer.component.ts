@@ -87,6 +87,15 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   couponError = '';
   validatingCoupon = false;
   paymentProvider: 'stripe' | 'mercadopago' | 'cakto' | 'kiwify' = 'stripe';
+  kiwifyCheckouts: {
+    single?: boolean;
+    singleEnglish?: boolean;
+    pack3?: boolean;
+    pack3English?: boolean;
+    pack5?: boolean;
+    pack5English?: boolean;
+    english?: boolean;
+  } | null = null;
 
   // Auth
   currentUser: User | null = null;
@@ -247,7 +256,35 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
   }
 
   isEnglishPurchaseEnabled(): boolean {
-    return true;
+    if (this.paymentProvider !== 'kiwify') {
+      return true;
+    }
+
+    return !!this.kiwifyCheckouts?.english;
+  }
+
+  isEnglishBundleEnabledForPlan(planId: string): boolean {
+    if (this.paymentProvider !== 'kiwify') {
+      return true;
+    }
+
+    if (!this.kiwifyCheckouts) {
+      return false;
+    }
+
+    if (planId === 'single') {
+      return !!this.kiwifyCheckouts.singleEnglish;
+    }
+
+    if (planId === 'pack3') {
+      return !!this.kiwifyCheckouts.pack3English;
+    }
+
+    if (planId === 'pack5') {
+      return !!this.kiwifyCheckouts.pack5English;
+    }
+
+    return false;
   }
 
   hasEnglishPaid(): boolean {
@@ -458,9 +495,11 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
         if (res.success && res.provider) {
           this.paymentProvider = this.normalizePaymentProvider(res.provider);
         }
+        this.kiwifyCheckouts = res.kiwifyCheckouts ?? null;
       },
       error: () => {
         this.paymentProvider = 'stripe';
+        this.kiwifyCheckouts = null;
       }
     });
   }
@@ -703,7 +742,9 @@ export class AnalyzerComponent implements OnInit, OnDestroy {
           } else if (action === 'english' || action === 'buy-english') {
             setTimeout(() => {
               this.scrollToResults();
-              if (action === 'english' && this.hasEnglishPaid()) {
+              if (action === 'buy-english' && !this.hasEnglishPaid()) {
+                this.purchaseEnglishForAnalysis();
+              } else if (action === 'english' && this.hasEnglishPaid()) {
                 this.generateEnglishResume('pdf');
               }
             }, 500);

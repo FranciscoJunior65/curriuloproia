@@ -2,6 +2,7 @@ import {
   AfterViewInit,
   Component,
   HostListener,
+  OnDestroy,
   OnInit,
   ViewChild,
   ElementRef
@@ -28,7 +29,7 @@ import { environment } from '../../../environments/environment';
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent implements OnInit, AfterViewInit {
+export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
   isLogin = true;
   nome = '';
   cpf = '';
@@ -85,10 +86,13 @@ export class LoginComponent implements OnInit, AfterViewInit {
   @ViewChild('loginVideo') loginVideoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('loginVideoMedia') loginVideoMediaRef?: ElementRef<HTMLElement>;
   videoPlaying = false;
-  videoExpanded = false;
   wideLayout = false;
   readonly loginVideoSrc = 'assets/videos/video-venda.mp4';
   private static readonly WIDE_LAYOUT_MIN_PX = 768;
+  private static readonly VIDEO_VOLUME = 0.85;
+  private loginVideoObserver?: IntersectionObserver;
+  private loginVideoRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private loginVideoRetryCount = 0;
 
   analysisPlans: PublicPlan[] = [];
   englishPlan: PublicPlan | null = null;
@@ -148,128 +152,56 @@ export class LoginComponent implements OnInit, AfterViewInit {
     });
   }
 
-  toggleLoginVideo(): void {
-    const video = this.loginVideoRef?.nativeElement;
-    if (!video) return;
+  onLoginVideoReady(): void {
+    void this.initLoginVideo();
+  }
 
-    if (video.paused) {
-      video.muted = false;
-      void video.play();
-    } else {
-      video.pause();
+  onLoginVideoPause(): void {
+    const video = this.loginVideoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    this.enforceLoginVideoAudio(video);
+    void video.play().catch(() => undefined);
+  }
+
+  onLoginVideoVolumeChange(): void {
+    const video = this.loginVideoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    this.enforceLoginVideoAudio(video);
+  }
+
+  onLoginVideoError(): void {
+    this.videoPlaying = false;
+    this.scheduleLoginVideoRetry();
+  }
+
+  onLoginVideoStalled(): void {
+    if (!this.videoPlaying) {
+      this.scheduleLoginVideoRetry();
     }
   }
 
-  onLoginVideoReady(): void {
-    if (!this.videoPlaying) {
-      this.initLoginVideo();
+  @HostListener('document:pointerdown')
+  onDocumentPointerDown(): void {
+    void this.initLoginVideo();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.visibilityState === 'visible') {
+      void this.initLoginVideo();
     }
   }
 
   @HostListener('window:resize')
   onWindowResize(): void {
     this.updateWideLayout();
-    setTimeout(() => this.initLoginVideo(), 100);
-  }
-
-  @HostListener('document:fullscreenchange')
-  @HostListener('document:webkitfullscreenchange')
-  onDocumentFullscreenChange(): void {
-    const active = this.isNativeFullscreenActive();
-    if (!active) {
-      this.videoExpanded = false;
-      document.body.style.overflow = '';
-    } else {
-      this.videoExpanded = true;
-    }
-  }
-
-  toggleVideoFullscreen(): void {
-    if (this.videoExpanded || this.isNativeFullscreenActive()) {
-      this.exitVideoFullscreen();
-      return;
-    }
-    this.enterVideoFullscreen();
-  }
-
-  exitVideoFullscreen(): void {
-    const video = this.loginVideoRef?.nativeElement as
-      | (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean })
-      | undefined;
-
-    if (document.fullscreenElement) {
-      void document.exitFullscreen?.();
-    }
-
-    if (video?.webkitDisplayingFullscreen && (video as HTMLVideoElement & { webkitExitFullscreen?: () => void }).webkitExitFullscreen) {
-      (video as HTMLVideoElement & { webkitExitFullscreen: () => void }).webkitExitFullscreen();
-    }
-
-    this.videoExpanded = false;
-    document.body.style.overflow = '';
-  }
-
-  private enterVideoFullscreen(): void {
-    const media = this.loginVideoMediaRef?.nativeElement;
-    const video = this.loginVideoRef?.nativeElement;
-    if (!media || !video) {
-      return;
-    }
-
-    if (!video.paused) {
-      void video.play();
-    }
-
-    const iosVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
-    if (typeof iosVideo.webkitEnterFullscreen === 'function') {
-      try {
-        iosVideo.webkitEnterFullscreen();
-        this.videoExpanded = true;
-        document.body.style.overflow = 'hidden';
-        return;
-      } catch {
-        // fallback abaixo
-      }
-    }
-
-    const mediaEl = media as HTMLElement & {
-      requestFullscreen?: () => Promise<void>;
-      webkitRequestFullscreen?: () => void;
-    };
-
-    if (mediaEl.requestFullscreen) {
-      void mediaEl.requestFullscreen().then(() => {
-        this.videoExpanded = true;
-        document.body.style.overflow = 'hidden';
-      }).catch(() => {
-        this.videoExpanded = true;
-        document.body.style.overflow = 'hidden';
-      });
-      return;
-    }
-
-    if (mediaEl.webkitRequestFullscreen) {
-      mediaEl.webkitRequestFullscreen();
-      this.videoExpanded = true;
-      document.body.style.overflow = 'hidden';
-      return;
-    }
-
-    this.videoExpanded = true;
-    document.body.style.overflow = 'hidden';
-  }
-
-  private isNativeFullscreenActive(): boolean {
-    const media = this.loginVideoMediaRef?.nativeElement;
-    const video = this.loginVideoRef?.nativeElement as
-      | (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean })
-      | undefined;
-
-    return (
-      !!document.fullscreenElement ||
-      document.fullscreenElement === media ||
-      !!video?.webkitDisplayingFullscreen
-    );
+    void this.initLoginVideo();
   }
 
   private updateWideLayout(): void {
@@ -278,27 +210,74 @@ export class LoginComponent implements OnInit, AfterViewInit {
       window.innerWidth >= LoginComponent.WIDE_LAYOUT_MIN_PX;
   }
 
-  private initLoginVideo(): void {
+  private enforceLoginVideoAudio(video: HTMLVideoElement): void {
+    video.muted = false;
+    video.defaultMuted = false;
+    if (video.volume < LoginComponent.VIDEO_VOLUME) {
+      video.volume = LoginComponent.VIDEO_VOLUME;
+    }
+  }
+
+  private async initLoginVideo(): Promise<void> {
     const video = this.loginVideoRef?.nativeElement;
     if (!video) {
       return;
     }
 
-    video.muted = true;
+    this.enforceLoginVideoAudio(video);
     video.playsInline = true;
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
 
-    const playPromise = video.play();
-    if (playPromise) {
-      playPromise
-        .then(() => {
-          this.videoPlaying = !video.paused;
-        })
-        .catch(() => {
-          this.videoPlaying = false;
-        });
+    if (!video.paused && !video.muted) {
+      this.videoPlaying = true;
+      return;
     }
+
+    try {
+      await video.play();
+      this.enforceLoginVideoAudio(video);
+      this.videoPlaying = !video.paused;
+      this.loginVideoRetryCount = 0;
+    } catch {
+      this.videoPlaying = false;
+      this.scheduleLoginVideoRetry();
+    }
+  }
+
+  private scheduleLoginVideoRetry(): void {
+    if (this.loginVideoRetryCount >= 4) {
+      return;
+    }
+
+    if (this.loginVideoRetryTimer) {
+      clearTimeout(this.loginVideoRetryTimer);
+    }
+
+    this.loginVideoRetryCount += 1;
+    const delayMs = 250 * this.loginVideoRetryCount;
+    this.loginVideoRetryTimer = setTimeout(() => {
+      this.loginVideoRetryTimer = null;
+      void this.initLoginVideo();
+    }, delayMs);
+  }
+
+  private observeLoginVideo(): void {
+    const media = this.loginVideoMediaRef?.nativeElement;
+    if (!media || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    this.loginVideoObserver?.disconnect();
+    this.loginVideoObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void this.initLoginVideo();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    this.loginVideoObserver.observe(media);
   }
 
   toggleMode() {
@@ -957,7 +936,15 @@ export class LoginComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.updateWideLayout();
-    setTimeout(() => this.initLoginVideo(), 150);
+    this.observeLoginVideo();
+    setTimeout(() => void this.initLoginVideo(), 150);
+  }
+
+  ngOnDestroy(): void {
+    this.loginVideoObserver?.disconnect();
+    if (this.loginVideoRetryTimer) {
+      clearTimeout(this.loginVideoRetryTimer);
+    }
   }
 
   ngOnInit() {

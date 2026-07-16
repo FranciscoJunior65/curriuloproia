@@ -361,7 +361,7 @@
             </ul>
 
             <!-- Opção de Currículo em Inglês -->
-            <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled()" class="mb-4">
+            <div *ngIf="plan.id !== 'english' && isEnglishBundleEnabledForPlan(plan.id)" class="mb-4">
               <label class="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
                 <input
                   type="checkbox"
@@ -424,7 +424,7 @@
             </button>
             
             <!-- Total com inglês -->
-            <div *ngIf="plan.id !== 'english' && isEnglishPurchaseEnabled() && includeEnglishResume[plan.id]" class="mt-2 text-center">
+            <div *ngIf="plan.id !== 'english' && isEnglishBundleEnabledForPlan(plan.id) && includeEnglishResume[plan.id]" class="mt-2 text-center">
               <p class="text-xs text-gray-600">
                 Total:
                 <span class="font-semibold text-indigo-600">

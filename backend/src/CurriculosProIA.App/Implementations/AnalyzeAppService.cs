@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using CurriculosProIA.Repository.Interfaces;
 using CurriculosProIA.Repository.Persistence;
 using CurriculosProIA.Service.Interfaces;
+using CurriculosProIA.Service.Helpers;
 using CurriculosProIA.Service.Implementations;
 using CurriculosProIA.Domain.Entities;
 using CurriculosProIA.Domain.Dtos;
@@ -20,10 +21,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-
-
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 
 namespace CurriculosProIA.App.Implementations;
 using CurriculosProIA.App;
@@ -1521,11 +1518,27 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         try
         {
             var provider = await _settings.GetPaymentProviderAsync(cancellationToken);
+            object? kiwifyCheckouts = null;
+            if (string.Equals(provider, "kiwify", StringComparison.OrdinalIgnoreCase))
+            {
+                kiwifyCheckouts = new
+                {
+                    single = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "single", false),
+                    singleEnglish = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "single", true),
+                    pack3 = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "pack3", false),
+                    pack3English = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "pack3", true),
+                    pack5 = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "pack5", false),
+                    pack5English = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "pack5", true),
+                    english = KiwifyConfigHelper.HasCheckoutForPlan(_configuration, "english", false)
+                };
+            }
+
             return Ok(new
             {
                 success = true,
                 provider,
-                providers = _settings.GetValidPaymentProviders()
+                providers = _settings.GetValidPaymentProviders(),
+                kiwifyCheckouts
             });
         }
         catch (Exception ex)
@@ -1653,6 +1666,24 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
                 ?? _configuration["FRONTEND_URL"];
             var couponCode = string.IsNullOrWhiteSpace(body.CouponCode) ? null : body.CouponCode.Trim();
             var includeEnglish = body.IncludeEnglish == true && body.PlanId != "english";
+
+            var paymentProvider = await _settings.GetPaymentProviderAsync(cancellationToken);
+            if (string.Equals(paymentProvider, "kiwify", StringComparison.OrdinalIgnoreCase))
+            {
+                var missingCheckout = TryGetMissingKiwifyCheckout(body.PlanId, includeEnglish);
+                if (missingCheckout != null)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error = "Checkout Kiwify não configurado",
+                        code = "KIWIFY_CHECKOUT_MISSING",
+                        envKey = missingCheckout,
+                        message =
+                            $"Defina {missingCheckout} no backend/.env com o código do link pay.kiwify.com.br."
+                    });
+                }
+            }
 
             var result = await _paymentProvider.CreateProviderCheckoutAsync(
                 body.PlanId,
@@ -2957,6 +2988,14 @@ public class AnalyzeAppService : AppControllerBase, IAnalyzeAppService
         }
 
         return "Cliente CurriculosPro";
+    }
+
+    private string? TryGetMissingKiwifyCheckout(string planId, bool includeEnglish)
+    {
+        var checkoutIncludesEnglish = includeEnglish && !string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase);
+        return KiwifyConfigHelper.HasCheckoutForPlan(_configuration, planId, checkoutIncludesEnglish)
+            ? null
+            : KiwifyConfigHelper.GetCheckoutEnvKey(planId, checkoutIncludesEnglish);
     }
 
 }

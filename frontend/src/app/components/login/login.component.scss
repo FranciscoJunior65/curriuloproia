@@ -98,6 +98,7 @@
     opacity: 1;
     visibility: visible;
     background: #000;
+    pointer-events: none;
   }
 
   &:fullscreen,

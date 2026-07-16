@@ -19,6 +19,21 @@ public static class KiwifyConfigHelper
     public static string? GetWebhookToken(IConfiguration configuration) =>
         configuration["KIWIFY_WEBHOOK_TOKEN"]?.Trim();
 
+    public static string GetCheckoutEnvKey(string planId, bool includeEnglish)
+    {
+        if (string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase))
+        {
+            return "KIWIFY_CHECKOUT_ENGLISH";
+        }
+
+        if (includeEnglish)
+        {
+            return $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH";
+        }
+
+        return $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";
+    }
+
     public static string? GetCheckoutCode(IConfiguration configuration, string planId, bool includeEnglish)
     {
         if (string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase))
@@ -28,13 +43,14 @@ public static class KiwifyConfigHelper
 
         if (includeEnglish)
         {
-            var bundleKey = $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH";
-            return configuration[bundleKey]?.Trim();
+            return configuration[GetCheckoutEnvKey(planId, true)]?.Trim();
         }
 
-        var planKey = $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";
-        return configuration[planKey]?.Trim();
+        return configuration[GetCheckoutEnvKey(planId, false)]?.Trim();
     }
+
+    public static string? BuildMissingCheckoutMessage(string planId, bool includeEnglish) =>
+        $"Link de checkout Kiwify não configurado. Defina {GetCheckoutEnvKey(planId, includeEnglish)} no backend/.env.";
 
     public static string MaskSecret(string? value)
     {

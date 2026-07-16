@@ -1176,11 +1176,7 @@ public class AdminAppService : AppControllerBase, IAdminAppService
         decimal basePriceBRL,
         PricingConfigDto config)
     {
-        var envKey = string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase)
-            ? "KIWIFY_CHECKOUT_ENGLISH"
-            : includeEnglish
-                ? $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH"
-                : $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";
+        var envKey = KiwifyConfigHelper.GetCheckoutEnvKey(planId, includeEnglish);
 
         var checkoutCode = KiwifyConfigHelper.GetCheckoutCode(_configuration, planId, includeEnglish);
 

@@ -144,7 +144,11 @@ public static class EnvFileLoader
         }
 
         // DotNetEnv: não sobrescreve variáveis já definidas no sistema (Plesk com valores reais).
-        Env.Load(path, new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: true));
+        // Normaliza CRLF/CR → LF (arquivos editados no Windows/Mac podem quebrar o parser do DotNetEnv).
+        var envContents = File.ReadAllText(path)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
+        Env.LoadContents(envContents, new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: true));
 
         // Pasta do site (IIS/Plesk): o .env publicado prevalece sobre variáveis do painel.
         if (preferFileOverEmptyEnv)

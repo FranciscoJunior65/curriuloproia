@@ -80,14 +80,12 @@ public class KiwifyService : IKiwifyService
 
         EnsureConfigured();
 
-        var checkoutCode = KiwifyConfigHelper.GetCheckoutCode(_configuration, planId, includeEnglish);
+        var checkoutIncludesEnglish = includeEnglish && !string.Equals(planId, "english", StringComparison.OrdinalIgnoreCase);
+        var checkoutCode = KiwifyConfigHelper.GetCheckoutCode(_configuration, planId, checkoutIncludesEnglish);
         if (string.IsNullOrWhiteSpace(checkoutCode))
         {
-            var envHint = includeEnglish
-                ? $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}_ENGLISH"
-                : $"KIWIFY_CHECKOUT_{planId.ToUpperInvariant()}";
             throw new InvalidOperationException(
-                $"Link de checkout Kiwify não configurado. Defina {envHint} no backend/.env.");
+                KiwifyConfigHelper.BuildMissingCheckoutMessage(planId, checkoutIncludesEnglish));
         }
 
         var customerName = string.IsNullOrWhiteSpace(email)

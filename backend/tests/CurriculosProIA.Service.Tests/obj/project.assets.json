@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
     "net10.0": {
       "BCrypt.Net-Next/4.2.0": {
@@ -3317,40 +3317,32 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\junior\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/juniorbx/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj",
+      "projectUniqueName": "/Users/juniorbx/Documents/GitHub/curriuloproia/frontend/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj",
       "projectName": "CurriculosProIA.Service.Tests",
-      "projectPath": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\CurriculosProIA.Service.Tests.csproj",
-      "packagesPath": "C:\\Users\\junior\\.nuget\\packages\\",
-      "outputPath": "e:\\GIT\\curriuloproia\\backend\\tests\\CurriculosProIA.Service.Tests\\obj\\",
+      "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/frontend/backend/tests/CurriculosProIA.Service.Tests/CurriculosProIA.Service.Tests.csproj",
+      "packagesPath": "/Users/juniorbx/.nuget/packages/",
+      "outputPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/frontend/backend/tests/CurriculosProIA.Service.Tests/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\junior\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/juniorbx/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net10.0": {
-          "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj": {
-              "projectPath": "e:\\GIT\\curriuloproia\\backend\\src\\CurriculosProIA.Service\\CurriculosProIA.Service.csproj"
+            "/Users/juniorbx/Documents/GitHub/curriuloproia/frontend/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj": {
+              "projectPath": "/Users/juniorbx/Documents/GitHub/curriuloproia/frontend/backend/src/CurriculosProIA.Service/CurriculosProIA.Service.csproj"
             }
           }
         }
@@ -3365,11 +3357,10 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.300"
+      "SdkAnalysisLevel": "10.0.200"
     },
     "frameworks": {
       "net10.0": {
-        "framework": "net10.0",
         "targetAlias": "net10.0",
         "dependencies": {
           "Microsoft.NET.Test.Sdk": {
@@ -3405,7 +3396,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.202/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -3688,7 +3679,7 @@
       "code": "NU1902",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "O pacote 'Microsoft.IdentityModel.JsonWebTokens' 7.0.3 tem uma moderado vulnerabilidade de gravidade conhecida, https://github.com/advisories/GHSA-59j7-ghrg-fj52",
+      "message": "Package 'Microsoft.IdentityModel.JsonWebTokens' 7.0.3 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-59j7-ghrg-fj52",
       "libraryId": "Microsoft.IdentityModel.JsonWebTokens",
       "targetGraphs": [
         "net10.0"
@@ -3698,7 +3689,7 @@
       "code": "NU1902",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "O pacote 'System.IdentityModel.Tokens.Jwt' 7.0.3 tem uma moderado vulnerabilidade de gravidade conhecida, https://github.com/advisories/GHSA-59j7-ghrg-fj52",
+      "message": "Package 'System.IdentityModel.Tokens.Jwt' 7.0.3 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-59j7-ghrg-fj52",
       "libraryId": "System.IdentityModel.Tokens.Jwt",
       "targetGraphs": [
         "net10.0"

@@ -243,10 +243,34 @@ export class AnalyzerService {
     return this.http.get(`${this.apiUrl}/analyze/plans`);
   }
 
-  getPaymentProvider(): Observable<{ success: boolean; provider: string; providers: string[] }> {
-    return this.http.get<{ success: boolean; provider: string; providers: string[] }>(
-      `${this.apiUrl}/analyze/payment/provider`
-    );
+  getPaymentProvider(): Observable<{
+    success: boolean;
+    provider: string;
+    providers: string[];
+    kiwifyCheckouts?: {
+      single?: boolean;
+      singleEnglish?: boolean;
+      pack3?: boolean;
+      pack3English?: boolean;
+      pack5?: boolean;
+      pack5English?: boolean;
+      english?: boolean;
+    };
+  }> {
+    return this.http.get<{
+      success: boolean;
+      provider: string;
+      providers: string[];
+      kiwifyCheckouts?: {
+        single?: boolean;
+        singleEnglish?: boolean;
+        pack3?: boolean;
+        pack3English?: boolean;
+        pack5?: boolean;
+        pack5English?: boolean;
+        english?: boolean;
+      };
+    }>(`${this.apiUrl}/analyze/payment/provider`);
   }
 
   createPaymentSession(
