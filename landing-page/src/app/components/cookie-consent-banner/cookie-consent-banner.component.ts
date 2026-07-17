@@ -1,9 +1,11 @@
 import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CookieConsentService } from '../../services/cookie-consent.service';
 
 @Component({
   selector: 'app-cookie-consent-banner',
   standalone: true,
+  imports: [RouterLink],
   templateUrl: './cookie-consent-banner.component.html',
   styleUrl: './cookie-consent-banner.component.css'
 })

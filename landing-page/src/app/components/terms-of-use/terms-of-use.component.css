@@ -1,0 +1,124 @@
+.legal-page {
+  min-height: 100vh;
+  background: #050505;
+  color: #fafafa;
+}
+
+.legal-page__main {
+  padding: 6.5rem 1rem 3rem;
+}
+
+.legal-page__container {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 2.5rem;
+  background: #0c0c0c;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .legal-page__container {
+    padding: 2.5rem 2.5rem 3rem;
+  }
+}
+
+.legal-page__header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.legal-page__header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fafafa;
+}
+
+@media (min-width: 768px) {
+  .legal-page__header h1 {
+    font-size: 2rem;
+  }
+}
+
+.legal-page__updated {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #737373;
+}
+
+.legal-page__content section {
+  margin-bottom: 2rem;
+}
+
+.legal-page__content h2 {
+  margin: 0 0 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f5d78e;
+}
+
+.legal-page__content section:first-of-type h2 {
+  border-top: none;
+  padding-top: 0;
+}
+
+.legal-page__content h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e5e5e5;
+}
+
+.legal-page__content p,
+.legal-page__content li {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: #a3a3a3;
+}
+
+.legal-page__content p {
+  margin: 0 0 0.875rem;
+}
+
+.legal-page__content ul {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.legal-page__content li {
+  margin-bottom: 0.5rem;
+}
+
+.legal-page__content li strong {
+  color: #e5e5e5;
+  font-weight: 600;
+}
+
+.legal-page__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.legal-page__back,
+.legal-page__related {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: #e6b85c;
+}
+
+.legal-page__back:hover,
+.legal-page__related:hover {
+  color: #f5d78e;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
